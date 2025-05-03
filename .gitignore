@@ -30,3 +30,18 @@
 *.exe
 *.out
 *.app
+
+# VS Code directory
+.vscode/
+
+# CMake build directory
+build/
+
+# Other temporary or generated files
+*.swp
+*.swo
+*~
+
+# Cache and log files
+*.log
+*.cache
