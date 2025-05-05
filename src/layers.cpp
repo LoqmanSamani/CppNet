@@ -1,73 +1,105 @@
 #include <Eigen/Dense>
 #include "layers.hpp"
+#include "optimizers.hpp"
+
+
+
+
 
 namespace CppNet
 {
     // a simple implementation of a linear(dense) layer  
-    Linear::Linear(int in_size, int out_size) : in_size_(in_size), out_size_(out_size)
+    Linear::Linear(int in_size, int out_size, std::string layer_name, bool trainable, bool bias) 
+        : trainable_(trainable), in_size_(in_size), out_size_(out_size), bias_(bias), layer_name_(layer_name)
     {
-        // initialize parameters
-        init_params();
-        // initialize gradient matrices with zero
-        grad_weights_ = Eigen::MatrixXd::Zero(in_size_, out_size_);
-        grad_biases_ = Eigen::VectorXd::Zero(out_size_);
-    } 
+        // check if in and out sizes are positive integers
+        if (in_size <= 0 || out_size <= 0)
+        {
+            throw std::runtime_error("in_size and out_size must be positive integers!");
+        }
 
-    void Linear::init_params()
+        // initialize parameters and gradients
+        init_params_and_grads();
+    }
+
+    void Linear::init_params_and_grads()
     {
         std::random_device rd;
         std::mt19937 gen(rd());
 
-        // initializing weights with Xavier method
         double scale = std::sqrt(6.0 / (in_size_ + out_size_));
         std::uniform_real_distribution<> dis(-scale, scale);
 
-        weights_ = Eigen::MatrixXd(in_size_, out_size_);
-        for (int i = 0; i < in_size_; i++)
+        // initializing weights with Xavier method (default method).
+        // one can later change the initialized parameters!
+        weights_ = Eigen::MatrixXd::NullaryExpr(in_size_, out_size_, [&]() { return dis(gen); });
+
+        // initialize weight-gradient matrix with zero
+        grad_weights_ = Eigen::MatrixXd::Zero(in_size_, out_size_);
+
+        if (bias_)
         {
-            for (int j = 0; j < out_size_; j++)
-            {
-                weights_(i, j) = dis(gen);
-            }
+            // initialize biases with zero, if bias_ is true.
+            biases_ = Eigen::VectorXd::Zero(out_size_); 
+            // initialize bias-gradient matrix with zero 
+            grad_biases_ = Eigen::VectorXd::Zero(out_size_);
         }
+        else
+        {
+            // initialize empty biases and gradients when bias is false
+            biases_ = Eigen::VectorXd(0);
+            grad_biases_ = Eigen::VectorXd(0);
+        }
+    }
 
-        // initialize biases with zero
-        biases_ = Eigen::VectorXd::Zero(out_size_);        
-
+    void Linear::update_parameters(Optimizer& optimizer, double learning_rate) {
+        optimizer.update(*this, learning_rate);
     }
 
     Eigen::MatrixXd Linear::forward(const Eigen::MatrixXd& X)
     {
-        // store x to use in gradient calculation
+        // check dimensions
+        if (X.cols() != weights_.rows())
+        {
+            throw std::runtime_error("Shape mismatch: X.cols() must be equal weights_.rows()!");
+        }
+        // store X to use later in gradient calculation
         in_cache_ = X;
 
         Eigen::MatrixXd output = X * weights_;
-        output.rowwise() += biases_.transpose();
-
+        if (bias_)
+        {
+            output.rowwise() += biases_.transpose();
+        }
+        
         return output;
-
     }
 
     Eigen::MatrixXd Linear::backward(const Eigen::MatrixXd& grad_out)
     {
-        // compute weights and biases gradients
-        grad_weights_ = in_cache_.transpose() * grad_out;
-        grad_biases_ = grad_out.colwise().sum(); 
-
-        // compute gradients for previos layer
+        // check dimensions.
+        if (grad_out.rows() != in_cache_.rows())
+        {
+            throw std::runtime_error("Shape mismatch: grad_out.rows() must be equal in_cache_.rows()!");
+        }
+        if (grad_out.cols() != out_size_)
+        {
+            throw std::runtime_error("Shape mismatch: grad_out.cols() must be equal out_size_!");
+        }
+        
+        // check if layer is not frozen
+        if (trainable_)
+        {
+            grad_weights_ = in_cache_.transpose() * grad_out;
+            if (bias_)
+            {
+                grad_biases_ = grad_out.colwise().sum();
+            }
+        }
+        
+        // compute gradients for previous layer
         Eigen::MatrixXd grad_in = grad_out * weights_.transpose();
 
         return grad_in;
-
     }
-
-    void Linear::update_params(double lr)
-    {
-        // update weights and biases 
-        // but if we use a different optimizer!!
-        weights_ -= lr * grad_weights_;
-        biases_ -= lr * grad_weights_;
-
-    }
-    
 }

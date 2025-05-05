@@ -13,6 +13,10 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+
+#find_package(Eigen3 REQUIRED)
+#target_link_libraries(CppNet PRIVATE Eigen3::Eigen)
+
 # find Eigen3 (required for linear algebra)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 if(Eigen3_FOUND)
@@ -97,3 +101,6 @@ message(STATUS "  - Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "  - C++ standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "  - Eigen3: ${EIGEN3_INCLUDE_DIR}")
 message(STATUS "  - OpenMP: ${OpenMP_CXX_FOUND}")
+
+
+target_sources(CppNet PRIVATE src/layers.cpp src/optimizers.cpp)
