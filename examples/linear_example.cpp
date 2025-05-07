@@ -152,27 +152,27 @@ int main()
     // load and split breast cancer dataset
     DataProcessor dp(true);
     Eigen::MatrixXd data = dp.load_data("../examples/breast_cancer.csv", 31, 1.0);
-    Eigen::MatrixXd train_data(450, 31);
-    Eigen::MatrixXd test_data(69, 31);
-    Eigen::MatrixXd val_data(50, 31);
+    Eigen::MatrixXd train_data(500, 31);
+    Eigen::MatrixXd test_data(39, 31);
+    Eigen::MatrixXd val_data(30, 31);
     dp.split_data(data, train_data, test_data, val_data, true);
 
     // model with two hidden layers
-    CppNet::Linear in_layer(30, 40, "TestLayer1", true, true);
+    CppNet::Linear in_layer(30, 50, "TestLayer1", true, true);
     CppNet::ReLU relu1;
-    CppNet::Linear hid1(40, 50, "TestLayer2", true, true);
+    CppNet::Linear hid1(50, 50, "TestLayer2", true, true);
     CppNet::ReLU relu2;
-    CppNet::Linear hid2(50, 20, "TestLayer3", true, true);
+    CppNet::Linear hid2(50, 30, "TestLayer3", true, true);
     CppNet::ReLU relu3;
-    CppNet::Linear out_layer(20, 1, "TestLayer4", true, true);
+    CppNet::Linear out_layer(30, 1, "TestLayer4", true, true);
     CppNet::Sigmoid sigmoid;
     CppNet::SGD optimizer;
     CppNet::BinaryCrossEntropy loss_fn;
 
     // training parameters
-    int epochs = 500;
-    double lr = 0.001;
-    int train_batch_size = 50;
+    int epochs = 1000;
+    double lr = 0.0004;
+    int train_batch_size = 64;
     int val_test_batch_size = 10;
     int num_train_iters = (train_data.rows() + train_batch_size - 1) / train_batch_size;
     int num_val_iters = (val_data.rows() + val_test_batch_size - 1) / val_test_batch_size;
@@ -181,15 +181,15 @@ int main()
     // indices for shuffling
     std::vector<int> train_indices(train_data.rows());
     std::iota(train_indices.begin(), train_indices.end(), 0);
-    std::mt19937 g(42);
+    std::mt19937 g(3);
     
     std::vector<int> val_indices(val_data.rows());
     std::iota(val_indices.begin(), val_indices.end(), 0);
-    std::mt19937 r(42);
+    std::mt19937 r(3);
     
     std::vector<int> test_indices(test_data.rows());
     std::iota(test_indices.begin(), test_indices.end(), 0);
-    std::mt19937 t(42);
+    std::mt19937 t(3);
 
     // training loop
     for (int epoch = 0; epoch < epochs; epoch++) {
@@ -257,7 +257,7 @@ int main()
         // validation
         double val_loss = 0.0;
         double val_acc = 0.0;
-        if (epoch % 100 == 0) {
+        if (epoch % 200 == 0) {
             std::shuffle(val_indices.begin(), val_indices.end(), r);
             int start = 0;
             int end = std::min(val_test_batch_size, static_cast<int>(val_data.rows()));
@@ -293,9 +293,9 @@ int main()
         }
 
         // print progress
-        if (epoch % 20 == 0) {
+        if (epoch % 50 == 0) {
             std::cout << "Epoch: " << epoch << " | Loss: " << mean_loss << " | Acc: " << mean_acc << std::endl;
-            if (epoch % 100 == 0) {
+            if (epoch % 200 == 0) {
                 std::cout << "Val Loss: " << val_loss << " | Val Acc: " << val_acc << std::endl;
             }
         }
@@ -343,47 +343,30 @@ int main()
 }
 
 /*
-Epoch: 0 | Loss: 0.67428 | Acc: 0.604444
-Val Loss: 0.656049 | Val Acc: 0.64
-Epoch: 20 | Loss: 0.592645 | Acc: 0.815556
-Epoch: 40 | Loss: 0.522155 | Acc: 0.877778
-Epoch: 60 | Loss: 0.455956 | Acc: 0.877778
-Epoch: 80 | Loss: 0.405547 | Acc: 0.893333
-Epoch: 100 | Loss: 0.346777 | Acc: 0.92
-Val Loss: 0.34577 | Val Acc: 0.96
-Epoch: 120 | Loss: 0.306703 | Acc: 0.924444
-Epoch: 140 | Loss: 0.275761 | Acc: 0.922222
-Epoch: 160 | Loss: 0.244231 | Acc: 0.937778
-Epoch: 180 | Loss: 0.231225 | Acc: 0.928889
-Epoch: 200 | Loss: 0.21449 | Acc: 0.935556
-Val Loss: 0.237781 | Val Acc: 0.94
-Epoch: 220 | Loss: 0.181874 | Acc: 0.955556
-Epoch: 240 | Loss: 0.181832 | Acc: 0.942222
-Epoch: 260 | Loss: 0.177714 | Acc: 0.94
-Epoch: 280 | Loss: 0.148196 | Acc: 0.957778
-Epoch: 300 | Loss: 0.148574 | Acc: 0.946667
-Val Loss: 0.181826 | Val Acc: 0.98
-Epoch: 320 | Loss: 0.133869 | Acc: 0.96
-Epoch: 340 | Loss: 0.129909 | Acc: 0.962222
-Epoch: 360 | Loss: 0.131484 | Acc: 0.96
-Epoch: 380 | Loss: 0.113087 | Acc: 0.975556
-Epoch: 400 | Loss: 0.13055 | Acc: 0.948889
-Val Loss: 0.224183 | Val Acc: 0.92
-Epoch: 420 | Loss: 0.121789 | Acc: 0.96
-Epoch: 440 | Loss: 0.112659 | Acc: 0.962222
-Epoch: 460 | Loss: 0.133038 | Acc: 0.953333
-Epoch: 480 | Loss: 0.0977687 | Acc: 0.977778
-Epoch: 500 | Loss: 0.0930211 | Acc: 0.973333
-Val Loss: 0.50318 | Val Acc: 0.84
-Epoch: 520 | Loss: 0.109315 | Acc: 0.966667
-Epoch: 540 | Loss: 0.103423 | Acc: 0.964444
-Epoch: 560 | Loss: 0.100491 | Acc: 0.973333
-Epoch: 580 | Loss: 0.104932 | Acc: 0.971111
-Epoch: 600 | Loss: 0.0815216 | Acc: 0.98
-Val Loss: 0.208696 | Val Acc: 0.96
-Epoch: 620 | Loss: 0.0874877 | Acc: 0.971111
-Epoch: 640 | Loss: 0.109313 | Acc: 0.96
-Epoch: 660 | Loss: 0.0825294 | Acc: 0.977778
-Epoch: 680 | Loss: 0.0802216 | Acc: 0.975556
-Test Loss: 0.3449 | Test Acc: 0.9
+Epoch: 0 | Loss: 0.713147 | Acc: 0.535156
+Val Loss: 0.683769 | Val Acc: 0.6
+Epoch: 50 | Loss: 0.630926 | Acc: 0.70598
+Epoch: 100 | Loss: 0.559367 | Acc: 0.835487
+Epoch: 150 | Loss: 0.498512 | Acc: 0.883113
+Epoch: 200 | Loss: 0.448419 | Acc: 0.894832
+Val Loss: 0.426632 | Val Acc: 0.966667
+Epoch: 250 | Loss: 0.403878 | Acc: 0.905499
+Epoch: 300 | Loss: 0.364154 | Acc: 0.919171
+Epoch: 350 | Loss: 0.327517 | Acc: 0.928786
+Epoch: 400 | Loss: 0.298371 | Acc: 0.937049
+Val Loss: 0.335642 | Val Acc: 0.966667
+Epoch: 450 | Loss: 0.275099 | Acc: 0.936148
+Epoch: 500 | Loss: 0.252413 | Acc: 0.934195
+Epoch: 550 | Loss: 0.236108 | Acc: 0.936599
+Epoch: 600 | Loss: 0.218971 | Acc: 0.939153
+Val Loss: 0.295053 | Val Acc: 0.866667
+Epoch: 650 | Loss: 0.211909 | Acc: 0.943059
+Epoch: 700 | Loss: 0.189925 | Acc: 0.944862
+Epoch: 750 | Loss: 0.19102 | Acc: 0.945463
+Epoch: 800 | Loss: 0.179737 | Acc: 0.941106
+Val Loss: 0.376934 | Val Acc: 0.833333
+Epoch: 850 | Loss: 0.169806 | Acc: 0.945463
+Epoch: 900 | Loss: 0.166353 | Acc: 0.94351
+Epoch: 950 | Loss: 0.168052 | Acc: 0.938101
+Test Loss: 0.187232 | Test Acc: 0.947222
 */
