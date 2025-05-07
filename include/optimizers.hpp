@@ -4,10 +4,11 @@
 #include "layers.hpp"
 
 namespace CppNet {
+    
     class Optimizer {
-    public:
-        virtual void update(Linear& layer, double learning_rate) = 0;
-        virtual ~Optimizer() = default;
+        public:
+            virtual void update(Linear& layer, double learning_rate) = 0;
+            virtual ~Optimizer() = default;
     };
 
     class SGD : public Optimizer {
