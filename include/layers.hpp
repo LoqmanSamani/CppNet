@@ -88,7 +88,7 @@ namespace CppNet
             );
 
             Eigen::Tensor<double, 4> forward(Eigen::Tensor<double, 4>& X);
-            Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_out);
+            Eigen::Tensor<double, 4> backward(Eigen::Tensor<double, 4>& grad_out);
 
             void reset_grads() {
                 grad_weights_.setZero();
@@ -99,11 +99,17 @@ namespace CppNet
 
             Eigen::Tensor<double, 4>& get_weights() { return weights_; }
             const Eigen::Tensor<double, 4>& get_weights() const { return weights_; }
+
+            //Eigen::Tensor<double, 3>& get_weights() { return weights_; }
+            //const Eigen::Tensor<double, 3>& get_weights() const { return weights_; }
+
             Eigen::VectorXd& get_biases() { return biases_; }
             const Eigen::VectorXd& get_biases() const { return biases_; }
             const Eigen::Tensor<double, 4>& get_grad_weights() const { return grad_weights_; }
+            //const Eigen::Tensor<double, 3>& get_grad_weights() const { return grad_weights_; }
             const Eigen::VectorXd& get_grad_biases() const { return grad_biases_; }
             void set_weights(const Eigen::Tensor<double, 4>& weights) { weights_ = weights; }
+            //void set_weights(const Eigen::Tensor<double, 3>& weights) { weights_ = weights; }
             void set_biases(const Eigen::VectorXd& biases) { biases_ = biases; }
             std::string get_layer_name() const { return layer_name_; }
             bool is_trainable() const override { return trainable_; }
@@ -126,10 +132,12 @@ namespace CppNet
             std::tuple<int, int> kernel_size_;
             std::string layer_name_;
             Eigen::Tensor<double, 4> weights_;
+            //Eigen::Tensor<double, 3> weights_;
             Eigen::VectorXd biases_;
             Eigen::Tensor<double, 4> in_cache_;
             Eigen::Tensor<double, 4> output_;
             Eigen::Tensor<double, 4> grad_weights_;
+            //Eigen::Tensor<double, 3> grad_weights_;
             Eigen::VectorXd grad_biases_;
 
             // input shape

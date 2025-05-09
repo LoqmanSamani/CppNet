@@ -12,15 +12,15 @@ namespace CppNet
     {
     public:
         // compute ReLU activation: max(0, z)
-        Eigen::MatrixXd forward(const Eigen::MatrixXd& z);
+        Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z);
         // compute gradient of ReLU
-        Eigen::MatrixXd backward(const Eigen::MatrixXd& da);
+        Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da);
 
         bool is_trainable() const override { return false; }
         void update_parameters(Optimizer&, double) override {}
 
     private:
-        Eigen::MatrixXd in_cache_;
+        Eigen::Tensor<double, 2> in_cache_;
     };
 
     class Sigmoid : public Layer

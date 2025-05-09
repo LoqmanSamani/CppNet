@@ -6,7 +6,7 @@
 
 namespace CppNet
 {
-    Eigen::MatrixXd ReLU::forward(const Eigen::MatrixXd& z)
+    Eigen::Tensor<double, 2> ReLU::forward(const Eigen::Tensor<double, 2>& z)
     {
         // validate input
         if (z.size() == 0) 
@@ -15,20 +15,21 @@ namespace CppNet
         }
 
         in_cache_ = z;
-        return z.array().cwiseMax(0.0);
+        return z.cwiseMax(z.constant(0.0));
     }
 
-    Eigen::MatrixXd ReLU::backward(const Eigen::MatrixXd& da)
+    Eigen::Tensor<double, 2> ReLU::backward(const Eigen::Tensor<double, 2>& da)
     {
         // validate input
-        if (da.rows() != in_cache_.rows() || da.cols() != in_cache_.cols() || da.size() == 0) 
+        if (da.dimension(0) != in_cache_.dimension(0) || da.dimension(1) != in_cache_.dimension(1) || da.size() == 0) 
         {
             throw std::runtime_error("Shape mismatch or empty input: da and in_cache_ must have equal non-zero size!");
         }
 
         // compute gradient: da * (z > 0)
-        Eigen::MatrixXd grad = da;
-        grad.array() *= (in_cache_.array() > 0).cast<double>();
+        Eigen::Tensor<double, 2> grad = da;
+        grad = da * (in_cache_ > in_cache_.constant(0.0)).template cast<double>();
+
         return grad;
     }
 
