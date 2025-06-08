@@ -9,6 +9,7 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <unsupported/Eigen/CXX11/Tensor>
 
 
 
@@ -157,17 +158,37 @@ int main()
     Eigen::MatrixXd val_data(30, 31);
     dp.split_data(data, train_data, test_data, val_data, true);
 
+    // convert training, val and test datasets to tensor
+    Eigen::TensorMap<Eigen::Tensor<double, 2>> train_tensor(
+        train_data.data(),
+        train_data.rows(),
+        train_data.cols()
+    );
+
+    Eigen::TensorMap<Eigen::Tensor<double, 2>> test_tensor(
+        test_data.data(), 
+        test_data.rows(), 
+        test_data.cols()
+    );
+
+    Eigen::TensorMap<Eigen::Tensor<double, 2>> val_tensor(
+        val_data.data(), 
+        val_data.rows(), 
+        val_data.cols()
+    );
+
+
     // model with two hidden layers
-    CppNet::Linear in_layer(30, 50, "TestLayer1", true, true);
-    CppNet::ReLU relu1;
-    CppNet::Linear hid1(50, 50, "TestLayer2", true, true);
-    CppNet::ReLU relu2;
-    CppNet::Linear hid2(50, 30, "TestLayer3", true, true);
-    CppNet::ReLU relu3;
-    CppNet::Linear out_layer(30, 1, "TestLayer4", true, true);
-    CppNet::Sigmoid sigmoid;
-    CppNet::SGD optimizer;
-    CppNet::BinaryCrossEntropy loss_fn;
+    CppNet::Layers::Linear in_layer(30, 50, "TestLayer1", true, true);
+    CppNet::Activations::ReLU relu1;
+    CppNet::Layers::Linear hid1(50, 50, "TestLayer2", true, true);
+    CppNet::Activations::ReLU relu2;
+    CppNet::Layers::Linear hid2(50, 30, "TestLayer3", true, true);
+    CppNet::Activations::ReLU relu3;
+    CppNet::Layers::Linear out_layer(30, 1, "TestLayer4", true, true);
+    CppNet::Activations::Sigmoid sigmoid;
+    CppNet::Optimizers::SGD optimizer;
+    CppNet::Losses::BinaryCrossEntropy loss_fn;
 
     // training parameters
     int epochs = 1000;
@@ -204,28 +225,43 @@ int main()
         
         for (int iter = 0; iter < num_train_iters; iter++) {
             int batch_size = end - start;
-            Eigen::MatrixXd x_batch(batch_size, train_data.cols()-1);
-            Eigen::MatrixXd y_batch(batch_size, 1);
+            Eigen::MatrixXd x_batch_(batch_size, train_data.cols()-1);
+            Eigen::MatrixXd y_batch_(batch_size, 1);
 
             // slice indices
             auto first = train_indices.begin() + start;
             auto last = train_indices.begin() + end;
             std::vector<int> indices_(first, last);
             
-            dp.prepare_batch(train_data, x_batch, y_batch, indices_);
-            standardize(x_batch);
+            dp.prepare_batch(train_data, x_batch_, y_batch_, indices_);
+            standardize(x_batch_);
+
+            Eigen::TensorMap<Eigen::Tensor<double, 2>> x_batch(
+                x_batch_.data(),
+                x_batch_.rows(),
+                x_batch_.cols()
+            );
+
+            Eigen::TensorMap<Eigen::Tensor<double, 2>> y_batch(
+                y_batch_.data(), 
+                y_batch_.rows(), 
+                y_batch_.cols()
+            );
 
             // forward propagation
-            Eigen::MatrixXd output1 = relu1.forward(in_layer.forward(x_batch));
-            Eigen::MatrixXd output2 = relu2.forward(hid1.forward(output1));
-            Eigen::MatrixXd output3 = relu3.forward(hid2.forward(output2));
-            Eigen::MatrixXd output4 = sigmoid.forward(out_layer.forward(output3));
+            Eigen::Tensor<double, 2> output1 = relu1.forward(in_layer.forward(x_batch));
+            Eigen::Tensor<double, 2> output2 = relu2.forward(hid1.forward(output1));
+            Eigen::Tensor<double, 2> output3 = relu3.forward(hid2.forward(output2));
+            Eigen::Tensor<double, 2> output4 = sigmoid.forward(out_layer.forward(output3));
 
             // compute loss and accuracy
             double loss = loss_fn.forward(y_batch, output4);
             epoch_loss += loss;
-            Eigen::MatrixXd pred = (output4.array() > 0.5).cast<double>();
-            double acc = (pred.array() == y_batch.array()).cast<double>().mean();
+            Eigen::Map<Eigen::MatrixXd> output_map(output4.data(), output4.dimension(0), output4.dimension(1));
+            Eigen::Map<Eigen::MatrixXd> y_map(y_batch.data(), y_batch.dimension(0), y_batch.dimension(1));
+
+            Eigen::MatrixXd pred_matrix = (output_map.array() > 0.5).cast<double>();
+            double acc = (pred_matrix.array() == y_map.array()).cast<double>().mean();
             epoch_acc += acc;
 
             // reset gradients
@@ -235,11 +271,11 @@ int main()
             out_layer.reset_grads();
 
             // backward propagation
-            Eigen::MatrixXd grad_out = loss_fn.backward(output4, y_batch);
-            Eigen::MatrixXd grad_in1 = out_layer.backward(sigmoid.backward(grad_out));
-            Eigen::MatrixXd grad_in2 = hid2.backward(relu3.backward(grad_in1));
-            Eigen::MatrixXd grad_in3 = hid1.backward(relu2.backward(grad_in2));
-            Eigen::MatrixXd grad_in4 = in_layer.backward(relu1.backward(grad_in3));
+            Eigen::Tensor<double, 2> grad_out = loss_fn.backward(output4, y_batch);
+            Eigen::Tensor<double, 2> grad_in1 = out_layer.backward(sigmoid.backward(grad_out));
+            Eigen::Tensor<double, 2> grad_in2 = hid2.backward(relu3.backward(grad_in1));
+            Eigen::Tensor<double, 2> grad_in3 = hid1.backward(relu2.backward(grad_in2));
+            Eigen::Tensor<double, 2> grad_in4 = in_layer.backward(relu1.backward(grad_in3));
 
             // update parameters
             in_layer.update_parameters(optimizer, lr);

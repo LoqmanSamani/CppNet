@@ -2,41 +2,56 @@
 #define ACTIVATIONS_HPP
 
 #include <Eigen/Dense>
+#include <unsupported/Eigen/CXX11/Tensor>
 #include "layers.hpp"
+
 
 
 
 namespace CppNet
 {
-    class ReLU : public Layer
+    namespace Activations
     {
-    public:
-        // compute ReLU activation: max(0, z)
-        Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z);
-        // compute gradient of ReLU
-        Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da);
+        class ReLU : public Layers::Layer
+        {
+            public:
 
-        bool is_trainable() const override { return false; }
-        void update_parameters(Optimizer&, double) override {}
+                // compute ReLU activation: max(0, z)
+                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z);
 
-    private:
-        Eigen::Tensor<double, 2> in_cache_;
-    };
+                // compute gradient of ReLU
+                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da);
 
-    class Sigmoid : public Layer
-    {
-    public:
-        // compute sigmoid activation: 1 / (1 + exp(-z))
-        Eigen::MatrixXd forward(const Eigen::MatrixXd& z);
-        // compute gradient of sigmoid
-        Eigen::MatrixXd backward(const Eigen::MatrixXd& da);
+                bool is_trainable() const override { return false; }
+                void update_parameters(Optimizer&, double) override {}
 
-        bool is_trainable() const override { return false; }
-        void update_parameters(Optimizer&, double) override {}
+            private:
 
-    private:
-        Eigen::MatrixXd in_cache_;
-    };
+                Eigen::Tensor<double, 2> in_cache_;
+        };
+
+        class Sigmoid : public Layers::Layer
+        {
+            public:
+
+                // compute sigmoid activation: 1 / (1 + exp(-z))
+                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z);
+
+                // compute gradient of sigmoid
+                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da);
+
+                bool is_trainable() const override { return false; }
+                void update_parameters(Optimizer&, double) override {}
+
+            private:
+
+                Eigen::Tensor<double, 2> in_cache_;
+                Eigen::Tensor<double, 2> sigmoid_cache_;
+        };
+    }
 }
+
+
+
 
 #endif // ACTIVATIONS_HPP
