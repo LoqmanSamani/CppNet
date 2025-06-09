@@ -300,27 +300,42 @@ int main()
             
             for (int iter = 0; iter < num_val_iters; iter++) {
                 int batch_size = end - start;
-                Eigen::MatrixXd x_batch(batch_size, val_data.cols()-1);
-                Eigen::MatrixXd y_batch(batch_size, 1);
+                Eigen::MatrixXd x_batch_(batch_size, val_data.cols()-1);
+                Eigen::MatrixXd y_batch_(batch_size, 1);
             
                 auto first = val_indices.begin() + start;
                 auto last = val_indices.begin() + end;
                 std::vector<int> indices_(first, last);
                 
-                dp.prepare_batch(val_data, x_batch, y_batch, indices_);
-                standardize(x_batch);
+                dp.prepare_batch(val_data, x_batch_, y_batch_, indices_);
+                standardize(x_batch_);
+
+                Eigen::TensorMap<Eigen::Tensor<double, 2>> x_batch(
+                    x_batch_.data(),
+                    x_batch_.rows(),
+                    x_batch_.cols()
+                );
+
+                Eigen::TensorMap<Eigen::Tensor<double, 2>> y_batch(
+                    y_batch_.data(), 
+                    y_batch_.rows(), 
+                    y_batch_.cols()
+                );
+
 
                 // forward propagation
-                Eigen::MatrixXd output1 = relu1.forward(in_layer.forward(x_batch));
-                Eigen::MatrixXd output2 = relu2.forward(hid1.forward(output1));
-                Eigen::MatrixXd output3 = relu3.forward(hid2.forward(output2));
-                Eigen::MatrixXd output4 = sigmoid.forward(out_layer.forward(output3));
+                Eigen::Tensor<double, 2> output1 = relu1.forward(in_layer.forward(x_batch));
+                Eigen::Tensor<double, 2> output2 = relu2.forward(hid1.forward(output1));
+                Eigen::Tensor<double, 2> output3 = relu3.forward(hid2.forward(output2));
+                Eigen::Tensor<double, 2> output4 = sigmoid.forward(out_layer.forward(output3));
 
                 // compute loss and accuracy
                 val_loss += loss_fn.forward(y_batch, output4);
-                Eigen::MatrixXd pred = (output4.array() > 0.5).cast<double>();
-                val_acc += (pred.array() == y_batch.array()).cast<double>().mean();
-
+                Eigen::Map<Eigen::MatrixXd> output_map(output4.data(), output4.dimension(0), output4.dimension(1));
+                Eigen::Map<Eigen::MatrixXd> y_map(y_batch.data(), y_batch.dimension(0), y_batch.dimension(1));
+                Eigen::MatrixXd pred_matrix = (output_map.array() > 0.5).cast<double>();
+                val_acc += (pred_matrix.array() == y_map.array()).cast<double>().mean();
+                
                 start = end;
                 end = std::min(end + val_test_batch_size, static_cast<int>(val_data.rows()));
             }
@@ -346,26 +361,40 @@ int main()
     
     for (int iter = 0; iter < num_test_iters; iter++) {
         int batch_size = end - start;
-        Eigen::MatrixXd x_batch(batch_size, test_data.cols()-1);
-        Eigen::MatrixXd y_batch(batch_size, 1);
+        Eigen::MatrixXd x_batch_(batch_size, test_data.cols()-1);
+        Eigen::MatrixXd y_batch_(batch_size, 1);
     
         auto first = test_indices.begin() + start;
         auto last = test_indices.begin() + end;
         std::vector<int> indices_(first, last);
         
-        dp.prepare_batch(test_data, x_batch, y_batch, indices_);
-        standardize(x_batch);
+        dp.prepare_batch(test_data, x_batch_, y_batch_, indices_);
+        standardize(x_batch_);
+
+        Eigen::TensorMap<Eigen::Tensor<double, 2>> x_batch(
+            x_batch_.data(),
+            x_batch_.rows(),
+            x_batch_.cols()
+        );
+
+        Eigen::TensorMap<Eigen::Tensor<double, 2>> y_batch(
+            y_batch_.data(), 
+            y_batch_.rows(), 
+            y_batch_.cols()
+        );
 
         // forward propagation
-        Eigen::MatrixXd output1 = relu1.forward(in_layer.forward(x_batch));
-        Eigen::MatrixXd output2 = relu2.forward(hid1.forward(output1));
-        Eigen::MatrixXd output3 = relu3.forward(hid2.forward(output2));
-        Eigen::MatrixXd output4 = sigmoid.forward(out_layer.forward(output3));
+        Eigen::Tensor<double, 2> output1 = relu1.forward(in_layer.forward(x_batch));
+        Eigen::Tensor<double, 2> output2 = relu2.forward(hid1.forward(output1));
+        Eigen::Tensor<double, 2> output3 = relu3.forward(hid2.forward(output2));
+        Eigen::Tensor<double, 2> output4 = sigmoid.forward(out_layer.forward(output3));
 
         // compute loss and accuracy
         test_loss += loss_fn.forward(y_batch, output4);
-        Eigen::MatrixXd pred = (output4.array() > 0.5).cast<double>();
-        test_acc += (pred.array() == y_batch.array()).cast<double>().mean();
+        Eigen::Map<Eigen::MatrixXd> output_map(output4.data(), output4.dimension(0), output4.dimension(1));
+        Eigen::Map<Eigen::MatrixXd> y_map(y_batch.data(), y_batch.dimension(0), y_batch.dimension(1));
+        Eigen::MatrixXd pred_matrix = (output_map.array() > 0.5).cast<double>();
+        test_acc += (pred_matrix.array() == y_map.array()).cast<double>().mean();
 
         start = end;
         end = std::min(end + val_test_batch_size, static_cast<int>(test_data.rows()));
