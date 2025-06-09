@@ -27,7 +27,7 @@ namespace CppNet
             }
 
             // initialize parameters and gradients
-            Linear::init_params_and_grads();
+            init_params_and_grads();
         }
 
         void Linear::init_params_and_grads()
@@ -139,278 +139,231 @@ namespace CppNet
 
 
         Conv2d::Conv2d(
-            int in_channels, int out_channels, Activations::Activation& activator, std::tuple<int, int> kernel_size,
-            std::tuple<int, int> stride, std::string padding, std::tuple<int, int> num_padding, std::string padding_mode,
-            std::string layer_name, bool trainable, bool bias): 
-            in_channels_(in_channels), out_channels_(out_channels), activator_(activator),
-            kernel_size_(kernel_size), stride_(stride), padding_(padding), num_padding_(num_padding),
-            padding_mode_(padding_mode), layer_name_(layer_name), trainable_(trainable), bias_(bias)
-            {
-            // check if in and out sizes are positive integers
-
+            int in_channels, int out_channels, Activations::Activation* activator, 
+            std::tuple<int, int> kernel_size, std::tuple<int, int> stride, 
+            std::string padding, std::tuple<int, int, int, int> num_padding, 
+            std::string padding_mode, std::string layer_name, bool trainable, bool bias): 
+            in_channels_(in_channels), out_channels_(out_channels), 
+            kernel_size_(kernel_size), stride_(stride), padding_(padding), 
+            num_padding_(num_padding), padding_mode_(padding_mode), 
+            layer_name_(layer_name), trainable_(trainable), bias_(bias)
+        {
             if (in_channels <= 0 || out_channels <= 0)
             {
-                throw std::runtime_error("in_chnnels and out_channels of layer: " + layer_name + " must be positive integers!");
+                throw std::runtime_error("in_channels and out_channels of layer: " + layer_name + " must be positive integers!");
             }
 
-        
             if (layer_name.empty()) 
             {
-            layer_name_ = "Conv2D_" + std::to_string(in_channels_) + "x" + std::to_string(out_channels_);
+                layer_name_ = "Conv2D_" + std::to_string(in_channels_) + "x" + std::to_string(out_channels_);
             }
 
-            // initialize filters, biases and gradients 
-            Conv2d::init_params_and_grads()
+            // handle activator
+            if (activator == nullptr) {
+                default_relu_ = std::make_unique<Activations::ReLU>();
+                activator_ = default_relu_.get();
+            } else {
+                activator_ = activator;
             }
+
+            // initialize parameters and gradients
+            init_params_and_grads();
+        }
 
         void Conv2d::init_params_and_grads()
         {
             std::random_device rd;
             std::mt19937 gen(rd());
 
-            // scaling factor for Xavier initialization
-            double scale = std::sqrt(6.0 / (in_channels_ + out_channels_));
+            // Xavier initialization
+            int fan_in = in_channels_ * std::get<0>(kernel_size_) * std::get<1>(kernel_size_);
+            int fan_out = out_channels_ * std::get<0>(kernel_size_) * std::get<1>(kernel_size_);
+            double scale = std::sqrt(6.0 / (fan_in + fan_out));
             std::uniform_real_distribution<> dis(-scale, scale);
 
-            // initialize weight-tensor
+            // initialize weights: [out_channels, in_channels, kernel_h, kernel_w]
             weights_ = Eigen::Tensor<double, 4>(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
 
-            for (int i = 0; i < out_channels; i++)
+            for (int oc = 0; oc < out_channels_; ++oc)
             {
-                for (int j = 0; j < in_channels; j++)
+                for (int ic = 0; ic < in_channels_; ++ic)
                 {
-                    for (int k = 0; k < std::get<0>(kernel_size_); k++)
+                    for (int kh = 0; kh < std::get<0>(kernel_size_); ++kh)
                     {
-                        for (int l = 0; l < std::get<1>(kernel_size_); l++)
+                        for (int kw = 0; kw < std::get<1>(kernel_size_); ++kw)
                         {
-                            weights_(i, j, k, l) = dis(gen);
+                            weights_(oc, ic, kh, kw) = dis(gen);
                         }
                     }
                 }
             }
 
-            // initialize weight-gradient matrix with zero
+            // initialize gradients
             grad_weights_ = Eigen::Tensor<double, 4>(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
             grad_weights_.setZero();
 
             if (bias_)
             {
-                // initialize biases with zero, if bias_ is true.
-                biases_ = Eigen::Tensor<double, 1>(out_channels_)
+                biases_ = Eigen::Tensor<double, 1>(out_channels_);
                 biases_.setZero(); 
-                // initialize bias-gradient matrix with zero 
-                grad_biases_ = Eigen::Tensor<double, 1>(out_channels_)
-                biases_.setZero(); 
+                grad_biases_ = Eigen::Tensor<double, 1>(out_channels_);
+                grad_biases_.setZero(); 
             }
             else
             {
-                // initialize empty biases and gradients when bias is false
                 biases_ = Eigen::Tensor<double, 1>(0);
                 grad_biases_ = Eigen::Tensor<double, 1>(0);
             }
-
         }
 
-        void Conv2d::update_parameters(Optimizers::Optimizer& optimizer, double learning_rate)
+        Eigen::Tensor<double, 4> Conv2d::pad_input(const Eigen::Tensor<double, 4>& X)
         {
-            optimizer.update(*this, learning_rate);
-        }
-
-        Eigen::Tensor<double, 4> Conv2d::pad_input(Eigen::Tensor<double, 4>& X)
-        {
-            Eigen::Tensor<double, 4> pad_x(B_, C_, H_, W_);
-            pad_x.setZero();
-
-            // TODO: implement other methods
-
+            // num_padding_ = (left, right, top, bottom)
+            int pad_left = std::get<0>(num_padding_);
+            int pad_right = std::get<1>(num_padding_);
+            int pad_top = std::get<2>(num_padding_);
+            int pad_bottom = std::get<3>(num_padding_);
+            
+            int padded_h = H_ + pad_top + pad_bottom;
+            int padded_w = W_ + pad_left + pad_right;
+            
+            Eigen::Tensor<double, 4> padded_x(B_, C_, padded_h, padded_w);
+            
             if (padding_mode_ == "zero")
             {
-
-                for (int i = 0; i < B_; i++)
+                padded_x.setZero();
+                
+                // copy original data to the center of padded tensor
+                for (int b = 0; b < B_; ++b)
                 {
-                    for (int j = 0; j < C_; j++)
+                    for (int c = 0; c < C_; ++c)
                     {
-                        for (int h = std::get<2>(num_padding_); h < X.dimension(2) - std::get<2>(num_padding_) - std::get<3>(num_padding_); h++)
-
+                        for (int h = 0; h < H_; ++h)
                         {
-                            for (int w = std::get<0>(num_padding_); w < X.dimension(3) - std::get<0>(num_padding_) - std::get<1>(num_padding_); w++)
+                            for (int w = 0; w < W_; ++w)
                             {
-                                pad_x(i, j, h, w) = X(i, j, h, w);
+                                padded_x(b, c, h + pad_top, w + pad_left) = X(b, c, h, w);
                             }
                         }
                     }
-
                 }
             }
-        
-            return pad_x;
+            
+            return padded_x;
+        }
 
+        void Conv2d::init_output()
+        {
+            if (padding_ == "valid" || padding_ == "none")
+            {
+                // calculate output dimensions
+                int pad_h = std::get<2>(num_padding_) + std::get<3>(num_padding_); // top + bottom
+                int pad_w = std::get<0>(num_padding_) + std::get<1>(num_padding_); // left + right
+                
+                h_ = (H_ + pad_h - std::get<0>(kernel_size_)) / std::get<0>(stride_) + 1;
+                w_ = (W_ + pad_w - std::get<1>(kernel_size_)) / std::get<1>(stride_) + 1;
+            }
+            else if (padding_ == "same")
+            {
+                // for "same" padding, output size equals input size (when stride=1)
+                h_ = (H_ + std::get<0>(stride_) - 1) / std::get<0>(stride_);
+                w_ = (W_ + std::get<1>(stride_) - 1) / std::get<1>(stride_);
+            }
+
+            // initialize output tensor
+            output_ = Eigen::Tensor<double, 4>(B_, out_channels_, h_, w_);
+            output_.setZero();
         }
 
         Eigen::Tensor<double, 4> Conv2d::forward(Eigen::Tensor<double, 4>& X)
         {
-
+            // cache input for backward pass
+            in_cache_ = X;
+            
+            // get input dimensions
             B_ = X.dimension(0); // batch
-            C_ = X.dimension(1); // channels
-            H_ = X.dimension(2); // heigth
-            W_ = X.dimension(3); // weigth
+            C_ = X.dimension(1); // channels  
+            H_ = X.dimension(2); // height
+            W_ = X.dimension(3); // width
 
-            const int pad_h = std::get<1>(num_padding_);
-            const int pad_w = std::get<0>(num_padding_);
+            // validate input channels
+            if (C_ != in_channels_) 
+            {
+                throw std::runtime_error("Input channels mismatch in layer: " + layer_name_);
+            }
+
             const int k_h = std::get<0>(kernel_size_);
             const int k_w = std::get<1>(kernel_size_);
             const int stride_h = std::get<0>(stride_);
             const int stride_w = std::get<1>(stride_);
 
-            // output dims
-            //int H_out = (H_ + 2 * pad_h - K_h) / stride_h + 1;
-            //int W_out = (W_ + 2 * pad_w - K_w) / stride_w + 1;
+            // pad input if needed
+            Eigen::Tensor<double, 4> input_to_use = X;
+            if (padding_ != "valid" && (std::get<0>(num_padding_) > 0 || std::get<1>(num_padding_) > 0 || std::get<2>(num_padding_) > 0 || std::get<3>(num_padding_) > 0)) 
+            {
+                input_to_use = pad_input(X);
+            }
 
-            // pad input
-            Eigen::Tensor<double, 4> pad_x = Conv2d::pad_input(X); // shape: [B_, C_, h_, w_]
+            // initialize output tensor
+            init_output();
 
-            // output tensor
-            Eigen::Tensor<double, 4> output(B_, out_channels_, h_, w_);
-            output.setZero();
-
-
-            // initialize weight-tensor
-            weights_ = Eigen::Tensor<double, 2>(in_channels_, out_channels_);
-
+            // perform convolution
             for (int b = 0; b < B_; ++b)
             {
                 for (int oc = 0; oc < out_channels_; ++oc)
                 {
-                    Eigen::Tensor<double, 2> z(h_, w_);
-                    z.setZero();
-
-                    for (int ic = 0; ic < C_; ++ic)
+                    for (int oh = 0; oh < h_; ++oh)
                     {
-
-                        for (int h = 0; h < h_; ++h)
+                        for (int ow = 0; ow < w_; ++ow)
                         {
-                            int h_start = h * stride_h;
-
-                            for (int w = 0; w < w_; ++w)
+                            double conv_sum = 0.0;
+                            
+                            // convolution over all input channels
+                            for (int ic = 0; ic < in_channels_; ++ic)
                             {
-                                int w_start = w * stride_w
-
-                                // extract patch from input
-                                Eigen::array<Eigen::Index, 4> x_offsets = {b, ic, h_start, w_start};
-                                Eigen::array<Eigen::Index, 4> x_extents = {1, 1, K_h, K_w};
-                                auto patch = pad_x.slice(x_offsets, x_extents).reshape(Eigen::array<Eigen::Index, 2>{K_h, K_w});
-
-                                // extract corresponding filter
-                                Eigen::array<Eigen::Index, 4> w_offsets = {oc, ic, 0, 0};
-                                Eigen::array<Eigen::Index, 4> w_extents = {1, 1, K_h, K_w};
-                                auto filter = weights_.slice(w_offsets, w_extents).reshape(Eigen::array<Eigen::Index, 2>{K_h, K_w});
-
-                                // wlement-wise multiply and accumulate
-
-                                double conv_val = (patch * filter).sum();
-                                z(h, w) += conv_val;
-
-
+                                for (int kh = 0; kh < k_h; ++kh)
+                                {
+                                    for (int kw = 0; kw < k_w; ++kw)
+                                    {
+                                        int ih = oh * stride_h + kh;
+                                        int iw = ow * stride_w + kw;
+                                        
+                                        // bounds checking
+                                        if (ih >= 0 && ih < input_to_use.dimension(2) && iw >= 0 && iw < input_to_use.dimension(3))
+                                        {
+                                            conv_sum += input_to_use(b, ic, ih, iw) * weights_(oc, ic, kh, kw);
+                                        }
+                                    }
+                                }
                             }
+                            
+                            // add bias if enabled
+                            if (bias_) 
+                            {
+                                conv_sum += biases_(oc);
+                            }
+
+                            // apply activation and store result
+                            output_(b, oc, oh, ow) = activator_->forward(conv_sum);
                         }
                     }
-                    // apply activation and write to output
-                    auto z_activated = activator_.forward(z).reshape(Eigen::array<Eigen::Index, 3>{1, h_, w_});
-                    Eigen::array<Eigen::Index, 4> out_offsets = {b, c, 0, 0};
-                    Eigen::array<Eigen::Index, 4> out_extents = {1, 1, h_, w_};
-
-                    output.slice(out_offsets, out_extents) = z_activated;
                 }
             }
+
+            return output_;
+        }
+
+        Eigen::Tensor<double, 4> Conv2d::backward(Eigen::Tensor<double, 4>& grad_out)
+        {
+            // TODO: Implement backward propagation
+            // This would involve:
+            // 1. Computing gradients w.r.t. weights (convolution of input with grad_out)
+            // 2. Computing gradients w.r.t. biases (sum of grad_out over spatial dimensions)
+            // 3. Computing gradients w.r.t. input (transposed convolution)
             
-            
-
-        return output;
-
-    }
-
-
-
-
-
-    void Conv2d::init_output()
-
-    {
-
-        // TODO: methods for "valid" & "same" should be implemented.
-
-        // padding='valid' is the same as no padding. padding='same' pads the input so the output has the shape as the input.
-
-        // However, this mode doesn’t support any stride values other than 1.
-
-        // compute output shape if padding_is none (not valid or same)
-
-        if (padding_ == "none")
-
-        {
-
-            double h_f = (H_ + 2.0 * std::get<0>(num_padding_) - static_cast<double>(std::get<0>(kernel_size_)) + 1.0) / static_cast<double>(std::get<0>(stride_));
-
-            double w_f = (W_ + 2.0 * std::get<1>(num_padding_) - static_cast<double>(std::get<1>(kernel_size_)) + 1.0) / static_cast<double>(std::get<1>(stride_));
-            h_ = static_cast<int>(std::floor(h_f));
-
-            w_ = static_cast<int>(std::floor(w_f));
-
+            // Return zero gradient for now
+            Eigen::Tensor<double, 4> grad_input(in_cache_.dimensions());
+            grad_input.setZero();
+            return grad_input;
         }
-
-        // initialize output tensor with zeros and computed shape
-
-        output_.resize(B_, C_, h_, w_);
-        output_.setZero();
-
-    }
-
-
-    void Conv2d::init_params_and_grads()
-
-    {
-        weights_.resize(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
-
-        grad_weights_.resize(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
-
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        double scale = std::sqrt(6.0 / (in_channels_ + out_channels_));
-        std::uniform_real_distribution<> dis(-scale, scale);
-
-        // initializing weights with Xavier method (default method).
-        weights_.generate([&]() { return dis(gen); });
-
-        // initialize weight-gradient matrix with zero
-        getdate_r.setZero();
-
-        if (bias_)
-
-        {
-            // initialize biases with zero, if bias_ is true.
-            biases_ = Eigen::VectorXd::Zero(out_channels_);
-
-            // initialize bias-gradient matrix with zero 
-            grad_biases_ = Eigen::VectorXd::Zero(out_channels_);
-
-        }
-        else
-        {
-            // initialize empty biases and gradients when bias is false
-            biases_ = Eigen::VectorXd(0);
-            grad_biases_ = Eigen::VectorXd(0);
-        }
-
-    }
-
-    
-
-
-    Eigen::Tensor<double, 4> Conv2d::backward(Eigen::Tensor<double, 4>& grad_out)
-
-    {
-        // TODO: implement backard propagation
-    }
-    
-    }
 }

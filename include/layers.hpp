@@ -11,7 +11,7 @@
 
 namespace CppNet 
 {
-    //class Optimizer; // forward declaration
+
     namespace Optimizers 
     {
         class Optimizer; // forward declaration
@@ -19,8 +19,7 @@ namespace CppNet
 
     namespace Layers
     {
-        //class Optimizer; // forward declaration
-        
+         
         class Layer {
             public:
                 virtual bool is_trainable() const = 0;
@@ -111,14 +110,15 @@ namespace CppNet
 
                 void init_params_and_grads();
         };
-        
+
         class Conv2d: public Layer
         {
             public:
+
                 Conv2d(
                     int in_channels,
                     int out_channels,
-                    Activations::Activation* activator = nullptr,  // default to nullptr
+                    Activations::Activation* activator = nullptr,
                     std::tuple<int, int> kernel_size = std::make_tuple(3, 3),
                     std::tuple<int, int> stride = std::make_tuple(1, 1),
                     std::string padding = "valid",
@@ -184,43 +184,40 @@ namespace CppNet
                 }
 
             private:
-    
+
                 int in_channels_;
                 int out_channels_;
-                std::unique_ptr<Activations::ReLU> default_relu_;  // own a default ReLU instance
-                Activations::Activation* activator_; // pointer to the activator to use
+                std::unique_ptr<Activations::ReLU> default_relu_;
+                Activations::Activation* activator_;
                 std::tuple<int, int> stride_;
                 std::string padding_;
-                std::tuple<int, int, int, int> num_padding_; // if padding is "none", this is used to padding (left, right, top, down)
+                std::tuple<int, int, int, int> num_padding_;
                 std::string padding_mode_;
                 std::string layer_name_;
                 bool trainable_;
                 bool bias_;
-                Eigen::Tensor<double, 4> in_cache_;
                 std::tuple<int, int> kernel_size_;
                 
                 Eigen::Tensor<double, 4> weights_;
                 Eigen::Tensor<double, 1> biases_;
                 Eigen::Tensor<double, 4> grad_weights_;
                 Eigen::Tensor<double, 1> grad_biases_;
-
-                Eigen::Tensor<double, 4> in_cache_;
+                Eigen::Tensor<double, 4> in_cache_; 
                 Eigen::Tensor<double, 4> output_;
+
+                // input/output dimensions
+                int B_, C_, H_, W_;  // input dimensions
+                int h_, w_;          // output dimensions
                 
-                // input shape
-                int B_; // batch size
-                int C_; // number of channels
-                int H_; // heigth of data (e.g., images)
-                int W_; // width of data (e.g., images)
-                int h_; // heigth of output data
-                int w_; // width of output data
                 void init_params_and_grads();
                 void init_output();
-                Eigen::Tensor<double, 4> pad_input(Eigen::Tensor<double, 4>& X);
-
+                Eigen::Tensor<double, 4> pad_input(const Eigen::Tensor<double, 4>& X);
         };
     
     }
 }
+
+
+
 
 #endif // LAYERS_HPP
