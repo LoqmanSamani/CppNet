@@ -275,6 +275,11 @@ namespace CppNet
             output_.setZero();
         }
 
+        void Conv2d::update_parameters(Optimizers::Optimizer& optimizer, double learning_rate)
+        {
+            optimizer.update(*this, learning_rate);
+        }
+
         Eigen::Tensor<double, 4> Conv2d::forward(Eigen::Tensor<double, 4>& X)
         {
             // cache input for backward pass
@@ -355,15 +360,149 @@ namespace CppNet
 
         Eigen::Tensor<double, 4> Conv2d::backward(Eigen::Tensor<double, 4>& grad_out)
         {
-            // TODO: Implement backward propagation
-            // This would involve:
-            // 1. Computing gradients w.r.t. weights (convolution of input with grad_out)
-            // 2. Computing gradients w.r.t. biases (sum of grad_out over spatial dimensions)
-            // 3. Computing gradients w.r.t. input (transposed convolution)
+            // validate input gradient dimensions
+            if (grad_out.dimension(0) != B_ || grad_out.dimension(1) != out_channels_ || grad_out.dimension(2) != h_ || grad_out.dimension(3) != w_)
+            {
+                throw std::runtime_error("Gradient output dimensions mismatch in layer: " + layer_name_);
+            }
+
+            // get kernel and stride parameters
+            const int k_h = std::get<0>(kernel_size_);
+            const int k_w = std::get<1>(kernel_size_);
+            const int stride_h = std::get<0>(stride_);
+            const int stride_w = std::get<1>(stride_);
             
-            // Return zero gradient for now
+            // initialize gradients (only if trainable)
+            if (trainable_)
+            {
+                grad_weights_.setZero();
+                if (bias_)
+                {
+                    grad_biases_.setZero();
+                }
+            }
+            
+            // initialize input gradient
             Eigen::Tensor<double, 4> grad_input(in_cache_.dimensions());
             grad_input.setZero();
+            
+            // get the input used in forward pass (potentially padded)
+            Eigen::Tensor<double, 4> input_to_use = in_cache_;
+            if (padding_ != "valid" && (std::get<0>(num_padding_) > 0 || std::get<1>(num_padding_) > 0 || 
+                                        std::get<2>(num_padding_) > 0 || std::get<3>(num_padding_) > 0))
+            {
+                input_to_use = pad_input(in_cache_);
+            }
+            
+            // apply activation backward pass
+            // we need to reconstruct the pre-activation values and apply activation derivative
+            Eigen::Tensor<double, 4> grad_pre_activation(grad_out.dimensions());
+            
+            // for each output position, compute the activation derivative
+            for (int b = 0; b < B_; ++b)
+            {
+                for (int oc = 0; oc < out_channels_; ++oc)
+                {
+                    for (int oh = 0; oh < h_; ++oh)
+                    {
+                        for (int ow = 0; ow < w_; ++ow)
+                        {
+                            // reconstruct pre-activation value
+                            double pre_activation = 0.0;
+                            
+                            for (int ic = 0; ic < in_channels_; ++ic)
+                            {
+                                for (int kh = 0; kh < k_h; ++kh)
+                                {
+                                    for (int kw = 0; kw < k_w; ++kw)
+                                    {
+                                        int ih = oh * stride_h + kh;
+                                        int iw = ow * stride_w + kw;
+                                        
+                                        if (ih >= 0 && ih < input_to_use.dimension(2) && iw >= 0 && iw < input_to_use.dimension(3))
+                                        {
+                                            pre_activation += input_to_use(b, ic, ih, iw) * weights_(oc, ic, kh, kw);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (bias_)
+                            {
+                                pre_activation += biases_(oc);
+                            }
+                            // TODO: add derivative of other activation functions!
+                            // suppose we use only ReLU
+                            // apply activation backward (ReLU derivative: 1 if x > 0, else 0)
+                            double activation_grad = (pre_activation > 0.0) ? 1.0 : 0.0;
+                            grad_pre_activation(b, oc, oh, ow) = grad_out(b, oc, oh, ow) * activation_grad;
+                        }
+                    }
+                }
+            }
+            
+            // compute gradients w.r.t. weights, biases, and input
+            for (int b = 0; b < B_; ++b)
+            {
+                for (int oc = 0; oc < out_channels_; ++oc)
+                {
+                    for (int oh = 0; oh < h_; ++oh)
+                    {
+                        for (int ow = 0; ow < w_; ++ow)
+                        {
+                            double grad_output_elem = grad_pre_activation(b, oc, oh, ow);
+                            
+                            // gradient w.r.t. bias (only if trainable and has bias)
+                            if (trainable_ && bias_)
+                            {
+                                grad_biases_(oc) += grad_output_elem;
+                            }
+                            
+                            // gradient w.r.t. weights and input
+                            for (int ic = 0; ic < in_channels_; ++ic)
+                            {
+                                for (int kh = 0; kh < k_h; ++kh)
+                                {
+                                    for (int kw = 0; kw < k_w; ++kw)
+                                    {
+                                        int ih = oh * stride_h + kh;
+                                        int iw = ow * stride_w + kw;
+                                        
+                                        if (ih >= 0 && ih < input_to_use.dimension(2) && 
+                                            iw >= 0 && iw < input_to_use.dimension(3))
+                                        {
+                                            // gradient w.r.t. weights (only if trainable)
+                                            if (trainable_)
+                                            {
+                                                grad_weights_(oc, ic, kh, kw) += input_to_use(b, ic, ih, iw) * grad_output_elem;
+                                            }
+                                            
+                                            // gradient w.r.t. input
+                                            // map back to original input coordinates if padding was applied
+                                            int orig_ih = ih;
+                                            int orig_iw = iw;
+                                            
+                                            if (padding_ != "valid")
+                                            {
+                                                orig_ih = ih - std::get<2>(num_padding_); // subtract top padding
+                                                orig_iw = iw - std::get<0>(num_padding_); // subtract left padding
+                                            }
+                                            
+                                            // check if coordinates are valid for original input
+                                            if (orig_ih >= 0 && orig_ih < in_cache_.dimension(2) && orig_iw >= 0 && orig_iw < in_cache_.dimension(3))
+                                            {
+                                                grad_input(b, ic, orig_ih, orig_iw) += weights_(oc, ic, kh, kw) * grad_output_elem;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
             return grad_input;
         }
+
 }
