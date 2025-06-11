@@ -191,7 +191,7 @@ int main()
     CppNet::Losses::BinaryCrossEntropy loss_fn;
 
     // training parameters
-    int epochs = 1000;
+    int epochs = 200;
     double lr = 0.0004;
     int train_batch_size = 64;
     int val_test_batch_size = 10;

@@ -2,7 +2,7 @@
 #define LAYERS_HPP
 
 #include <iostream>
-#include "activations.hpp"
+//#include "activations.hpp"
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <random>
@@ -15,6 +15,10 @@ namespace CppNet
     namespace Optimizers 
     {
         class Optimizer; // forward declaration
+    }
+    namespace Activations {
+        class Activation;
+        class ReLU;
     }
 
     namespace Layers
@@ -155,7 +159,7 @@ namespace CppNet
                 Eigen::Tensor<double, 1>& get_biases() { return biases_; }
                 const Eigen::Tensor<double, 1>& get_biases() const { return biases_; }
 
-                const Eigen::Tensor<double, 2>& get_grad_weights() const { return grad_weights_; }
+                const Eigen::Tensor<double, 4>& get_grad_weights() const { return grad_weights_; }
                 const Eigen::Tensor<double, 1>& get_grad_biases() const { return grad_biases_; }
 
                 void set_weights(const Eigen::Tensor<double, 2>& weights) { weights_ = weights; }
