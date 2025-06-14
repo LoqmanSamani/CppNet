@@ -1,5 +1,3 @@
-#include <Eigen/Dense>
-#include <unsupported/Eigen/CXX11/Tensor>
 #include "activations.hpp"
 #include <cmath>
 
@@ -7,15 +5,15 @@ namespace CppNet
 {
     namespace Activations
     {
-        // 2D tensor version 
+        // ReLU implementations
         Eigen::Tensor<double, 2> ReLU::forward(const Eigen::Tensor<double, 2>& z)
         {
             if (z.size() == 0)
             {
-                throw std::runtime_error("Empty input tensor!");
+                throw std::runtime_error("ReLU: Empty input tensor in 2D forward");
             }
             in_cache_2d_ = z;
-            return z.cwiseMax(z.constant(0.0));
+            return z.cwiseMax(0.0);
         }
 
         Eigen::Tensor<double, 2> ReLU::backward(const Eigen::Tensor<double, 2>& da)
@@ -24,28 +22,26 @@ namespace CppNet
                 da.dimension(1) != in_cache_2d_.dimension(1) ||
                 da.size() == 0)
             {
-                throw std::runtime_error("Shape mismatch or empty input: da and in_cache_ must have equal non-zero size!");
+                throw std::runtime_error("ReLU: Shape mismatch or empty input in 2D backward");
             }
             
-            Eigen::Tensor<double, 2> mask = (in_cache_2d_ > in_cache_2d_.constant(0.0)).template cast<double>();
+            Eigen::Tensor<double, 2> mask = (in_cache_2d_ > 0.0).template cast<double>();
             return da * mask;
         }
 
-        // scalar version
         double ReLU::forward(double z)
         {
             return std::max(0.0, z);
         }
 
-        // 4D tensor version
         Eigen::Tensor<double, 4> ReLU::forward(const Eigen::Tensor<double, 4>& z)
         {
             if (z.size() == 0)
             {
-                throw std::runtime_error("Empty input tensor!");
+                throw std::runtime_error("ReLU: Empty input tensor in 4D forward");
             }
             in_cache_4d_ = z;
-            return z.cwiseMax(z.constant(0.0));
+            return z.cwiseMax(0.0);
         }
 
         Eigen::Tensor<double, 4> ReLU::backward(const Eigen::Tensor<double, 4>& da)
@@ -56,25 +52,22 @@ namespace CppNet
                 da.dimension(3) != in_cache_4d_.dimension(3) ||
                 da.size() == 0)
             {
-                throw std::runtime_error("Shape mismatch or empty input: da and in_cache_ must have equal non-zero size!");
+                throw std::runtime_error("ReLU: Shape mismatch or empty input in 4D backward");
             }
             
-            Eigen::Tensor<double, 4> mask = (in_cache_4d_ > in_cache_4d_.constant(0.0)).template cast<double>();
+            Eigen::Tensor<double, 4> mask = (in_cache_4d_ > 0.0).template cast<double>();
             return da * mask;
         }
 
-        // 2D tensor version
+        // Sigmoid implementations
         Eigen::Tensor<double, 2> Sigmoid::forward(const Eigen::Tensor<double, 2>& z)
         {
             if (z.size() == 0)
             {
-                throw std::runtime_error("Empty input tensor!");
+                throw std::runtime_error("Sigmoid: Empty input tensor in 2D forward");
             }
             in_cache_2d_ = z;
-            
-            sigmoid_cache_2d_ = z.unaryExpr([](double x) {
-                return 1.0 / (1.0 + std::exp(-x));
-            });
+            sigmoid_cache_2d_ = (1.0 + (-z).exp()).inverse();
             return sigmoid_cache_2d_;
         }
 
@@ -84,33 +77,26 @@ namespace CppNet
                 da.dimension(1) != in_cache_2d_.dimension(1) ||
                 da.size() == 0)
             {
-                throw std::runtime_error("Shape mismatch or empty input: da and in_cache_ must have equal non-zero size!");
+                throw std::runtime_error("Sigmoid: Shape mismatch or empty input in 2D backward");
             }
             
-            Eigen::Tensor<double, 2> one_minus_sigmoid = sigmoid_cache_2d_.unaryExpr([](double x) {
-                return 1.0 - x;
-            });
-            return da * sigmoid_cache_2d_ * one_minus_sigmoid;
+            return da * sigmoid_cache_2d_ * (1.0 - sigmoid_cache_2d_);
         }
 
-        // scalar version
         double Sigmoid::forward(double z)
         {
-            return 1.0 / (1.0 + std::exp(-z));
+            double exp_neg_z = std::exp(-z);
+            return 1.0 / (1.0 + exp_neg_z);
         }
 
-        // 4D tensor version
         Eigen::Tensor<double, 4> Sigmoid::forward(const Eigen::Tensor<double, 4>& z)
         {
             if (z.size() == 0)
             {
-                throw std::runtime_error("Empty input tensor!");
+                throw std::runtime_error("Sigmoid: Empty input tensor in 4D forward");
             }
             in_cache_4d_ = z;
-            
-            sigmoid_cache_4d_ = z.unaryExpr([](double x) {
-                return 1.0 / (1.0 + std::exp(-x));
-            });
+            sigmoid_cache_4d_ = (1.0 + (-z).exp()).inverse();
             return sigmoid_cache_4d_;
         }
 
@@ -122,13 +108,10 @@ namespace CppNet
                 da.dimension(3) != in_cache_4d_.dimension(3) ||
                 da.size() == 0)
             {
-                throw std::runtime_error("Shape mismatch or empty input: da and in_cache_ must have equal non-zero size!");
+                throw std::runtime_error("Sigmoid: Shape mismatch or empty input in 4D backward");
             }
             
-            Eigen::Tensor<double, 4> one_minus_sigmoid = sigmoid_cache_4d_.unaryExpr([](double x) {
-                return 1.0 - x;
-            });
-            return da * sigmoid_cache_4d_ * one_minus_sigmoid;
+            return da * sigmoid_cache_4d_ * (1.0 - sigmoid_cache_4d_);
         }
     }
 }
