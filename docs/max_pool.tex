@@ -1,0 +1,259 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+
+% Define custom Function command to avoid conflicts
+\algdef{SE}[FUNCTION]{Function}{EndFunction}{\algorithmicfunction}{\algorithmicend\ \algorithmicfunction}
+
+\begin{document}
+
+\title{Instruction Manual: Implementing a 2D Max Pooling Layer (MaxPool2d)}
+\author{}
+\date{}
+\maketitle
+
+\section{Overview of 2D Max Pooling}
+
+A 2D max pooling layer reduces the spatial dimensions of an input tensor by taking the maximum value over a specified window (kernel) for each channel, commonly used in convolutional neural networks (CNNs) to downsample feature maps. This manual provides a step-by-step guide to implement a \texttt{MaxPool2d} layer, including forward and backward passes. The implementation is non-trainable (no learnable parameters) and does not support dilation.
+
+\subsection{Key Parameters}
+\begin{itemize}
+    \item \textbf{Input Tensor}: Shape $[B, C, H, W]$ (denoted $X$), where $B$ is batch size, $C$ is channels, $H$ is height, $W$ is width.
+    \item \textbf{Output Tensor}: Shape $[B, C, H_{\text{out}}, W_{\text{out}}]$ (denoted $Y$).
+    \item \textbf{Kernel Size}: $(k_h, k_w)$, height and width of the pooling window.
+    \item \textbf{Stride}: $(s_h, s_w)$, step size for sliding the window.
+    \item \textbf{Padding}: Options: ``valid'' (no padding) or custom $(p_{\text{left}}, p_{\text{right}}, p_{\text{top}}, p_{\text{bottom}})$.
+    \item \textbf{Padding Mode}: ``zero'' (zero-padding).
+    \item \textbf{Layer Name}: String identifier (default ``MaxPool2D'').
+\end{itemize}
+
+\subsection{Assumptions}
+\begin{itemize}
+    \item Tensors are 4D with dimensions $[B, C, H, W]$.
+    \item No dilation is supported (fixed at $(1, 1)$).
+    \item The layer is non-trainable (no weights or biases).
+\end{itemize}
+
+\section{Mathematical Formulation}
+
+\subsection{Forward Pass}
+The forward pass computes $Y$ by taking the maximum value over a kernel window in $X$ for each position. For $Y[b, c, oh, ow]$:
+
+\begin{equation}
+Y[b, c, oh, ow] = \max_{\substack{0 \leq kh < k_h \\ 0 \leq kw < k_w}} X[b, c, ih + kh, iw + kw]
+\end{equation}
+
+Where:
+\begin{itemize}
+    \item $ih = oh \cdot s_h - p_{\text{top}}$
+    \item $iw = ow \cdot s_w - p_{\text{left}}$
+\end{itemize}
+
+The operation is applied independently for each batch $b$ and channel $c$. During the forward pass, the indices of the maximum values are cached for use in the backward pass.
+
+\subsubsection{Output Dimensions}
+\begin{align}
+H_{\text{out}} &= \left\lfloor \frac{H + p_{\text{top}} + p_{\text{bottom}} - k_h}{s_h} \right\rfloor + 1 \\
+W_{\text{out}} &= \left\lfloor \frac{W + p_{\text{left}} + p_{\text{right}} - k_w}{s_w} \right\rfloor + 1
+\end{align}
+
+\subsection{Backward Pass}
+The backward pass computes the gradient $\frac{\partial L}{\partial X}$ given $\frac{\partial L}{\partial Y}$ (denoted $\text{grad_out}$). Since max pooling passes the gradient to the input position that contributed the maximum value, for each $X[b, c, ih, iw]$:
+
+\begin{equation}
+\frac{\partial L}{\partial X[b, c, ih, iw]} = 
+\begin{cases} 
+\frac{\partial L}{\partial Y[b, c, oh, ow]} & \text{if } (ih, iw) = \text{argmax in window at } (oh, ow) \\
+0 & \text{otherwise}
+\end{cases}
+\end{equation}
+
+Where:
+\begin{itemize}
+    \item $oh = \lfloor (ih + p_{\text{top}}) / s_h \rfloor$
+    \item $ow = \lfloor (iw + p_{\text{left}}) / s_w \rfloor$
+\end{itemize}
+
+\section{Implementation Details}
+
+\subsection{Class Structure}
+The \texttt{MaxPool2d} class includes:
+\begin{itemize}
+    \item \textbf{Attributes}: Channels, kernel size, stride, padding, layer name, input/output caches, max indices cache.
+    \item \textbf{Methods}: Constructor, \texttt{forward}, \texttt{backward}, helpers (\texttt{pad_input}, \texttt{init_output}).
+\end{itemize}
+
+\subsection{Constructor}
+\begin{algorithm}
+\caption{MaxPool2d Constructor}
+\begin{algorithmic}[1]
+\Function{MaxPool2d}{kernel_size=$(2,2)$, stride=$(2,2)$, padding="valid", num_padding=$(0,0,0,0)$, padding_mode="zero", layer_name="MaxPool2D"}
+    \If{kernel_size[0] $\leq 0$ \textbf{or} kernel_size[1] $\leq 0$}
+        \State \textbf{throw} "Kernel size must be positive"
+    \EndIf
+    \If{stride[0] $\leq 0$ \textbf{or} stride[1] $\leq 0$}
+        \State \textbf{throw} "Stride must be positive"
+    \EndIf
+    \If{padding $\notin$ ["valid"]}
+        \State \textbf{throw} "Only valid padding is supported"
+    \EndIf
+    \If{padding_mode $\neq$ "zero"}
+        \State \textbf{throw} "Only zero-padding is supported"
+    \EndIf
+    \If{num_padding[0,1,2,3] $< 0$}
+        \State \textbf{throw} "Padding values must be non-negative"
+    \EndIf
+    \State this.kernel_size $\gets$ kernel_size
+    \State this.stride $\gets$ stride
+    \State this.padding $\gets$ padding
+    \State this.num_padding $\gets$ num_padding
+    \State this.padding_mode $\gets$ padding_mode
+    \State this.layer_name $\gets$ layer_name \textbf{or} "MaxPool2D"
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Padding}
+\begin{algorithm}
+\caption{Pad Input}
+\begin{algorithmic}[1]
+\Function{pad_input}{X}
+    \State $p_{\text{left}}, p_{\text{right}}, p_{\text{top}}, p_{\text{bottom}} \gets$ num_padding
+    \If{$p_{\text{left}} = 0$ \textbf{and} $p_{\text{right}} = 0$ \textbf{and} $p_{\text{top}} = 0$ \textbf{and} $p_{\text{bottom}} = 0$}
+        \State \Return X
+    \EndIf
+    \State $B, C, H, W \gets$ X.shape
+    \State padded_X $\gets$ zeros(shape=[B, C, $H + p_{\text{top}} + p_{\text{bottom}}, W + p_{\text{left}} + p_{\text{right}}$])
+    \State padded_X[:, :, $p_{\text{top}}:(H+p_{\text{top}}), p_{\text{left}}:(W+p_{\text{left}})$] $\gets$ X
+    \State \Return padded_X
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Output Dimensions}
+\begin{algorithm}
+\caption{Initialize Output}
+\begin{algorithmic}[1]
+\Function{init_output}{X}
+    \State $B, C, H, W \gets$ X.shape
+    \State $k_h, k_w \gets$ kernel_size
+    \State $s_h, s_w \gets$ stride
+    \State $p_{\text{top}}, p_{\text{bottom}}, p_{\text{left}}, p_{\text{right}} \gets$ num_padding
+    \State out_h $\gets$ $\lfloor (H + p_{\text{top}} + p_{\text{bottom}} - k_h) / s_h \rfloor + 1$
+    \State out_w $\gets$ $\lfloor (W + p_{\text{left}} + p_{\text{right}} - k_w) / s_w \rfloor + 1$
+    \If{out_h $\leq 0$ \textbf{or} out_w $\leq 0$}
+        \State \textbf{throw} "Invalid output dimensions"
+    \EndIf
+    \State output $\gets$ zeros(shape=[B, C, out_h, out_w])
+    \State \Return out_h, out_w
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Forward Pass}
+\begin{algorithm}
+\caption{Forward Pass}
+\begin{algorithmic}[1]
+\Function{forward}{X}
+    \State in_cache $\gets$ X
+    \State $B, C, H, W \gets$ X.shape
+    \State input_padded $\gets$ pad_input(X)
+    \State out_h, out_w $\gets$ init_output(X)
+    \State output $\gets$ zeros(shape=[B, C, out_h, out_w])
+    \State max_indices $\gets$ zeros(shape=[B, C, out_h, out_w, 2])
+    \For{b in 0 to $B-1$}
+        \For{c in 0 to $C-1$}
+            \For{oh in 0 to out_h$-1$}
+                \For{ow in 0 to out_w$-1$}
+                    \State ih_start $\gets$ oh $\cdot s_h - p_{\text{top}}$
+                    \State iw_start $\gets$ ow $\cdot s_w - p_{\text{left}}$
+                    \State max_val $\gets$ $-\infty$
+                    \State max_idx $\gets$ [0, 0]
+                    \For{kh in 0 to $k_h-1$}
+                        \For{kw in 0 to $k_w-1$}
+                            \State ih $\gets$ ih_start + kh
+                            \State iw $\gets$ iw_start + kw
+                            \If{ih $\geq 0$ \textbf{and} ih $< H + p_{\text{top}} + p_{\text{bottom}}$ \textbf{and} iw $\geq 0$ \textbf{and} iw $< W + p_{\text{left}} + p_{\text{right}}$}
+                                \State val $\gets$ input_padded[b, c, ih, iw]
+                                \If{val $>$ max_val}
+                                    \State max_val $\gets$ val
+                                    \State max_idx $\gets$ [kh, kw]
+                                \EndIf
+                            \EndIf
+                        \EndFor
+                    \EndFor
+                    \State output[b, c, oh, ow] $\gets$ max_val
+                    \State max_indices[b, c, oh, ow] $\gets$ max_idx
+                \EndFor
+            \EndFor
+        \EndFor
+    \EndFor
+    \State this.max_indices $\gets$ max_indices
+    \State \Return output
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Backward Pass}
+\begin{algorithm}
+\caption{Backward Pass}
+\begin{algorithmic}[1]
+\Function{backward}{grad_out}
+    \If{grad_out.shape $\neq$ [B, C, out_h, out_w]}
+        \State \textbf{throw} "Gradient output dimensions mismatch"
+    \EndIf
+    \State $B, C, H, W \gets$ in_cache.shape
+    \State grad_input $\gets$ zeros(shape=[B, C, H, W])
+    \State input_padded $\gets$ pad_input(in_cache)
+    \For{b in 0 to $B-1$}
+        \For{c in 0 to $C-1$}
+            \For{oh in 0 to out_h$-1$}
+                \For{ow in 0 to out_w$-1$}
+                    \State ih_start $\gets$ oh $\cdot s_h - p_{\text{top}}$
+                    \State iw_start $\gets$ ow $\cdot s_w - p_{\text{left}}$
+                    \State [kh, kw] $\gets$ max_indices[b, c, oh, ow]
+                    \State ih $\gets$ ih_start + kh
+                    \State iw $\gets$ iw_start + kw
+                    \If{ih $\geq 0$ \textbf{and} ih $< H + p_{\text{top}} + p_{\text{bottom}}$ \textbf{and} iw $\geq 0$ \textbf{and} iw $< W + p_{\text{left}} + p_{\text{right}}$}
+                        \State grad_input[b, c, ih - p_{\text{top}}, iw - p_{\text{left}}] $\gets$ grad_out[b, c, oh, ow]
+                    \EndIf
+                \EndFor
+            \EndFor
+        \EndFor
+    \EndFor
+    \State \Return grad_input
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\section{Example Usage}
+\begin{verbatim}
+pool = MaxPool2d(
+    kernel_size=(2,2), stride=(2,2), padding="valid",
+    num_padding=(0,0,0,0), layer_name="MaxPool2D"
+)
+X = random_tensor(shape=[batch_size, 3, 28, 28])
+Y = pool.forward(X)
+grad_out = random_tensor(shape=Y.shape)
+grad_input = pool.backward(grad_out)
+\end{verbatim}
+
+\section{Error Handling}
+\begin{itemize}
+    \item Validate input dimensions and parameters.
+    \item Check for non-integer or negative output dimensions.
+    \item Ensure gradient shape matches input shape.
+\end{itemize}
+
+\section{Optimization Tips}
+\begin{itemize}
+    \item Use vectorized operations for max computations if supported by the language.
+    \item Cache input and max indices to avoid redundant computations.
+    \item Parallelize loops for large inputs.
+\end{itemize}
+
+\end{document}
