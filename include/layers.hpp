@@ -223,6 +223,51 @@ namespace CppNet
                 Eigen::MatrixXd im2col(const Eigen::Tensor<double, 4>& input);
                 void col2im_add(const Eigen::MatrixXd& col_matrix, Eigen::Tensor<double, 4>& grad_input);
         };
+
+        class MaxPool2D : public Layer
+        {
+            public:
+
+                MaxPool2D
+                (
+                    std::tuple<int, int> kernel_size = std::make_tuple(3, 3),
+                    std::tuple<int, int> stride = std::make_tuple(1, 1),
+                    std::string padding = "valid",
+                    std::tuple<int, int, int, int> num_padding = std::make_tuple(0, 0, 0, 0),
+                    std::string padding_mode = "zero",
+                    std::string layer_name = "MaxPool2D"
+                );
+
+                Eigen::Tensor<double, 4> MaxPool2D::forward(Eigen::Tensor<double, 4> X);
+                Eigen::Tensor<double, 4> MaxPool2D::backward(Eigen::Tensor<double, 4> grad_out);
+
+                std::string get_layer_name() const { return layer_name_; }
+
+                void print_layer_info() const 
+                {
+                    std::cout << "Layer: " << layer_name_ << std::endl;
+                    std::cout << "  Kernel size: [" << std::get<0>(kernel_size_) << ", " << std::get<1>(kernel_size_) << "]" << std::endl;
+                    std::cout << "  Stride: [" << std::get<0>(stride_) << ", " << std::get<1>(stride_) << "]" << std::endl;
+                    std::cout << "  Padding: " << padding_ << std::endl;
+                }
+
+
+            private:
+
+                std::tuple<int, int> kernel_size_;
+                std::tuple<int, int> stride_;
+                std::string padding_;
+                std::tuple<int, int, int, int> num_padding_;
+                std::string padding_mode_;
+                std::string layer_name_;
+                Eigen::Tensor<double, 4> in_cache_;
+                Eigen::Tensor<double, 4> output_;
+                int B_, C_, H_, W_; // input dimensions
+                int h_, w_;         // output dimensions
+
+                void init_output();
+                Eigen::Tensor<double, 4> pad_input(const Eigen::Tensor<double, 4>& X);
+        };
     
     }
 }

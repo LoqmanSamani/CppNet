@@ -1,3 +1,6 @@
+
+// layers.hpp file
+
 #ifndef LAYERS_HPP
 #define LAYERS_HPP
 
@@ -33,91 +36,6 @@ namespace CppNet
                 virtual void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) = 0;
                 virtual ~Layer() = default;
         };
-
-        class Linear : public Layer
-        {
-            public:
-                
-                Linear(
-                    int in_size, 
-                    int out_size, 
-                    std::string layer_name = "Linear", 
-                    bool trainable = true, 
-                    bool bias = true
-                );
-
-                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& X);
-
-                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_out);
-
-                void reset_grads() 
-                {
-
-                    if (trainable_) 
-                    {
-                        grad_weights_.setZero();
-                        if (bias_ && grad_biases_.size() > 0) 
-                        { 
-                            grad_biases_.setZero();
-                        }
-                    } 
-                }
-
-                int get_input_size() const { return in_size_; }
-                int get_output_size() const { return out_size_; }
-                std::string get_layer_name() const { return layer_name_; }
-
-                Eigen::Tensor<double, 2>& get_weights() { return weights_; }
-                const Eigen::Tensor<double, 2>& get_weights() const { return weights_; }
-                Eigen::Tensor<double, 1>& get_biases() { return biases_; }
-                const Eigen::Tensor<double, 1>& get_biases() const { return biases_; }
-
-                const Eigen::Tensor<double, 2>& get_grad_weights() const { return grad_weights_; }
-                const Eigen::Tensor<double, 1>& get_grad_biases() const { return grad_biases_; }
-
-                void set_weights(const Eigen::Tensor<double, 2>& weights) { weights_ = weights; }
-                void set_biases(const Eigen::Tensor<double, 1>& biases) { biases_ = biases; }
-
-                bool is_trainable() const override { return trainable_; }
-
-                void freeze(){ trainable_ = false; } // freeze the parameters of the layer.
-                void unfreeze() { trainable_ = true; } // unfreeze the parameters of the layer.
-
-                bool has_bias() const { return bias_; }
-
-                void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) override;
-                
-                void print_layer_info() const 
-                {
-                    std::cout << "  Layer: " << layer_name_ << std::endl;
-                    std::cout << "  Input size: " << in_size_ << std::endl;
-                    std::cout << "  Output size: " << out_size_ << std::endl;
-                    std::cout << "  Trainable: " << (trainable_ ? "Yes" : "No") << std::endl;
-                    std::cout << "  Has bias: " << (bias_ ? "Yes" : "No") << std::endl;
-                    std::cout << "  Weight shape: [" << weights_.dimension(0) << ", " << weights_.dimension(1) << "]" << std::endl;
-
-                    if (bias_) 
-                    {
-                        std::cout << "  Bias shape: [" << biases_.dimension(0) << "]" << std::endl;
-                    }
-                }
-
-            private:
-                bool trainable_; // if gradient should be calculated. if false: layer is frozen.
-                int in_size_;
-                int out_size_;
-                bool bias_;
-                std::string layer_name_;
-                Eigen::Tensor<double, 2> weights_;
-                Eigen::Tensor<double, 1> biases_;
-                Eigen::Tensor<double, 2> in_cache_;
-                Eigen::Tensor<double, 2> grad_weights_;
-                Eigen::Tensor<double, 1> grad_biases_;
-                
-
-                void init_params_and_grads();
-        };
-
         class Conv2d : public Layer
         {
             public:
@@ -228,10 +146,13 @@ namespace CppNet
 }
 
 
-
-
 #endif // LAYERS_HPP
 
+
+
+
+
+// layers.cpp file
 
 #include <cmath>
 #include <Eigen/Dense>
@@ -246,132 +167,6 @@ namespace CppNet
 {
     namespace Layers
     {
-
-        // a simple implementation of a linear(dense) layer  
-        Linear::Linear(int in_size, int out_size, std::string layer_name, bool trainable, bool bias) 
-            : trainable_(trainable), in_size_(in_size), out_size_(out_size), bias_(bias), layer_name_(layer_name)
-        {
-            // check if in and out sizes are positive integers
-            if (in_size <= 0 || out_size <= 0)
-            {
-                throw std::runtime_error("in_size and out_size of layer: " + layer_name + " must be positive integers!");
-            }
-
-            if (layer_name.empty()) 
-            {
-            layer_name_ = "Linear_" + std::to_string(in_size) + "x" + std::to_string(out_size);
-            }
-
-            // initialize parameters and gradients
-            init_params_and_grads();
-        }
-
-        void Linear::init_params_and_grads()
-        {
-            std::random_device rd;
-            std::mt19937 gen(rd());
-
-            // scaling factor for Xavier initialization
-            double scale = std::sqrt(6.0 / (in_size_ + out_size_));
-            std::uniform_real_distribution<> dis(-scale, scale);
-
-            // initialize weight-tensor
-            weights_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
-
-            for (int i = 0; i < in_size_; ++i) 
-            {
-                for (int j = 0; j < out_size_; ++j) 
-                {
-                    weights_(i, j) = dis(gen);
-                }
-            }
-
-            // initialize weight-gradient matrix with zero
-            grad_weights_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
-            grad_weights_.setZero();
-
-            if (bias_)
-            {
-                // initialize biases with zero, if bias_ is true.
-                biases_ = Eigen::Tensor<double, 1>(out_size_).setZero(); 
-                // initialize bias-gradient matrix with zero 
-                grad_biases_ = Eigen::Tensor<double, 1>(out_size_).setZero(); 
-            }
-            else
-            {
-                // initialize empty biases and gradients when bias is false
-                biases_ = Eigen::Tensor<double, 1>(0);
-                grad_biases_ = Eigen::Tensor<double, 1>(0);
-            }
-        }
-
-        void Linear::update_parameters(Optimizers::Optimizer& optimizer, double learning_rate)
-        {
-            optimizer.update(*this, learning_rate);
-        }
-
-        Eigen::Tensor<double, 2> Linear::forward(const Eigen::Tensor<double, 2>& X)
-        {
-            // check dimensions
-            if (X.dimension(1) != weights_.dimension(0))
-            {
-                throw std::runtime_error("Shape mismatch: in layer: " + layer_name_ + " X.dimension(1) must be equal weights_.dimension(0)!");
-            }
-            // store X to use later in gradient calculation
-            in_cache_ = X;
-            
-            // forward calculation
-            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-            Eigen::Tensor<double, 2> output = X.contract(weights_, product_dims);
-
-            if (bias_) {
-                // add bias to each row - broadcasting the bias vector
-                Eigen::array<Eigen::Index, 2> broadcast_dims({X.dimension(0), 1});
-                Eigen::Tensor<double, 2> bias_broadcasted = biases_.reshape(Eigen::array<Eigen::Index, 2>({1, biases_.dimension(0)})).broadcast(broadcast_dims);
-                output = output + bias_broadcasted;
-            }
-            
-            return output;
-        }
-
-        Eigen::Tensor<double, 2> Linear::backward(const Eigen::Tensor<double, 2>& grad_out)
-        {
-            // dimension validation
-            if (grad_out.dimension(0) != in_cache_.dimension(0)) 
-            {
-                throw std::runtime_error("Batch size mismatch in layer: " + layer_name_);
-            }
-            if (grad_out.dimension(1) != out_size_) 
-            {
-                throw std::runtime_error("Output size mismatch in layer: " + layer_name_);
-            }
-            
-            // compute parameter gradients (only if trainable)
-            if (trainable_) {
-                // gradient w.r.t. weights: X^T * grad_out
-                Eigen::array<int, 2> transpose_dims({1, 0});
-                Eigen::Tensor<double, 2> X_transposed = in_cache_.shuffle(transpose_dims);
-                
-                Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-                grad_weights_ = X_transposed.contract(grad_out, product_dims);
-                
-                // gradient w.r.t. biases: sum over batch dimension
-                if (bias_) 
-                {
-                    Eigen::array<int, 1> batch_dim({0});
-                    grad_biases_ = grad_out.sum(batch_dim);
-                }
-            }
-            
-            // compute gradient w.r.t. input: grad_out * W^T
-            Eigen::array<int, 2> transpose_dims({1, 0});
-            Eigen::Tensor<double, 2> weights_transposed = weights_.shuffle(transpose_dims);
-            
-            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-            Eigen::Tensor<double, 2> grad_input = grad_out.contract(weights_transposed, product_dims);
-            
-            return grad_input;
-        }
 
         Conv2d::Conv2d(
             int in_channels,
@@ -452,7 +247,7 @@ namespace CppNet
             // initialize weights: [out_channels, in_channels, kernel_h, kernel_w]
             weights_ = Eigen::Tensor<double, 4>(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
             weights_.setRandom();
-            weights_ *= scale;
+            weights_ = weights_ * scale;
 
             // initialize gradients
             grad_weights_ = Eigen::Tensor<double, 4>(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
@@ -503,8 +298,8 @@ namespace CppNet
                 return X;
             }
 
-            int padded_h = H_ + pad_top + pad_bottom;
-            int padded_w = W_ + pad_left + pad_right;
+            //int padded_h = H_ + pad_top + pad_bottom;
+            //int padded_w = W_ + pad_left + pad_right;
 
             Eigen::array<std::pair<int, int>, 4> paddings = {{
                 {0, 0},                    // batch
@@ -717,8 +512,8 @@ namespace CppNet
 
             const int k_h = std::get<0>(kernel_size_);
             const int k_w = std::get<1>(kernel_size_);
-            const int stride_h = std::get<0>(stride_);
-            const int stride_w = std::get<1>(stride_);
+            //const int stride_h = std::get<0>(stride_);
+            //const int stride_w = std::get<1>(stride_);
 
             // initialize gradients
             Eigen::Tensor<double, 4> grad_input(in_cache_.dimensions());
@@ -748,21 +543,6 @@ namespace CppNet
                 B_ * h_ * w_
             );
 
-            // compute weight gradients
-            //if (trainable_) 
-            //{
-            //    Eigen::MatrixXd col_matrix = im2col(input_to_use);
-            //    Eigen::MatrixXd weight_grad_matrix = grad_out_matrix * col_matrix.transpose();
-            //   grad_weights_ = weight_grad_matrix.reshape(
-            //        Eigen::array<int, 4>{out_channels_, in_channels_, k_h, k_w}
-            //    );
-
-            //    if (bias_) 
-            //    {
-            //        grad_biases_ = grad_out_matrix.colwise().sum();
-            //    }
-            //}
-            // compute weight gradients
             if (trainable_)
             {
                 Eigen::MatrixXd col_matrix = im2col(input_to_use);
@@ -782,7 +562,15 @@ namespace CppNet
                 
                 if (bias_)
                 {
-                    grad_biases_ = grad_out_matrix.colwise().sum();
+                    Eigen::VectorXd bias_grad_vec = grad_out_matrix.colwise().sum();
+
+                    Eigen::Tensor<double, 1> bias_grad_tensor(bias_grad_vec.size());
+                    for (int i = 0; i < bias_grad_vec.size(); ++i) 
+                    {
+                        bias_grad_tensor(i) = bias_grad_vec(i);
+                    }
+
+                    grad_biases_ = bias_grad_tensor;
                 }
             }
 
@@ -813,6 +601,7 @@ namespace CppNet
 }
 
 
+// activations.hpp
 #ifndef ACTIVATIONS_HPP
 #define ACTIVATIONS_HPP
 
@@ -823,10 +612,7 @@ namespace CppNet
 {
     namespace Activations
     {
-        /**
-         * @brief Abstract base class for activation functions.
-         * Defines forward and backward methods for scalar, 2D, and 4D tensors.
-         */
+       
         class Activation
         {
             public:
@@ -846,10 +632,7 @@ namespace CppNet
                 Eigen::Tensor<double, 4> sigmoid_cache_4d_; // For Sigmoid
         };
 
-        /**
-         * @brief ReLU activation function.
-         * Applies max(0, x) element-wise.
-         */
+       
         class ReLU : public Activation
         {
             public:
@@ -861,14 +644,11 @@ namespace CppNet
                 Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& da) override;
         };
 
-        /**
-         * @brief Sigmoid activation function.
-         * Applies 1/(1 + e^-x) element-wise.
-         */
+       
         class Sigmoid : public Activation
         {
             public:
-            
+
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z) override;
                 Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da) override;
                 double forward(double z) override;
@@ -881,7 +661,7 @@ namespace CppNet
 #endif // ACTIVATIONS_HPP
 
 
-
+// activation.cpp
 #include "activations.hpp"
 #include <cmath>
 
@@ -1000,7 +780,7 @@ namespace CppNet
     }
 }
 
-
+// optimizers.hpp
 #ifndef OPTIMIZERS_HPP
 #define OPTIMIZERS_HPP
 
@@ -1010,10 +790,7 @@ namespace CppNet
 {
     namespace Optimizers
     {
-        /**
-         * @brief Abstract base class for optimizers.
-         * Defines the interface for updating layer parameters during training.
-         */
+       
         class Optimizer
         {
         public:
@@ -1022,10 +799,7 @@ namespace CppNet
             virtual ~Optimizer() = default;
         };
 
-        /**
-         * @brief Stochastic Gradient Descent (SGD) optimizer.
-         * Updates layer parameters using standard gradient descent.
-         */
+        
         class SGD : public Optimizer
         {
         public:
@@ -1038,6 +812,7 @@ namespace CppNet
 
 #endif // OPTIMIZERS_HPP
 
+// optimizers.cpp
 #include "optimizers.hpp"
 
 

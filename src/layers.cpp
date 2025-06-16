@@ -31,6 +31,9 @@ namespace CppNet
             init_params_and_grads();
         }
 
+        /**************************************Linear/Dense*******************************************/    
+
+
         void Linear::init_params_and_grads()
         {
             std::random_device rd;
@@ -137,6 +140,8 @@ namespace CppNet
             
             return grad_input;
         }
+
+        /**************************************Conv2d*******************************************/    
 
         Conv2d::Conv2d(
             int in_channels,
@@ -514,20 +519,6 @@ namespace CppNet
             );
 
             // compute weight gradients
-            //if (trainable_) 
-            //{
-            //    Eigen::MatrixXd col_matrix = im2col(input_to_use);
-            //    Eigen::MatrixXd weight_grad_matrix = grad_out_matrix * col_matrix.transpose();
-            //   grad_weights_ = weight_grad_matrix.reshape(
-            //        Eigen::array<int, 4>{out_channels_, in_channels_, k_h, k_w}
-            //    );
-
-            //    if (bias_) 
-            //    {
-            //        grad_biases_ = grad_out_matrix.colwise().sum();
-            //    }
-            //}
-            // compute weight gradients
             if (trainable_)
             {
                 Eigen::MatrixXd col_matrix = im2col(input_to_use);
@@ -581,6 +572,252 @@ namespace CppNet
         void Conv2d::update_parameters(Optimizers::Optimizer& optimizer, double learning_rate)
         {
             optimizer.update(*this, learning_rate);
-        }     
+        } 
+
+        /**************************************MaxPool2D*******************************************/  
+
+        MaxPool2D::MaxPool2D
+        (
+            std::tuple<int, int> kernel_size = std::make_tuple(3, 3),
+            std::tuple<int, int> stride = std::make_tuple(1, 1),
+            std::string padding = "valid",
+            std::tuple<int, int, int, int> num_padding = std::make_tuple(0, 0, 0, 0),
+            std::string padding_mode = "zero",
+            std::string layer_name = "MaxPool2D"
+        ):
+            kernel_size_(kernel_size),
+            stride_(stride),
+            padding_(padding),
+            num_padding_(num_padding),
+            padding_mode_(padding_mode),
+            layer_name_(layer_name)
+        {
+            // input validation
+            if (std::get<0>(kernel_size_) <= 0 || std::get<1>(kernel_size_) <= 0) 
+            {
+                throw std::runtime_error("Kernel size must be positive in layer: " + layer_name_);
+            }
+            if (std::get<0>(stride_) <= 0 || std::get<1>(stride_) <= 0) 
+            {
+                throw std::runtime_error("Stride must be positive in layer: " + layer_name_);
+            }
+            if (padding_ != "valid" && padding_ != "none") 
+            {
+                throw std::runtime_error("Invalid padding mode: " + padding_ + " in layer: " + layer_name_);
+            }
+            if (padding_mode_ != "zero") 
+            {
+                throw std::runtime_error("Invalid padding mode: " + padding_mode_ + " in layer: " + layer_name_);
+            }
+
+            if (std::get<0>(num_padding_) < 0 || std::get<1>(num_padding_) < 0 || std::get<2>(num_padding_) < 0 || std::get<3>(num_padding_) < 0)
+            {
+                throw std::runtime_error("Padding values must be non-negative in layer: " + layer_name_);
+            }
+        }
+
+        Eigen::Tensor<double, 4> MaxPool2D::pad_input(const Eigen::Tensor<double, 4>& X)
+        {
+            if (padding_ == "valid")
+            {
+                return X;   
+            }
+            int pad_left = std::get<0>(num_padding_);
+            int pad_right = std::get<1>(num_padding_);
+            int pad_top = std::get<2>(num_padding_);
+            int pad_bottom = std::get<3>(num_padding_);
+
+            if (pad_left == 0 && pad_right == 0 && pad_top == 0 && pad_bottom == 0) 
+            {
+                return X;
+            }
+
+            int k_h = std::get<0>(kernel_size_);
+            int k_w = std::get<1>(kernel_size_);
+            int stride_h = std::get<0>(stride_);
+            int stride_w = std::get<1>(stride_);
+
+            // compute padding to maintain output size
+            int output_h = (H_ + stride_h - 1) / stride_h; 
+            int output_w = (W_ + stride_w - 1) / stride_w; 
+            int pad_h_total = std::max(0, (output_h - 1) * stride_h + k_h - H_);
+            int pad_w_total = std::max(0, (output_w - 1) * stride_w + k_w - W_);
+
+            pad_top = pad_h_total / 2;
+            pad_bottom = pad_h_total - pad_top;
+            pad_left = pad_w_total / 2;
+            pad_right = pad_w_total - pad_left;
+            
+            Eigen::array<std::pair<int, int>, 4> paddings = {{
+                {0, 0},                    // batch
+                {0, 0},                    // channels
+                {pad_top, pad_bottom},     // height  
+                {pad_left, pad_right}      // width
+            }};
+            return X.pad(paddings);
+        }
+
+        void MaxPool2D::init_output()
+        {
+            int k_h = std::get<0>(kernel_size_);
+            int k_w = std::get<1>(kernel_size_);
+            int stride_h = std::get<0>(stride_);
+            int stride_w = std::get<1>(stride_);
+            int pad_h = std::get<2>(num_padding_) + std::get<3>(num_padding_);
+            int pad_w = std::get<0>(num_padding_) + std::get<1>(num_padding_);
+
+            if (padding_ == "valid") 
+            {
+                h_ = std::ceil(static_cast<double>(H_  - k_h) / stride_h) + 1;
+                w_ = std::ceil(static_cast<double>(W_ - k_w) / stride_w) + 1;
+
+                if ((H_ + pad_h - k_h) % stride_h != 0 || (W_ + pad_w - k_w) % stride_w != 0) 
+                {
+                    throw std::runtime_error("Non-integer output dimensions in layer: " + layer_name_);
+                }
+            } 
+            else
+            {
+                h_ = std::ceil(static_cast<double>(H_ + pad_h - k_h) / stride_h);
+                w_ = std::ceil(static_cast<double>(W_ + pad_w - k_w) / stride_w);
+            }
+
+            if (h_ <= 0 || w_ <= 0) 
+            {
+                throw std::runtime_error("Invalid output dimensions in layer: " + layer_name_);
+            }
+
+            output_ = Eigen::Tensor<double, 4>(B_, C_, h_, w_);
+        }
+
+        
+        Eigen::Tensor<double, 4> MaxPool2D::forward(Eigen::Tensor<double, 4> X)
+        {
+            B_ = X.dimension(0);
+            C_ = X.dimension(1);
+            H_ = X.dimension(2);
+            W_ = X.dimension(3);
+            
+            // validate input
+            if (H_ < std::get<0>(kernel_size_) || W_ < std::get<1>(kernel_size_))
+            {
+                throw std::runtime_error("Input dimensions too small for kernel in layer: " + layer_name_);
+            }
+            
+            // pad input if needed
+            Eigen::Tensor<double, 4> input_to_use = pad_input(X);
+            in_cache_ = input_to_use; // cache input
+            
+            // initialize output dimensions
+            init_output();
+            
+            // get kernel and stride parameters
+            int kh = std::get<0>(kernel_size_);
+            int kw = std::get<1>(kernel_size_);
+            int sh = std::get<0>(stride_);
+            int sw = std::get<1>(stride_);
+
+
+            // TODO: Uses OpenMP for parallel processing 
+            
+            // apply max pooling - efficient nested loop approach
+            for (int b = 0; b < B_; ++b)
+            {
+                for (int c = 0; c < C_; ++c) 
+                {
+                    for (int oh = 0; oh < h_; ++oh) 
+                    {
+                        for (int ow = 0; ow < w_; ++ow) 
+                        {
+                            // calculate input region bounds
+                            int h_start = oh * sh;
+                            int w_start = ow * sw;
+                            int h_end = std::min(h_start + kh, (int)input_to_use.dimension(2));
+                            int w_end = std::min(w_start + kw, (int)input_to_use.dimension(3));
+                            
+                            // find maximum in the kernel window
+                            double max_val = -std::numeric_limits<double>::infinity();
+                            for (int kh_idx = h_start; kh_idx < h_end; ++kh_idx) 
+                            {
+                                for (int kw_idx = w_start; kw_idx < w_end; ++kw_idx) 
+                                {
+                                    max_val = std::max(max_val, input_to_use(b, c, kh_idx, kw_idx));
+                                }
+                            }
+                            
+                            output_(b, c, oh, ow) = max_val;
+                        }
+                    }
+                }
+            }
+            
+            return output_;
+        }
+
+        Eigen::Tensor<double, 4> MaxPool2D::backward(Eigen::Tensor<double, 4> grad_out)
+        {
+            // initialize gradient tensor with same dimensions as original input
+            Eigen::Tensor<double, 4> grad_input = Eigen::Tensor<double, 4>(B_, C_, H_, W_);
+            grad_input.setZero();
+            
+            int kh = std::get<0>(kernel_size_);
+            int kw = std::get<1>(kernel_size_);
+            int sh = std::get<0>(stride_);
+            int sw = std::get<1>(stride_);
+            
+            
+            // iterate through output positions
+            for (int b = 0; b < B_; ++b) 
+            {
+                for (int c = 0; c < C_; ++c) 
+                {
+                    for (int oh = 0; oh < h_; ++oh) 
+                    {
+                        for (int ow = 0; ow < w_; ++ow) 
+                        {
+                            // calculate input region bounds
+                            int h_start = oh * sh;
+                            int w_start = ow * sw;
+                            int h_end = std::min(h_start + kh, (int)in_cache_.dimension(2));
+                            int w_end = std::min(w_start + kw, (int)in_cache_.dimension(3));
+                            
+                            // find the position of maximum value in the kernel window
+                            double max_val = -std::numeric_limits<double>::infinity();
+                            int max_h = h_start;
+                            int max_w = w_start;
+                            
+                            for (int kh_idx = h_start; kh_idx < h_end; ++kh_idx) 
+                            {
+                                for (int kw_idx = w_start; kw_idx < w_end; ++kw_idx) 
+                                {
+                                    if (in_cache_(b, c, kh_idx, kw_idx) > max_val) 
+                                    {
+                                        max_val = in_cache_(b, c, kh_idx, kw_idx);
+                                        max_h = kh_idx;
+                                        max_w = kw_idx;
+                                    }
+                                }
+                            }
+                            
+                            // account for padding when mapping back to original input coordinates
+                            int pad_top = (padding_ == "valid") ? 0 : std::get<2>(num_padding_);
+                            int pad_left = (padding_ == "valid") ? 0 : std::get<0>(num_padding_);
+                            
+                            // convert padded coordinates to original input coordinates
+                            int orig_h = max_h - pad_top;
+                            int orig_w = max_w - pad_left;
+                            
+                            // only propagate gradient if the max position is within original input bounds
+                            if (orig_h >= 0 && orig_h < H_ && orig_w >= 0 && orig_w < W_) 
+                            {
+                                grad_input(b, c, orig_h, orig_w) += grad_out(b, c, oh, ow);
+                            }
+                        }
+                    }
+                }
+            }
+    
+            return grad_input;
+        }
     }
 }
