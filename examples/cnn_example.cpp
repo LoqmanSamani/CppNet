@@ -11,7 +11,7 @@ int main() {
     // Start timing
     //auto start = std::chrono::high_resolution_clock::now();
     
-    Eigen::Tensor<double, 4> input1(10, 3, 50, 50);
+    Eigen::Tensor<double, 4> input1(10, 3, 100, 100);
     input1.setRandom();
 
     Eigen::Tensor<double, 2> y(10, 10);  // 10 samples, 10 classes
@@ -33,7 +33,7 @@ int main() {
     std::tuple<int, int> stride1 = std::make_tuple(2, 2);
     std::tuple<int, int, int, int> num_padding = std::make_tuple(2, 2, 2, 2);
     std::tuple<int, int, int, int> num_padding1 = std::make_tuple(0, 0, 0, 0);
-    int in_size1 = 980;
+    int in_size1 = 7220;
     int out_size1 = 200;
     int in_size2 = 200;
     int out_size2 = 10;
@@ -81,6 +81,7 @@ int main() {
 
     CppNet::Optimizers::SGD optimizer;
     CppNet::Losses::CategoricalCrossEntropy loss_fn;
+    double lr = 0.001;
     
     
     for (int i = 1; i < 6; i++) 
@@ -95,7 +96,7 @@ int main() {
         Eigen::Tensor<double, 4> pool_2 = pool2.forward(conv_2);
         //std::cout << "pool2: " << pool_2.dimensions() << std::endl;
         Eigen::Tensor<double, 2> flattened = flatten.forward(pool_2);
-        //std::cout << "flattened: " << flattened.dimensions() << std::endl;
+        std::cout << "flattened: " << flattened.dimensions() << std::endl;
         Eigen::Tensor<double, 2> dense_1 = dense1.forward(flattened);
         Eigen::Tensor<double, 2> relu_1 = relu1.forward(dense_1);
         //std::cout << "dense 1: " << dense_1.dimensions() << std::endl;
@@ -110,6 +111,12 @@ int main() {
         double loss = loss_fn.forward(softmax_, y);
         //std::cout << "Loss: " << loss << std::endl;
 
+        // reset gradients
+        conv1.reset_grads();
+        conv2.reset_grads();
+        dense1.reset_grads();
+        dense2.reset_grads();
+        
         // Backward pass with shape debugging
         Eigen::Tensor<double, 2> grad_out = loss_fn.backward(y, softmax_);
         //std::cout << "grad_out: " << grad_out.dimensions() << std::endl;
@@ -133,6 +140,12 @@ int main() {
         //std::cout << "conv1_b: " << conv1_b.dimensions() << std::endl;
 
         std::cout << "Iteration " << i << "| Loss: " << loss << std::endl;
+
+        // update parameters
+        conv1.update_parameters(optimizer, lr);
+        conv2.update_parameters(optimizer, lr);
+        dense1.update_parameters(optimizer, lr);
+        dense2.update_parameters(optimizer, lr);
         
         /*
         if (i == 1)
