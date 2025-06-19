@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <vector>
 
 
 namespace CppNet 
@@ -227,9 +228,7 @@ namespace CppNet
         class MaxPool2D : public Layer
         {
             public:
-
-                MaxPool2D
-                (
+                MaxPool2D(
                     std::tuple<int, int> kernel_size = std::make_tuple(3, 3),
                     std::tuple<int, int> stride = std::make_tuple(1, 1),
                     std::string padding = "valid",
@@ -237,23 +236,23 @@ namespace CppNet
                     std::string padding_mode = "zero",
                     std::string layer_name = "MaxPool2D"
                 );
-
-                Eigen::Tensor<double, 4> MaxPool2D::forward(Eigen::Tensor<double, 4> X);
-                Eigen::Tensor<double, 4> MaxPool2D::backward(Eigen::Tensor<double, 4> grad_out);
-
+                
+                Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& X);
+                Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_out);
+                
+                // Layer interface
+                bool is_trainable() const override { return false; } // MaxPool is not trainable
+                void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) override {}
                 std::string get_layer_name() const { return layer_name_; }
-
-                void print_layer_info() const 
-                {
+                
+                void print_layer_info() const {
                     std::cout << "Layer: " << layer_name_ << std::endl;
-                    std::cout << "  Kernel size: [" << std::get<0>(kernel_size_) << ", " << std::get<1>(kernel_size_) << "]" << std::endl;
-                    std::cout << "  Stride: [" << std::get<0>(stride_) << ", " << std::get<1>(stride_) << "]" << std::endl;
-                    std::cout << "  Padding: " << padding_ << std::endl;
+                    std::cout << " Kernel size: [" << std::get<0>(kernel_size_) << ", " << std::get<1>(kernel_size_) << "]" << std::endl;
+                    std::cout << " Stride: [" << std::get<0>(stride_) << ", " << std::get<1>(stride_) << "]" << std::endl;
+                    std::cout << " Padding: " << padding_ << std::endl;
                 }
 
-
             private:
-
                 std::tuple<int, int> kernel_size_;
                 std::tuple<int, int> stride_;
                 std::string padding_;
@@ -263,10 +262,54 @@ namespace CppNet
                 Eigen::Tensor<double, 4> in_cache_;
                 Eigen::Tensor<double, 4> output_;
                 int B_, C_, H_, W_; // input dimensions
-                int h_, w_;         // output dimensions
-
+                int h_, w_; // output dimensions
+                
                 void init_output();
                 Eigen::Tensor<double, 4> pad_input(const Eigen::Tensor<double, 4>& X);
+        };
+
+        class Flatten : public Layer {
+            public:
+                Flatten(int start_dim = 1, int end_dim = -1, std::string layer_name = "Flatten");
+
+                // Non-template methods for common use cases
+                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 4>& X);
+                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 3>& X);
+                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& X);
+                
+                Eigen::Tensor<double, 4> backward4D(const Eigen::Tensor<double, 2>& dY);
+                Eigen::Tensor<double, 3> backward3D(const Eigen::Tensor<double, 2>& dY);
+                Eigen::Tensor<double, 2> backward2D(const Eigen::Tensor<double, 2>& dY);
+
+                // Layer interface
+                bool is_trainable() const override { return false; }
+                void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) override {}
+
+                int get_input_size() const { return in_size_; }
+                int get_output_size() const { return out_size_; }
+                std::string get_layer_name() const { return layer_name_; }
+                
+                void print_layer_info() const {
+                    std::cout << " Layer: " << layer_name_ << std::endl;
+                    std::cout << " Start Dimension: " << start_dim_ << std::endl;
+                    std::cout << " End Dimension: " << end_dim_ << std::endl;
+                    std::cout << " Input size: " << in_size_ << std::endl;
+                    std::cout << " Output size: " << out_size_ << std::endl;
+                    std::cout << " Input shape: ";
+                    for (size_t i = 0; i < in_shape_.size(); ++i) {
+                        std::cout << in_shape_[i] << (i < in_shape_.size() - 1 ? ", " : "");
+                    }
+                    std::cout << std::endl;
+                }
+
+            private:
+                int start_dim_;
+                int end_dim_;
+                std::string layer_name_;
+                std::vector<int> in_shape_;
+                int in_size_;
+                int out_size_;
+                int input_rank_; // track input tensor rank for backward pass
         };
     
     }

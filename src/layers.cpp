@@ -11,6 +11,7 @@ namespace CppNet
 {
     namespace Layers
     {
+        /**************************************Linear/Dense*******************************************/
 
         // a simple implementation of a linear(dense) layer  
         Linear::Linear(int in_size, int out_size, std::string layer_name, bool trainable, bool bias) 
@@ -30,9 +31,6 @@ namespace CppNet
             // initialize parameters and gradients
             init_params_and_grads();
         }
-
-        /**************************************Linear/Dense*******************************************/    
-
 
         void Linear::init_params_and_grads()
         {
@@ -576,15 +574,14 @@ namespace CppNet
 
         /**************************************MaxPool2D*******************************************/  
 
-        MaxPool2D::MaxPool2D
-        (
-            std::tuple<int, int> kernel_size = std::make_tuple(3, 3),
-            std::tuple<int, int> stride = std::make_tuple(1, 1),
-            std::string padding = "valid",
-            std::tuple<int, int, int, int> num_padding = std::make_tuple(0, 0, 0, 0),
-            std::string padding_mode = "zero",
-            std::string layer_name = "MaxPool2D"
-        ):
+        MaxPool2D::MaxPool2D(
+            std::tuple<int, int> kernel_size,
+            std::tuple<int, int> stride,
+            std::string padding,
+            std::tuple<int, int, int, int> num_padding,
+            std::string padding_mode,
+            std::string layer_name
+        ) :
             kernel_size_(kernel_size),
             stride_(stride),
             padding_(padding),
@@ -592,61 +589,60 @@ namespace CppNet
             padding_mode_(padding_mode),
             layer_name_(layer_name)
         {
-            // input validation
-            if (std::get<0>(kernel_size_) <= 0 || std::get<1>(kernel_size_) <= 0) 
-            {
+            // Input validation
+            if (std::get<0>(kernel_size_) <= 0 || std::get<1>(kernel_size_) <= 0) {
                 throw std::runtime_error("Kernel size must be positive in layer: " + layer_name_);
             }
-            if (std::get<0>(stride_) <= 0 || std::get<1>(stride_) <= 0) 
-            {
+            if (std::get<0>(stride_) <= 0 || std::get<1>(stride_) <= 0) {
                 throw std::runtime_error("Stride must be positive in layer: " + layer_name_);
             }
-            if (padding_ != "valid" && padding_ != "none") 
-            {
+            if (padding_ != "valid" && padding_ != "same") { // Fixed: "same" instead of "none"
                 throw std::runtime_error("Invalid padding mode: " + padding_ + " in layer: " + layer_name_);
             }
-            if (padding_mode_ != "zero") 
-            {
+            if (padding_mode_ != "zero") {
                 throw std::runtime_error("Invalid padding mode: " + padding_mode_ + " in layer: " + layer_name_);
             }
-
-            if (std::get<0>(num_padding_) < 0 || std::get<1>(num_padding_) < 0 || std::get<2>(num_padding_) < 0 || std::get<3>(num_padding_) < 0)
-            {
+            if (std::get<0>(num_padding_) < 0 || std::get<1>(num_padding_) < 0 || 
+                std::get<2>(num_padding_) < 0 || std::get<3>(num_padding_) < 0) {
                 throw std::runtime_error("Padding values must be non-negative in layer: " + layer_name_);
             }
         }
 
         Eigen::Tensor<double, 4> MaxPool2D::pad_input(const Eigen::Tensor<double, 4>& X)
         {
-            if (padding_ == "valid")
-            {
+            if (padding_ == "valid") {
                 return X;   
             }
-            int pad_left = std::get<0>(num_padding_);
-            int pad_right = std::get<1>(num_padding_);
-            int pad_top = std::get<2>(num_padding_);
-            int pad_bottom = std::get<3>(num_padding_);
-
-            if (pad_left == 0 && pad_right == 0 && pad_top == 0 && pad_bottom == 0) 
-            {
-                return X;
-            }
-
+            
             int k_h = std::get<0>(kernel_size_);
             int k_w = std::get<1>(kernel_size_);
             int stride_h = std::get<0>(stride_);
             int stride_w = std::get<1>(stride_);
+            
+            int pad_left, pad_right, pad_top, pad_bottom;
+            
+            if (padding_ == "same") {
+                // Compute padding to maintain output size for "same" padding
+                int output_h = (H_ + stride_h - 1) / stride_h; 
+                int output_w = (W_ + stride_w - 1) / stride_w; 
+                int pad_h_total = std::max(0, (output_h - 1) * stride_h + k_h - H_);
+                int pad_w_total = std::max(0, (output_w - 1) * stride_w + k_w - W_);
 
-            // compute padding to maintain output size
-            int output_h = (H_ + stride_h - 1) / stride_h; 
-            int output_w = (W_ + stride_w - 1) / stride_w; 
-            int pad_h_total = std::max(0, (output_h - 1) * stride_h + k_h - H_);
-            int pad_w_total = std::max(0, (output_w - 1) * stride_w + k_w - W_);
-
-            pad_top = pad_h_total / 2;
-            pad_bottom = pad_h_total - pad_top;
-            pad_left = pad_w_total / 2;
-            pad_right = pad_w_total - pad_left;
+                pad_top = pad_h_total / 2;
+                pad_bottom = pad_h_total - pad_top;
+                pad_left = pad_w_total / 2;
+                pad_right = pad_w_total - pad_left;
+            } else {
+                // Use explicit padding values
+                pad_left = std::get<0>(num_padding_);
+                pad_right = std::get<1>(num_padding_);
+                pad_top = std::get<2>(num_padding_);
+                pad_bottom = std::get<3>(num_padding_);
+            }
+            
+            if (pad_left == 0 && pad_right == 0 && pad_top == 0 && pad_bottom == 0) {
+                return X;
+            }
             
             Eigen::array<std::pair<int, int>, 4> paddings = {{
                 {0, 0},                    // batch
@@ -654,6 +650,7 @@ namespace CppNet
                 {pad_top, pad_bottom},     // height  
                 {pad_left, pad_right}      // width
             }};
+            
             return X.pad(paddings);
         }
 
@@ -663,84 +660,68 @@ namespace CppNet
             int k_w = std::get<1>(kernel_size_);
             int stride_h = std::get<0>(stride_);
             int stride_w = std::get<1>(stride_);
-            int pad_h = std::get<2>(num_padding_) + std::get<3>(num_padding_);
-            int pad_w = std::get<0>(num_padding_) + std::get<1>(num_padding_);
-
-            if (padding_ == "valid") 
-            {
-                h_ = std::ceil(static_cast<double>(H_  - k_h) / stride_h) + 1;
-                w_ = std::ceil(static_cast<double>(W_ - k_w) / stride_w) + 1;
-
-                if ((H_ + pad_h - k_h) % stride_h != 0 || (W_ + pad_w - k_w) % stride_w != 0) 
-                {
-                    throw std::runtime_error("Non-integer output dimensions in layer: " + layer_name_);
-                }
-            } 
-            else
-            {
-                h_ = std::ceil(static_cast<double>(H_ + pad_h - k_h) / stride_h);
-                w_ = std::ceil(static_cast<double>(W_ + pad_w - k_w) / stride_w);
+            
+            if (padding_ == "valid") {
+                h_ = (H_ - k_h) / stride_h + 1;
+                w_ = (W_ - k_w) / stride_w + 1;
+            } else if (padding_ == "same") {
+                h_ = (H_ + stride_h - 1) / stride_h;
+                w_ = (W_ + stride_w - 1) / stride_w;
+            } else {
+                // Custom padding
+                int pad_h = std::get<2>(num_padding_) + std::get<3>(num_padding_);
+                int pad_w = std::get<0>(num_padding_) + std::get<1>(num_padding_);
+                h_ = (H_ + pad_h - k_h) / stride_h + 1;
+                w_ = (W_ + pad_w - k_w) / stride_w + 1;
             }
 
-            if (h_ <= 0 || w_ <= 0) 
-            {
+            if (h_ <= 0 || w_ <= 0) {
                 throw std::runtime_error("Invalid output dimensions in layer: " + layer_name_);
             }
 
             output_ = Eigen::Tensor<double, 4>(B_, C_, h_, w_);
         }
 
-        
-        Eigen::Tensor<double, 4> MaxPool2D::forward(Eigen::Tensor<double, 4> X)
+        Eigen::Tensor<double, 4> MaxPool2D::forward(const Eigen::Tensor<double, 4>& X)
         {
             B_ = X.dimension(0);
             C_ = X.dimension(1);
             H_ = X.dimension(2);
             W_ = X.dimension(3);
             
-            // validate input
-            if (H_ < std::get<0>(kernel_size_) || W_ < std::get<1>(kernel_size_))
-            {
+            // Validate input
+            if (H_ < std::get<0>(kernel_size_) || W_ < std::get<1>(kernel_size_)) {
                 throw std::runtime_error("Input dimensions too small for kernel in layer: " + layer_name_);
             }
             
-            // pad input if needed
+            // Pad input if needed
             Eigen::Tensor<double, 4> input_to_use = pad_input(X);
-            in_cache_ = input_to_use; // cache input
+            in_cache_ = input_to_use; // Cache padded input
             
-            // initialize output dimensions
+            // Initialize output dimensions
             init_output();
             
-            // get kernel and stride parameters
+            // Get kernel and stride parameters
             int kh = std::get<0>(kernel_size_);
             int kw = std::get<1>(kernel_size_);
             int sh = std::get<0>(stride_);
             int sw = std::get<1>(stride_);
 
-
-            // TODO: Uses OpenMP for parallel processing 
-            
-            // apply max pooling - efficient nested loop approach
-            for (int b = 0; b < B_; ++b)
-            {
-                for (int c = 0; c < C_; ++c) 
-                {
-                    for (int oh = 0; oh < h_; ++oh) 
-                    {
-                        for (int ow = 0; ow < w_; ++ow) 
-                        {
-                            // calculate input region bounds
+            // Apply max pooling
+            for (int b = 0; b < B_; ++b) {
+                for (int c = 0; c < C_; ++c) {
+                    for (int oh = 0; oh < h_; ++oh) {
+                        for (int ow = 0; ow < w_; ++ow) {
+                            // Calculate input region bounds
                             int h_start = oh * sh;
                             int w_start = ow * sw;
-                            int h_end = std::min(h_start + kh, (int)input_to_use.dimension(2));
-                            int w_end = std::min(w_start + kw, (int)input_to_use.dimension(3));
+                            int h_end = std::min(h_start + kh, static_cast<int>(input_to_use.dimension(2)));
+                            int w_end = std::min(w_start + kw, static_cast<int>(input_to_use.dimension(3)));
                             
-                            // find maximum in the kernel window
+                            // Find maximum in the kernel window
                             double max_val = -std::numeric_limits<double>::infinity();
-                            for (int kh_idx = h_start; kh_idx < h_end; ++kh_idx) 
-                            {
-                                for (int kw_idx = w_start; kw_idx < w_end; ++kw_idx) 
-                                {
+                            for (int kh_idx = h_start; kh_idx < h_end; ++kh_idx) {
+                                for (int kw_idx = w_start; kw_idx < w_end; ++kw_idx) {
                                     max_val = std::max(max_val, input_to_use(b, c, kh_idx, kw_idx));
                                 }
                             }
@@ -754,44 +735,39 @@ namespace CppNet
             return output_;
         }
 
-        Eigen::Tensor<double, 4> MaxPool2D::backward(Eigen::Tensor<double, 4> grad_out)
+        Eigen::Tensor<double, 4> MaxPool2D::backward(const Eigen::Tensor<double, 4>& grad_out)
         {
-            // initialize gradient tensor with same dimensions as original input
-            Eigen::Tensor<double, 4> grad_input = Eigen::Tensor<double, 4>(B_, C_, H_, W_);
-            grad_input.setZero();
+            // Initialize gradient tensor with same dimensions as cached input
+            Eigen::Tensor<double, 4> grad_input_padded = Eigen::Tensor<double, 4>(
+                in_cache_.dimension(0), in_cache_.dimension(1), 
+                in_cache_.dimension(2), in_cache_.dimension(3)
+            );
+            grad_input_padded.setZero();
             
             int kh = std::get<0>(kernel_size_);
             int kw = std::get<1>(kernel_size_);
             int sh = std::get<0>(stride_);
             int sw = std::get<1>(stride_);
             
-            
-            // iterate through output positions
-            for (int b = 0; b < B_; ++b) 
-            {
-                for (int c = 0; c < C_; ++c) 
-                {
-                    for (int oh = 0; oh < h_; ++oh) 
-                    {
-                        for (int ow = 0; ow < w_; ++ow) 
-                        {
-                            // calculate input region bounds
+            // Iterate through output positions
+            for (int b = 0; b < B_; ++b) {
+                for (int c = 0; c < C_; ++c) {
+                    for (int oh = 0; oh < h_; ++oh) {
+                        for (int ow = 0; ow < w_; ++ow) {
+                            // Calculate input region bounds
                             int h_start = oh * sh;
                             int w_start = ow * sw;
-                            int h_end = std::min(h_start + kh, (int)in_cache_.dimension(2));
-                            int w_end = std::min(w_start + kw, (int)in_cache_.dimension(3));
+                            int h_end = std::min(h_start + kh, static_cast<int>(in_cache_.dimension(2)));
+                            int w_end = std::min(w_start + kw, static_cast<int>(in_cache_.dimension(3)));
                             
-                            // find the position of maximum value in the kernel window
+                            // Find the position of maximum value in the kernel window
                             double max_val = -std::numeric_limits<double>::infinity();
                             int max_h = h_start;
                             int max_w = w_start;
                             
-                            for (int kh_idx = h_start; kh_idx < h_end; ++kh_idx) 
-                            {
-                                for (int kw_idx = w_start; kw_idx < w_end; ++kw_idx) 
-                                {
-                                    if (in_cache_(b, c, kh_idx, kw_idx) > max_val) 
-                                    {
+                            for (int kh_idx = h_start; kh_idx < h_end; ++kh_idx) {
+                                for (int kw_idx = w_start; kw_idx < w_end; ++kw_idx) {
+                                    if (in_cache_(b, c, kh_idx, kw_idx) > max_val) {
                                         max_val = in_cache_(b, c, kh_idx, kw_idx);
                                         max_h = kh_idx;
                                         max_w = kw_idx;
@@ -799,25 +775,184 @@ namespace CppNet
                                 }
                             }
                             
-                            // account for padding when mapping back to original input coordinates
-                            int pad_top = (padding_ == "valid") ? 0 : std::get<2>(num_padding_);
-                            int pad_left = (padding_ == "valid") ? 0 : std::get<0>(num_padding_);
-                            
-                            // convert padded coordinates to original input coordinates
-                            int orig_h = max_h - pad_top;
-                            int orig_w = max_w - pad_left;
-                            
-                            // only propagate gradient if the max position is within original input bounds
-                            if (orig_h >= 0 && orig_h < H_ && orig_w >= 0 && orig_w < W_) 
-                            {
-                                grad_input(b, c, orig_h, orig_w) += grad_out(b, c, oh, ow);
-                            }
+                            // Propagate gradient to the max position
+                            grad_input_padded(b, c, max_h, max_w) += grad_out(b, c, oh, ow);
                         }
                     }
                 }
             }
-    
+            
+            // Remove padding from gradient if input was padded
+            if (padding_ == "valid" || 
+                (std::get<0>(num_padding_) == 0 && std::get<1>(num_padding_) == 0 && 
+                std::get<2>(num_padding_) == 0 && std::get<3>(num_padding_) == 0)) {
+                return grad_input_padded;
+            }
+            
+            // Extract the original input region from padded gradient
+            int pad_top = (padding_ == "same") ? 0 : std::get<2>(num_padding_);
+            int pad_left = (padding_ == "same") ? 0 : std::get<0>(num_padding_);
+            
+            if (padding_ == "same") {
+                // Calculate padding for "same" mode
+                int k_h = std::get<0>(kernel_size_);
+                int k_w = std::get<1>(kernel_size_);
+                int stride_h = std::get<0>(stride_);
+                int stride_w = std::get<1>(stride_);
+                
+                int output_h = (H_ + stride_h - 1) / stride_h;
+                int output_w = (W_ + stride_w - 1) / stride_w;
+                int pad_h_total = std::max(0, (output_h - 1) * stride_h + k_h - H_);
+                int pad_w_total = std::max(0, (output_w - 1) * stride_w + k_w - W_);
+                
+                pad_top = pad_h_total / 2;
+                pad_left = pad_w_total / 2;
+            }
+            
+            Eigen::Tensor<double, 4> grad_input(B_, C_, H_, W_);
+            
+            for (int b = 0; b < B_; ++b) {
+                for (int c = 0; c < C_; ++c) {
+                    for (int h = 0; h < H_; ++h) {
+                        for (int w = 0; w < W_; ++w) {
+                            grad_input(b, c, h, w) = grad_input_padded(b, c, h + pad_top, w + pad_left);
+                        }
+                    }
+                }
+            }
+            
             return grad_input;
         }
+
+        /**************************************Flatten*******************************************/ 
+
+        Flatten::Flatten(int start_dim, int end_dim, std::string layer_name) :
+            start_dim_(start_dim), end_dim_(end_dim), layer_name_(layer_name),
+            in_size_(0), out_size_(0), input_rank_(0) 
+        {
+            if (start_dim < 0) {
+                throw std::invalid_argument("Flatten: start_dim must be non-negative");
+            }
+        }
+
+        Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 4>& X) {
+            input_rank_ = 4;
+            if (X.size() == 0) {
+                throw std::runtime_error("Flatten: Empty input tensor");
+            }
+
+            // Store input shape
+            in_shape_.resize(4);
+            in_size_ = 1;
+            for (int i = 0; i < 4; ++i) {
+                in_shape_[i] = X.dimension(i);
+                in_size_ *= X.dimension(i);
+            }
+
+            // Resolve end_dim
+            int resolved_end_dim = end_dim_ < 0 ? 3 : end_dim_;
+            if (start_dim_ >= 4 || resolved_end_dim >= 4 || start_dim_ > resolved_end_dim) {
+                throw std::invalid_argument("Flatten: Invalid start_dim or end_dim for 4D tensor");
+            }
+
+            // Common case: keep batch dimension, flatten the rest
+            if (start_dim_ == 1 && resolved_end_dim == 3) {
+                int batch_size = X.dimension(0);
+                int feature_size = X.dimension(1) * X.dimension(2) * X.dimension(3);
+                out_size_ = feature_size;
+                
+                Eigen::array<int, 2> out_dims = {batch_size, feature_size};
+                return X.reshape(out_dims);
+            }
+            
+            // General case
+            int first_dim = 1;
+            for (int i = 0; i < start_dim_; ++i) {
+                first_dim *= X.dimension(i);
+            }
+            
+            int second_dim = 1;
+            for (int i = start_dim_; i <= resolved_end_dim; ++i) {
+                second_dim *= X.dimension(i);
+            }
+            
+            for (int i = resolved_end_dim + 1; i < 4; ++i) {
+                second_dim *= X.dimension(i);
+            }
+            
+            out_size_ = second_dim;
+            Eigen::array<int, 2> out_dims = {first_dim, second_dim};
+            return X.reshape(out_dims);
+        }
+
+        Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 3>& X) {
+            input_rank_ = 3;
+            // Similar implementation for 3D tensors
+            in_shape_.resize(3);
+            in_size_ = 1;
+            for (int i = 0; i < 3; ++i) {
+                in_shape_[i] = X.dimension(i);
+                in_size_ *= X.dimension(i);
+            }
+
+            if (start_dim_ == 1) {
+                int batch_size = X.dimension(0);
+                int feature_size = X.dimension(1) * X.dimension(2);
+                out_size_ = feature_size;
+                
+                Eigen::array<int, 2> out_dims = {batch_size, feature_size};
+                return X.reshape(out_dims);
+            }
+            
+            // Default: flatten all dimensions
+            Eigen::array<int, 2> out_dims = {1, static_cast<int>(X.size())};
+            return X.reshape(out_dims);
+        }
+
+        Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 2>& X) {
+            input_rank_ = 2;
+            in_shape_.resize(2);
+            for (int i = 0; i < 2; ++i) {
+                in_shape_[i] = X.dimension(i);
+            }
+            in_size_ = X.size();
+            out_size_ = X.size();
+            return X; // Already 2D
+        }
+
+        Eigen::Tensor<double, 4> Flatten::backward4D(const Eigen::Tensor<double, 2>& dY) {
+            if (input_rank_ != 4) {
+                throw std::runtime_error("Flatten: backward4D called but input was not 4D");
+            }
+            if (in_shape_.size() != 4) {
+                throw std::runtime_error("Flatten: Input shape not set for 4D tensor");
+            }
+
+            Eigen::array<int, 4> in_dims;
+            for (int i = 0; i < 4; ++i) {
+                in_dims[i] = in_shape_[i];
+            }
+            return dY.reshape(in_dims);
+        }
+
+        Eigen::Tensor<double, 3> Flatten::backward3D(const Eigen::Tensor<double, 2>& dY) {
+            if (input_rank_ != 3) {
+                throw std::runtime_error("Flatten: backward3D called but input was not 3D");
+            }
+            if (in_shape_.size() != 3) {
+                throw std::runtime_error("Flatten: Input shape not set for 3D tensor");
+            }
+
+            Eigen::array<int, 3> in_dims;
+            for (int i = 0; i < 3; ++i) {
+                in_dims[i] = in_shape_[i];
+            }
+            return dY.reshape(in_dims);
+        }
+
+        Eigen::Tensor<double, 2> Flatten::backward2D(const Eigen::Tensor<double, 2>& dY) {
+            return dY; // Already 2D
+        }
+            
     }
 }

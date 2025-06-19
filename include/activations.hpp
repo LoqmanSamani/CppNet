@@ -24,8 +24,10 @@ namespace CppNet
 
                 Eigen::Tensor<double, 2> in_cache_2d_;
                 Eigen::Tensor<double, 4> in_cache_4d_;
-                Eigen::Tensor<double, 2> sigmoid_cache_2d_; // For Sigmoid
-                Eigen::Tensor<double, 4> sigmoid_cache_4d_; // For Sigmoid
+                Eigen::Tensor<double, 2> sigmoid_cache_2d_; 
+                Eigen::Tensor<double, 4> sigmoid_cache_4d_; 
+                Eigen::Tensor<double, 2> softmax_cache_2d_; 
+                Eigen::Tensor<double, 4> softmax_cache_4d_;
         };
 
        
@@ -50,6 +52,17 @@ namespace CppNet
                 double forward(double z) override;
                 Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& z) override;
                 Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& da) override;
+        };
+
+        class SoftMax : public Activation
+        {
+            public:
+                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z) override;
+                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da) override;
+                double forward(double z) override;
+                Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& z) override;
+                Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& da) override;
+
         };
     }
 }
