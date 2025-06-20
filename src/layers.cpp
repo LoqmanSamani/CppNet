@@ -11,7 +11,7 @@ namespace CppNet
 {
     namespace Layers
     {
-        /**************************************Linear/Dense*******************************************/
+        /************************************** Linear/Dense *******************************************/
 
         // a simple implementation of a linear(dense) layer  
         Linear::Linear(int in_size, int out_size, std::string layer_name, bool trainable, bool bias) 
@@ -139,7 +139,7 @@ namespace CppNet
             return grad_input;
         }
 
-        /**************************************Conv2d*******************************************/    
+        /************************************** Conv2d *******************************************/    
 
         Conv2d::Conv2d(
             int in_channels,
@@ -572,7 +572,7 @@ namespace CppNet
             optimizer.update(*this, learning_rate);
         } 
 
-        /**************************************MaxPool2D*******************************************/  
+        /************************************** MaxPool2D *******************************************/  
 
         MaxPool2D::MaxPool2D(
             std::tuple<int, int> kernel_size,
@@ -824,7 +824,7 @@ namespace CppNet
             return grad_input;
         }
 
-        /**************************************Flatten*******************************************/ 
+        /************************************** Flatten *******************************************/ 
 
         Flatten::Flatten(int start_dim, int end_dim, std::string layer_name) :
             start_dim_(start_dim), end_dim_(end_dim), layer_name_(layer_name),
@@ -953,6 +953,142 @@ namespace CppNet
         Eigen::Tensor<double, 2> Flatten::backward2D(const Eigen::Tensor<double, 2>& dY) {
             return dY; // Already 2D
         }
+
+        /************************************** Multi-Head Attention *******************************************/ 
+        MultiHeadAttention::MultiHeadAttention
+            (
+                int in_size,
+                int out_size,
+                int num_heads = 8,
+                int context_length = 512,
+                double dropout_rate = 0.2,
+                std::string layer_name = "Multi-Head Attention",
+                bool trainable = true,
+                bool qkv_bias = false
+
+
+            ) :
+            in_size_(in_size), out_size_(out_size),
+            num_heads_(num_heads), context_length_(context_length),
+            dropout_rate_(dropout_rate), layer_name_(layer_name),
+            trainable_(trainable), qkv_bias_(qkv_bias)
+            {
+                head_size_ = in_size_ / num_heads_;
+                bool is_divisible = in_size_ % num_heads_;
+                if (!is_divisible)
+                {
+                    throw std::runtime_error("Multi-Head Attention: Input dimension must be divisible by the number of heads.");
+                }   
+            }
+        Eigen::Tensor<double, 2> MultiHeadAttention::dense_forward(
+            const Eigen::Tensor<double, 2>& X,
+            Eigen::Tensor<double, 2>& W, 
+            Eigen::Tensor<double, 1>& b)
+        {
+            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+            Eigen::Tensor<double, 2> output = X.contract(W, product_dims);
+
+            if (qkv_bias_) {
+                
+                Eigen::array<Eigen::Index, 2> broadcast_dims({X.dimension(0), 1});
+                Eigen::Tensor<double, 2> bias_broadcasted = b.reshape(Eigen::array<Eigen::Index, 2>({1, b.dimension(0)})).broadcast(broadcast_dims);
+                output = output + bias_broadcasted;
+            }
             
+            return output;
+        }
+        Eigen::Tensor<double, 2> MultiHeadAttention::dense_backward(
+            const Eigen::Tensor<double, 2>& grad_out,
+            Eigen::Tensor<double, 2>in_cache,
+            Eigen::Tensor<double, 2> weights,
+            Eigen::Tensor<double, 2>& grad_weights,
+            Eigen::Tensor<double, 1>& grad_biases)
+        {
+            if (trainable_) {
+                Eigen::array<int, 2> transpose_dims({1, 0});
+                Eigen::Tensor<double, 2> X_transposed = in_cache.shuffle(transpose_dims);
+                
+                Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+                grad_weights = X_transposed.contract(grad_out, product_dims);
+                
+                if (qkv_bias_) 
+                {
+                    Eigen::array<int, 1> batch_dim({0});
+                    grad_biases = grad_out.sum(batch_dim);
+                }
+            }
+            Eigen::array<int, 2> transpose_dims({1, 0});
+            Eigen::Tensor<double, 2> weights_transposed = weights.shuffle(transpose_dims);
+            
+            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+            Eigen::Tensor<double, 2> grad_input = grad_out.contract(weights_transposed, product_dims);
+            
+            return grad_input;
+        }
+
+        void MultiHeadAttention::init_params_and_grads()
+        {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+
+            double scale = std::sqrt(6.0 / (in_size_ + out_size_));
+            std::uniform_real_distribution<> dis(-scale, scale);
+
+            // initialize weight-tensors
+            Wq_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            Wk_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            Wv_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+
+            for (int i = 0; i < in_size_; ++i) 
+            {
+                for (int j = 0; j < out_size_; ++j) 
+                {
+                    Wq_(i, j) = dis(gen);
+                    Wk_(i, j) = dis(gen);
+                    Wv_(i, j) = dis(gen);
+                }
+            }
+
+            // initialize weight-gradient matrices with zero
+            grad_Wq_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            grad_Wk_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            grad_Wv_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+
+            grad_Wq_.setZero();
+            grad_Wk_.setZero();
+            grad_Wv_.setZero();
+
+            if (qkv_bias_)
+            {
+                // initialize biases with zero, if bias_ is true.
+                bq_ = Eigen::Tensor<double, 1>(out_size_);
+                bk_ = Eigen::Tensor<double, 1>(out_size_);
+                bv_ = Eigen::Tensor<double, 1>(out_size_);
+
+                bq_.setZero();
+                bk_.setZero();
+                bv_.setZero();
+
+                // initialize bias-gradient matrix with zero.
+                grad_bq_ = Eigen::Tensor<double, 1>(out_size_);
+                grad_bk_ = Eigen::Tensor<double, 1>(out_size_);
+                grad_bv_ = Eigen::Tensor<double, 1>(out_size_);
+
+                grad_bq_.setZero(); 
+                grad_bk_.setZero();
+                grad_bv_.setZero(); 
+            }
+            else
+            {
+                // initialize empty biases and gradients when bias is false
+                bq_ = Eigen::Tensor<double, 1>(0);
+                bk_ = Eigen::Tensor<double, 1>(0);
+                bv_ = Eigen::Tensor<double, 1>(0);
+
+                grad_bq_ = Eigen::Tensor<double, 1>(0);
+                grad_bk_ = Eigen::Tensor<double, 1>(0);
+                grad_bv_ = Eigen::Tensor<double, 1>(0);
+            }
+        }        
     }
 }

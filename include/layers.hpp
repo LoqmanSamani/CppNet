@@ -311,6 +311,133 @@ namespace CppNet
                 int out_size_;
                 int input_rank_; // track input tensor rank for backward pass
         };
+
+        class MultiHeadAttention : public Layer
+        {
+            public:
+                MultiHeadAttention
+                (
+                    int in_size,
+                    int out_size,
+                    int num_heads = 8,
+                    int context_length = 512,
+                    double dropout_rate = 0.2,
+                    std::string layer_name = "Multi-Head Attention",
+                    bool trainable = true,
+                    bool qkv_bias = false
+
+
+                );
+
+                Eigen::Tensor<double, 2> forward(Eigen::Tensor<double, 2>& X, Eigen::Tensor<double, 2>& Y, bool apply_mask = false);
+                Eigen::Tensor<double, 2> backward(Eigen::Tensor<double, 2>&dA, Eigen::Tensor<double, 2>& dY);
+
+                void reset_grads() 
+                {
+
+                    if (trainable_) 
+                    {
+                        grad_Wq_.setZero();
+                        grad_Wk_.setZero();
+                        grad_Wv_.setZero();
+                        if (qkv_bias_ && grad_bq_.size() > 0 && grad_bk_.size() > 0 && grad_bv_.size() > 0) 
+                        { 
+                            grad_bq_.setZero();
+                            grad_bk_.setZero();
+                            grad_bv_.setZero();
+                        }
+                    } 
+                }
+
+                int get_input_size() const { return in_size_; }
+                int get_output_size() const { return out_size_; }
+                std::string get_layer_name() const { return layer_name_; }
+                int get_num_heads() const { return num_heads_; }
+                int get_context_length() const { return context_length_; }
+                int get_dropout_rate() const{ return dropout_rate_; }
+
+                Eigen::Tensor<double, 2>& get_query_weights() { return Wq_; }
+                const Eigen::Tensor<double, 2>& get_query_weights() const { return Wq_; }
+                Eigen::Tensor<double, 2>& get_key_weights() { return Wk_; }
+                const Eigen::Tensor<double, 2>& get_key_weights() const { return Wk_; }
+                Eigen::Tensor<double, 2>& get_value_weights() { return Wv_; }
+                const Eigen::Tensor<double, 2>& get_value_weights() const { return Wv_; }
+
+                Eigen::Tensor<double, 1>& get_query_biases() { return bq_; }
+                const Eigen::Tensor<double, 1>& get_query_biases() const { return bq_; }
+                Eigen::Tensor<double, 1>& get_key_biases() { return bk_; }
+                const Eigen::Tensor<double, 1>& get_key_biases() const { return bk_; }
+                Eigen::Tensor<double, 1>& get_value_biases() { return bv_; }
+                const Eigen::Tensor<double, 1>& get_value_biases() const { return bv_; }
+
+                const Eigen::Tensor<double, 2>& get_grad_query_weights() const { return grad_Wq_; }
+                const Eigen::Tensor<double, 1>& get_grad_query_biases() const { return grad_bq_; }
+                const Eigen::Tensor<double, 2>& get_grad_key_weights() const { return grad_Wk_; }
+                const Eigen::Tensor<double, 1>& get_grad_key_biases() const { return grad_bk_; }
+                const Eigen::Tensor<double, 2>& get_grad_value_weights() const { return grad_Wv_; }
+                const Eigen::Tensor<double, 1>& get_grad_value_biases() const { return grad_bv_; }
+
+                bool is_trainable() const override { return trainable_; }
+
+                void freeze(){ trainable_ = false; }
+                void unfreeze() { trainable_ = true; }
+
+                bool has_bias() const { return qkv_bias_; }
+
+                void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) override;
+                
+                void print_layer_info() const 
+                {
+                    std::cout << "  Layer: " << layer_name_ << std::endl;
+                    std::cout << "  Input Dimension: " << in_size_ << std::endl;
+                    std::cout << "  Output Dimension: " << out_size_ << std::endl;
+                    std::cout << "  Trainable: " << (trainable_ ? "Yes" : "No") << std::endl;
+                    std::cout << "  Has Bias: " << (qkv_bias_ ? "Yes" : "No") << std::endl;
+                    std::cout << "  Query Weight Shape: [" << Wq_.dimension(0) << ", " << Wq_.dimension(1) << "]" << std::endl;
+                    std::cout << "  Key Weight Shape: [" << Wk_.dimension(0) << ", " << Wk_.dimension(1) << "]" << std::endl;
+                    std::cout << "  Value Weight Shape: [" << Wv_.dimension(0) << ", " << Wv_.dimension(1) << "]" << std::endl;
+
+                    if (qkv_bias_)
+                    {
+                        std::cout << "  Query Bias shape: [" << bq_.dimension(0) << "]" << std::endl;
+                        std::cout << "  Key Bias shape: [" << bk_.dimension(0) << "]" << std::endl;
+                        std::cout << "  Value Bias shape: [" << bv_.dimension(0) << "]" << std::endl;
+                    }
+                }
+
+            private:
+
+                bool trainable_;
+                int in_size_;
+                int out_size_;
+                int num_heads_;
+                int context_length_;
+                double dropout_rate_;
+                bool qkv_bias_;
+                std::string layer_name_;
+                int head_size_;
+                Eigen::Tensor<double, 2> Wq_;
+                Eigen::Tensor<double, 2> Wk_;
+                Eigen::Tensor<double, 2> Wv_;
+                Eigen::Tensor<double, 1> bq_;
+                Eigen::Tensor<double, 1> bk_;
+                Eigen::Tensor<double, 1> bv_;
+                Eigen::Tensor<double, 2> in_cache_;
+                Eigen::Tensor<double, 2> grad_Wq_;
+                Eigen::Tensor<double, 2> grad_Wk_;
+                Eigen::Tensor<double, 2> grad_Wv_;
+                Eigen::Tensor<double, 1> grad_bq_;
+                Eigen::Tensor<double, 1> grad_bk_;
+                Eigen::Tensor<double, 1> grad_bv_;
+                
+
+                void init_params_and_grads();
+                Eigen::Tensor<double, 2> dense_forward(const Eigen::Tensor<double, 2>& X, Eigen::Tensor<double, 2>& W, Eigen::Tensor<double, 1>& b);
+                Eigen::Tensor<double, 2> dense_backward(const Eigen::Tensor<double, 2>& grad_out, Eigen::Tensor<double, 2>in_cache, Eigen::Tensor<double, 2> weights, Eigen::Tensor<double, 2>& grad_weights, Eigen::Tensor<double, 1>& grad_biases);
+
+
+                
+        };
     
     }
 }
