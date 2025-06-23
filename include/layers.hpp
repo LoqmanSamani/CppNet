@@ -312,7 +312,7 @@ namespace CppNet
                 int input_rank_; // track input tensor rank for backward pass
         };
 
-        class MultiHeadAttention : public Layer
+        class MultiHeadAttention : public Layer, Flatten
         {
             public:
                 MultiHeadAttention
@@ -325,16 +325,13 @@ namespace CppNet
                     std::string layer_name = "Multi-Head Attention",
                     bool trainable = true,
                     bool qkv_bias = false
-
-
                 );
 
-                Eigen::Tensor<double, 2> forward(Eigen::Tensor<double, 2>& X, Eigen::Tensor<double, 2>& Y, bool apply_mask = false);
-                Eigen::Tensor<double, 2> backward(Eigen::Tensor<double, 2>&dA, Eigen::Tensor<double, 2>& dY);
+                Eigen::Tensor<double, 3> forward(Eigen::Tensor<double, 3>& X, Eigen::Tensor<double, 3>& Y = empty_tensor, bool apply_mask = false);
+                Eigen::Tensor<double, 3> backward(Eigen::Tensor<double, 3>&dA, Eigen::Tensor<double, 3>& dY = empty_tensor);
 
                 void reset_grads() 
                 {
-
                     if (trainable_) 
                     {
                         grad_Wq_.setZero();
@@ -416,13 +413,17 @@ namespace CppNet
                 bool qkv_bias_;
                 std::string layer_name_;
                 int head_size_;
+                Eigen::Tensor<bool, 2> mask_; 
+                
+                // weight matrices
                 Eigen::Tensor<double, 2> Wq_;
                 Eigen::Tensor<double, 2> Wk_;
                 Eigen::Tensor<double, 2> Wv_;
                 Eigen::Tensor<double, 1> bq_;
                 Eigen::Tensor<double, 1> bk_;
                 Eigen::Tensor<double, 1> bv_;
-                Eigen::Tensor<double, 2> in_cache_;
+                
+                // gradient matrices
                 Eigen::Tensor<double, 2> grad_Wq_;
                 Eigen::Tensor<double, 2> grad_Wk_;
                 Eigen::Tensor<double, 2> grad_Wv_;
@@ -430,13 +431,22 @@ namespace CppNet
                 Eigen::Tensor<double, 1> grad_bk_;
                 Eigen::Tensor<double, 1> grad_bv_;
                 
-
+                // cache variables for backward pass
+                Eigen::Tensor<double, 2> in_cache_;      // for self-attention: flattened input X
+                Eigen::Tensor<double, 2> X_cache_;       // for cross-attention: flattened input X
+                Eigen::Tensor<double, 2> Y_cache_;       // for cross-attention: flattened input Y
+                Eigen::Tensor<double, 4> Q_cache_;       // cached Query tensor
+                Eigen::Tensor<double, 4> K_cache_;       // cached Key tensor
+                Eigen::Tensor<double, 4> V_cache_;       // cached Value tensor
+                Eigen::Tensor<double, 4> attention_weights_cache_; // cached attention weights
+                
+                static Eigen::Tensor<double, 3> empty_tensor;
+                
                 void init_params_and_grads();
                 Eigen::Tensor<double, 2> dense_forward(const Eigen::Tensor<double, 2>& X, Eigen::Tensor<double, 2>& W, Eigen::Tensor<double, 1>& b);
                 Eigen::Tensor<double, 2> dense_backward(const Eigen::Tensor<double, 2>& grad_out, Eigen::Tensor<double, 2>in_cache, Eigen::Tensor<double, 2> weights, Eigen::Tensor<double, 2>& grad_weights, Eigen::Tensor<double, 1>& grad_biases);
-
-
-                
+                Eigen::Tensor<bool, 2> create_causal_mask(int context_length);
+                void apply_causal_mask(Eigen::Tensor<double, 4>& att_scores, const Eigen::Tensor<bool, 2>& mask, int num_tokens);
         };
     
     }
