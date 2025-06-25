@@ -312,7 +312,7 @@ namespace CppNet
                 int input_rank_; // track input tensor rank for backward pass
         };
 
-        class MultiHeadAttention : public Layer, Flatten
+        class MultiHeadAttention : public Layer //, Flatten
         {
             public:
                 MultiHeadAttention
@@ -451,7 +451,6 @@ namespace CppNet
     
     }
 }
-
 
 
 

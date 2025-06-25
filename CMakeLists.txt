@@ -69,9 +69,8 @@ endif()
 
 # define the example programs
 set(EXAMPLES
-    linear_example
-    cnn_example
     transformer_example
+    att_example
 )
 
 # build each example program

@@ -1,882 +1,544 @@
+/************************************** Flatten *******************************************/ 
 
-// layers.hpp file
-
-#ifndef LAYERS_HPP
-#define LAYERS_HPP
-
-#include <iostream>
-
-#include <Eigen/Dense>
-#include <unsupported/Eigen/CXX11/Tensor>
-#include <memory>
-#include <string>
-#include <tuple>
-
-
-namespace CppNet 
-{
-
-    namespace Activations
-    {
-        class Activation;
-        class ReLU;
-    }
-    namespace Optimizers
-    {
-        class Optimizer;
-    }
-
-    namespace Layers
-    {
-         
-        class Layer 
+        Flatten::Flatten(int start_dim, int end_dim, std::string layer_name) :
+            start_dim_(start_dim), end_dim_(end_dim), layer_name_(layer_name),
+            in_size_(0), out_size_(0), input_rank_(0) 
         {
-            public:
-                virtual bool is_trainable() const = 0;
-                virtual void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) = 0;
-                virtual ~Layer() = default;
-        };
-        class Conv2d : public Layer
-        {
-            public:
+            if (start_dim < 0) {
+                throw std::invalid_argument("Flatten: start_dim must be non-negative");
+            }
+        }
 
-                Conv2d(
-                    int in_channels,
-                    int out_channels,
-                    Activations::Activation* activator = nullptr,
-                    std::tuple<int, int> kernel_size = std::make_tuple(3, 3),
-                    std::tuple<int, int> stride = std::make_tuple(1, 1),
-                    std::string padding = "valid",
-                    std::tuple<int, int, int, int> num_padding = std::make_tuple(0, 0, 0, 0),
-                    std::string padding_mode = "zero",
-                    std::string layer_name = "Conv2D",
-                    bool trainable = true,
-                    bool bias = true
-                );
+        Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 4>& X) {
+            input_rank_ = 4;
+            if (X.size() == 0) {
+                throw std::runtime_error("Flatten: Empty input tensor");
+            }
 
-                Eigen::Tensor<double, 4> forward(Eigen::Tensor<double, 4>& X);
-                Eigen::Tensor<double, 4> backward(Eigen::Tensor<double, 4>& grad_out);
+            // Store input shape
+            in_shape_.resize(4);
+            in_size_ = 1;
+            for (int i = 0; i < 4; ++i) {
+                in_shape_[i] = X.dimension(i);
+                in_size_ *= X.dimension(i);
+            }
 
-                void reset_grads() 
-                {
-                    if (trainable_) 
-                    {
-                        grad_weights_.setZero();
-                        if (bias_ && grad_biases_.size() > 0) 
-                        { 
-                            grad_biases_.setZero();
-                        }
-                    } 
-                }
+            // Resolve end_dim
+            int resolved_end_dim = end_dim_ < 0 ? 3 : end_dim_;
+            if (start_dim_ >= 4 || resolved_end_dim >= 4 || start_dim_ > resolved_end_dim) {
+                throw std::invalid_argument("Flatten: Invalid start_dim or end_dim for 4D tensor");
+            }
 
-                int get_input_channels() const { return in_channels_; }
-                int get_output_channels() const { return out_channels_; }
-                std::string get_layer_name() const { return layer_name_; }
-
-                Eigen::Tensor<double, 4>& get_weights() { return weights_; }
-                const Eigen::Tensor<double, 4>& get_weights() const { return weights_; }
-                Eigen::Tensor<double, 1>& get_biases() { return biases_; }
-                const Eigen::Tensor<double, 1>& get_biases() const { return biases_; }
-
-                const Eigen::Tensor<double, 4>& get_grad_weights() const { return grad_weights_; }
-                const Eigen::Tensor<double, 1>& get_grad_biases() const { return grad_biases_; }
-
-                void set_weights(const Eigen::Tensor<double, 4>& weights) { weights_ = weights; }
-                void set_biases(const Eigen::Tensor<double, 1>& biases) { biases_ = biases; }
-
-                bool is_trainable() const override { return trainable_; }
-                void freeze() { trainable_ = false; }
-                void unfreeze() { trainable_ = true; }
-                bool has_bias() const { return bias_; }
-
-                void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) override;
+            // Common case: keep batch dimension, flatten the rest
+            if (start_dim_ == 1 && resolved_end_dim == 3) {
+                int batch_size = X.dimension(0);
+                int feature_size = X.dimension(1) * X.dimension(2) * X.dimension(3);
+                out_size_ = feature_size;
                 
-                void print_layer_info() const 
-                {
-                    std::cout << "Layer: " << layer_name_ << std::endl;
-                    std::cout << "  Input channels: " << in_channels_ << std::endl;
-                    std::cout << "  Output channels: " << out_channels_ << std::endl;
-                    std::cout << "  Kernel size: [" << std::get<0>(kernel_size_) << ", " << std::get<1>(kernel_size_) << "]" << std::endl;
-                    std::cout << "  Stride: [" << std::get<0>(stride_) << ", " << std::get<1>(stride_) << "]" << std::endl;
-                    std::cout << "  Padding: " << padding_ << std::endl;
-                    std::cout << "  Trainable: " << (trainable_ ? "Yes" : "No") << std::endl;
-                    std::cout << "  Has bias: " << (bias_ ? "Yes" : "No") << std::endl;
-                    std::cout << "  Weight shape: [" << weights_.dimension(0) << ", " << weights_.dimension(1) << ", "
-                            << weights_.dimension(2) << ", " << weights_.dimension(3) << "]" << std::endl;
-                    if (bias_) 
-                    {
-                        std::cout << "  Bias shape: [" << biases_.dimension(0) << "]" << std::endl;
-                    }
-                }
+                Eigen::array<int, 2> out_dims = {batch_size, feature_size};
+                return X.reshape(out_dims);
+            }
+            
+            // General case
+            int first_dim = 1;
+            for (int i = 0; i < start_dim_; ++i) {
+                first_dim *= X.dimension(i);
+            }
+            
+            int second_dim = 1;
+            for (int i = start_dim_; i <= resolved_end_dim; ++i) {
+                second_dim *= X.dimension(i);
+            }
+            
+            for (int i = resolved_end_dim + 1; i < 4; ++i) {
+                second_dim *= X.dimension(i);
+            }
+            
+            out_size_ = second_dim;
+            Eigen::array<int, 2> out_dims = {first_dim, second_dim};
+            return X.reshape(out_dims);
+        }
 
-            private:
+        Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 3>& X) {
+            input_rank_ = 3;
+            // Similar implementation for 3D tensors
+            in_shape_.resize(3);
+            in_size_ = 1;
+            for (int i = 0; i < 3; ++i) {
+                in_shape_[i] = X.dimension(i);
+                in_size_ *= X.dimension(i);
+            }
 
-                int in_channels_;
-                int out_channels_;
-                std::unique_ptr<Activations::ReLU> default_relu_;
-                Activations::Activation* activator_;
-                std::tuple<int, int> kernel_size_;
-                std::tuple<int, int> stride_;
-                std::string padding_;
-                std::tuple<int, int, int, int> num_padding_;
-                std::string padding_mode_;
-                std::string layer_name_;
-                bool trainable_;
-                bool bias_;
+            if (start_dim_ == 1) {
+                int batch_size = X.dimension(0);
+                int feature_size = X.dimension(1) * X.dimension(2);
+                out_size_ = feature_size;
                 
-                Eigen::Tensor<double, 4> weights_;
-                Eigen::Tensor<double, 1> biases_;
-                Eigen::Tensor<double, 4> grad_weights_;
-                Eigen::Tensor<double, 1> grad_biases_;
-                Eigen::Tensor<double, 4> in_cache_;
-                Eigen::Tensor<double, 4> output_;
+                Eigen::array<int, 2> out_dims = {batch_size, feature_size};
+                return X.reshape(out_dims);
+            }
+            
+            // Default: flatten all dimensions
+            Eigen::array<int, 2> out_dims = {1, static_cast<int>(X.size())};
+            return X.reshape(out_dims);
+        }
 
-                // Input/output dimensions
-                int B_, C_, H_, W_; // Input dimensions
-                int h_, w_;         // Output dimensions
+        Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 2>& X) {
+            input_rank_ = 2;
+            in_shape_.resize(2);
+            for (int i = 0; i < 2; ++i) {
+                in_shape_[i] = X.dimension(i);
+            }
+            in_size_ = X.size();
+            out_size_ = X.size();
+            return X; // Already 2D
+        }
+
+        Eigen::Tensor<double, 4> Flatten::backward4D(const Eigen::Tensor<double, 2>& dY) {
+            if (input_rank_ != 4) {
+                throw std::runtime_error("Flatten: backward4D called but input was not 4D");
+            }
+            if (in_shape_.size() != 4) {
+                throw std::runtime_error("Flatten: Input shape not set for 4D tensor");
+            }
+
+            Eigen::array<int, 4> in_dims;
+            for (int i = 0; i < 4; ++i) {
+                in_dims[i] = in_shape_[i];
+            }
+            return dY.reshape(in_dims);
+        }
+
+        Eigen::Tensor<double, 3> Flatten::backward3D(const Eigen::Tensor<double, 2>& dY) {
+            if (input_rank_ != 3) {
+                throw std::runtime_error("Flatten: backward3D called but input was not 3D");
+            }
+            if (in_shape_.size() != 3) {
+                throw std::runtime_error("Flatten: Input shape not set for 3D tensor");
+            }
+
+            Eigen::array<int, 3> in_dims;
+            for (int i = 0; i < 3; ++i) {
+                in_dims[i] = in_shape_[i];
+            }
+            return dY.reshape(in_dims);
+        }
+
+        Eigen::Tensor<double, 2> Flatten::backward2D(const Eigen::Tensor<double, 2>& dY) {
+            return dY; // Already 2D
+        }
+
+        /************************************** Multi-Head Attention *******************************************/ 
+        MultiHeadAttention::MultiHeadAttention
+            (
+                int in_size,
+                int out_size,
+                int num_heads = 8,
+                int context_length = 512,
+                double dropout_rate = 0.2,
+                std::string layer_name = "Multi-Head Attention",
+                bool trainable = true,
+                bool qkv_bias = false
+
+
+            ) :
+            in_size_(in_size), out_size_(out_size),
+            num_heads_(num_heads), context_length_(context_length),
+            dropout_rate_(dropout_rate), layer_name_(layer_name),
+            trainable_(trainable), qkv_bias_(qkv_bias)
+            {
+                head_size_ = in_size_ / num_heads_;
+                mask_ = create_causal_mask(context_length_);
+                bool is_divisible = in_size_ % num_heads_;
+                if (!is_divisible)
+                {
+                    throw std::runtime_error("Multi-Head Attention: Input dimension must be divisible by the number of heads.");
+                }   
+            }
+        Eigen::Tensor<double, 2> MultiHeadAttention::dense_forward(
+            const Eigen::Tensor<double, 2>& X,
+            Eigen::Tensor<double, 2>& W, 
+            Eigen::Tensor<double, 1>& b)
+        {
+            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+            Eigen::Tensor<double, 2> output = X.contract(W, product_dims);
+
+            if (qkv_bias_) {
                 
-                void init_params_and_grads();
-                void init_output();
-                Eigen::Tensor<double, 4> pad_input(const Eigen::Tensor<double, 4>& X);
-                Eigen::MatrixXd im2col(const Eigen::Tensor<double, 4>& input);
-                void col2im_add(const Eigen::MatrixXd& col_matrix, Eigen::Tensor<double, 4>& grad_input);
-        };
-    
-    }
-}
-
-
-#endif // LAYERS_HPP
-
-
-
-
-
-// layers.cpp file
-
-#include <cmath>
-#include <Eigen/Dense>
-#include "layers.hpp"
-#include "optimizers.hpp"
-#include "activations.hpp"
-
-
-
-
-namespace CppNet
-{
-    namespace Layers
-    {
-
-        Conv2d::Conv2d(
-            int in_channels,
-            int out_channels,
-            Activations::Activation* activator,
-            std::tuple<int, int> kernel_size,
-            std::tuple<int, int> stride,
-            std::string padding,
-            std::tuple<int, int, int, int> num_padding,
-            std::string padding_mode,
-            std::string layer_name,
-            bool trainable,
-            bool bias
-        ) : 
-            in_channels_(in_channels),
-            out_channels_(out_channels),
-            activator_(activator),
-            kernel_size_(kernel_size),
-            stride_(stride),
-            padding_(padding),
-            num_padding_(num_padding),
-            padding_mode_(padding_mode),
-            layer_name_(layer_name),
-            trainable_(trainable),
-            bias_(bias)
-        {
-            // Input validation
-            if (in_channels <= 0 || out_channels <= 0) 
-            {
-                throw std::runtime_error("in_channels and out_channels must be positive in layer: " + layer_name_);
+                Eigen::array<Eigen::Index, 2> broadcast_dims({X.dimension(0), 1});
+                Eigen::Tensor<double, 2> bias_broadcasted = b.reshape(Eigen::array<Eigen::Index, 2>({1, b.dimension(0)})).broadcast(broadcast_dims);
+                output = output + bias_broadcasted;
             }
-            if (std::get<0>(kernel_size_) <= 0 || std::get<1>(kernel_size_) <= 0) 
-            {
-                throw std::runtime_error("Kernel size must be positive in layer: " + layer_name_);
-            }
-            if (std::get<0>(stride_) <= 0 || std::get<1>(stride_) <= 0) 
-            {
-                throw std::runtime_error("Stride must be positive in layer: " + layer_name_);
-            }
-            if (padding_ != "valid" && padding_ != "same" && padding_ != "none") 
-            {
-                throw std::runtime_error("Invalid padding mode: " + padding_ + " in layer: " + layer_name_);
-            }
-            if (padding_mode_ != "zero") 
-            {
-                throw std::runtime_error("Invalid padding mode: " + padding_mode_ + " in layer: " + layer_name_);
-            }
-
-            if (std::get<0>(num_padding_) < 0 || std::get<1>(num_padding_) < 0 || std::get<2>(num_padding_) < 0 || std::get<3>(num_padding_) < 0)
-            {
-                throw std::runtime_error("Padding values must be non-negative in layer: " + layer_name_);
-            }
-
-            // default layer name
-            if (layer_name_.empty()) 
-            {
-                layer_name_ = "Conv2D_" + std::to_string(in_channels_) + "x" + std::to_string(out_channels_);
-            }
-
-            // handle activator
-            if (activator == nullptr) 
-            {
-                default_relu_ = std::make_unique<Activations::ReLU>();
-                activator_ = default_relu_.get();
-            }
-
-            // initialize parameters and gradients
-            init_params_and_grads();
+            
+            return output;
         }
-
-        void Conv2d::init_params_and_grads()
+        Eigen::Tensor<double, 2> MultiHeadAttention::dense_backward(
+            const Eigen::Tensor<double, 2>& grad_out,
+            Eigen::Tensor<double, 2>in_cache,
+            Eigen::Tensor<double, 2> weights,
+            Eigen::Tensor<double, 2>& grad_weights,
+            Eigen::Tensor<double, 1>& grad_biases)
         {
-            // Xavier initialization
-            int fan_in = in_channels_ * std::get<0>(kernel_size_) * std::get<1>(kernel_size_);
-            int fan_out = out_channels_ * std::get<0>(kernel_size_) * std::get<1>(kernel_size_);
-            double scale = std::sqrt(6.0 / (fan_in + fan_out));
-
-            // initialize weights: [out_channels, in_channels, kernel_h, kernel_w]
-            weights_ = Eigen::Tensor<double, 4>(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
-            weights_.setRandom();
-            weights_ = weights_ * scale;
-
-            // initialize gradients
-            grad_weights_ = Eigen::Tensor<double, 4>(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
-            grad_weights_.setZero();
-
-            if (bias_) 
-            {
-                biases_ = Eigen::Tensor<double, 1>(out_channels_);
-                biases_.setZero();
-                grad_biases_ = Eigen::Tensor<double, 1>(out_channels_);
-                grad_biases_.setZero();
-            } 
-            else 
-            {
-                biases_ = Eigen::Tensor<double, 1>(0);
-                grad_biases_ = Eigen::Tensor<double, 1>(0);
-            }
-        }
-
-        Eigen::Tensor<double, 4> Conv2d::pad_input(const Eigen::Tensor<double, 4>& X)
-        {
-            int pad_left = std::get<0>(num_padding_);
-            int pad_right = std::get<1>(num_padding_);
-            int pad_top = std::get<2>(num_padding_);
-            int pad_bottom = std::get<3>(num_padding_);
-
-            if (padding_ == "same")
-            {
-                int k_h = std::get<0>(kernel_size_);
-                int k_w = std::get<1>(kernel_size_);
-                int stride_h = std::get<0>(stride_);
-                int stride_w = std::get<1>(stride_);
-
-                // compute padding to maintain output size
-                int output_h = (H_ + stride_h - 1) / stride_h; 
-                int output_w = (W_ + stride_w - 1) / stride_w; 
-                int pad_h_total = std::max(0, (output_h - 1) * stride_h + k_h - H_);
-                int pad_w_total = std::max(0, (output_w - 1) * stride_w + k_w - W_);
-
-                pad_top = pad_h_total / 2;
-                pad_bottom = pad_h_total - pad_top;
-                pad_left = pad_w_total / 2;
-                pad_right = pad_w_total - pad_left;
-            }
-
-            if (pad_left == 0 && pad_right == 0 && pad_top == 0 && pad_bottom == 0) 
-            {
-                return X;
-            }
-
-            //int padded_h = H_ + pad_top + pad_bottom;
-            //int padded_w = W_ + pad_left + pad_right;
-
-            Eigen::array<std::pair<int, int>, 4> paddings = {{
-                {0, 0},                    // batch
-                {0, 0},                    // channels
-                {pad_top, pad_bottom},     // height  
-                {pad_left, pad_right}      // width
-            }};
-            return X.pad(paddings);
-        }
-
-        void Conv2d::init_output()
-        {
-            int k_h = std::get<0>(kernel_size_);
-            int k_w = std::get<1>(kernel_size_);
-            int stride_h = std::get<0>(stride_);
-            int stride_w = std::get<1>(stride_);
-            int pad_h = std::get<2>(num_padding_) + std::get<3>(num_padding_);
-            int pad_w = std::get<0>(num_padding_) + std::get<1>(num_padding_);
-
-            if (padding_ == "valid" || padding_ == "none") 
-            {
-                h_ = (H_ + pad_h - k_h) / stride_h + 1;
-                w_ = (W_ + pad_w - k_w) / stride_w + 1;
-
-                if ((H_ + pad_h - k_h) % stride_h != 0 || (W_ + pad_w - k_w) % stride_w != 0) 
-                {
-                    throw std::runtime_error("Non-integer output dimensions in layer: " + layer_name_);
-                }
-            } else if (padding_ == "same") 
-            {
-                h_ = std::ceil(static_cast<double>(H_) / stride_h);
-                w_ = std::ceil(static_cast<double>(W_) / stride_w);
-            }
-
-            if (h_ <= 0 || w_ <= 0) 
-            {
-                throw std::runtime_error("Invalid output dimensions in layer: " + layer_name_);
-            }
-
-            output_ = Eigen::Tensor<double, 4>(B_, out_channels_, h_, w_);
-        }
-
-        Eigen::MatrixXd Conv2d::im2col(const Eigen::Tensor<double, 4>& input)
-        {
-            const int k_h = std::get<0>(kernel_size_);
-            const int k_w = std::get<1>(kernel_size_);
-            const int stride_h = std::get<0>(stride_);
-            const int stride_w = std::get<1>(stride_);
-            const int input_h = input.dimension(2);
-            const int input_w = input.dimension(3);
-
-            int out_h = (input_h - k_h) / stride_h + 1;
-            int out_w = (input_w - k_w) / stride_w + 1;
-
-            if (out_h <= 0 || out_w <= 0) 
-            {
-                throw std::runtime_error("Invalid output dimensions in im2col for layer: " + layer_name_);
-            }
-
-            int col_height = k_h * k_w * in_channels_;
-            int col_width = B_ * out_h * out_w;
-
-            Eigen::MatrixXd col_matrix(col_height, col_width);
-            col_matrix.setZero();
-
-            int col_idx = 0;
-            for (int b = 0; b < B_; ++b) 
-            {
-                for (int oh = 0; oh < out_h; ++oh) 
-                {
-                    for (int ow = 0; ow < out_w; ++ow) 
-                    {
-                        int row_idx = 0;
-                        for (int ic = 0; ic < in_channels_; ++ic) 
-                        {
-                            for (int kh = 0; kh < k_h; ++kh) 
-                            {
-                                for (int kw = 0; kw < k_w; ++kw) 
-                                {
-                                    int ih = oh * stride_h + kh;
-                                    int iw = ow * stride_w + kw;
-                                    if (ih < input_h && iw < input_w) 
-                                    {
-                                        col_matrix(row_idx, col_idx) = input(b, ic, ih, iw);
-                                    }
-                                    row_idx++;
-                                }
-                            }
-                        }
-                        col_idx++;
-                    }
-                }
-            }
-
-            return col_matrix;
-        }
-
-        void Conv2d::col2im_add(const Eigen::MatrixXd& col_matrix, Eigen::Tensor<double, 4>& grad_input)
-        {
-            const int k_h = std::get<0>(kernel_size_);
-            const int k_w = std::get<1>(kernel_size_);
-            const int stride_h = std::get<0>(stride_);
-            const int stride_w = std::get<1>(stride_);
-            const int input_h = grad_input.dimension(2);
-            const int input_w = grad_input.dimension(3);
-
-            int col_idx = 0;
-            for (int b = 0; b < B_; ++b) 
-            {
-                for (int oh = 0; oh < h_; ++oh) 
-                {
-                    for (int ow = 0; ow < w_; ++ow) 
-                    {
-                        int row_idx = 0;
-                        for (int ic = 0; ic < in_channels_; ++ic) 
-                        {
-                            for (int kh = 0; kh < k_h; ++kh) 
-                            {
-                                for (int kw = 0; kw < k_w; ++kw) 
-                                {
-                                    int ih = oh * stride_h + kh;
-                                    int iw = ow * stride_w + kw;
-                                    if (ih < input_h && iw < input_w) 
-                                    {
-                                        grad_input(b, ic, ih, iw) += col_matrix(row_idx, col_idx);
-                                    }
-                                    row_idx++;
-                                }
-                            }
-                        }
-                        col_idx++;
-                    }
-                }
-            }
-        }
-
-        Eigen::Tensor<double, 4> Conv2d::forward(Eigen::Tensor<double, 4>& X)
-        {
-            // cache input and get dimensions
-            in_cache_ = X;
-            B_ = X.dimension(0);
-            C_ = X.dimension(1);
-            H_ = X.dimension(2);
-            W_ = X.dimension(3);
-
-            // validate input
-            if (C_ != in_channels_) 
-            {
-                throw std::runtime_error("Input channels mismatch in layer: " + layer_name_);
-            }
-            if (H_ < std::get<0>(kernel_size_) || W_ < std::get<1>(kernel_size_)) 
-            {
-                throw std::runtime_error("Input dimensions too small for kernel in layer: " + layer_name_);
-            }
-
-            // pad input if needed
-            Eigen::Tensor<double, 4> input_to_use = pad_input(X);
-
-            // initialize output dimensions
-            init_output();
-
-            // im2col transformation
-            Eigen::MatrixXd col_matrix = im2col(input_to_use);
-
-            // reshape weights to matrix: [out_channels, k_h * k_w * in_channels]
-            const int k_h = std::get<0>(kernel_size_);
-            const int k_w = std::get<1>(kernel_size_);
-            Eigen::Tensor<double, 2> weight_tensor = weights_.reshape(
-                Eigen::array<int, 2>{out_channels_, k_h * k_w * in_channels_}
-            );
-
-            Eigen::Map<Eigen::MatrixXd> weight_matrix(
-                weight_tensor.data(), 
-                out_channels_, 
-                k_h * k_w * in_channels_
-            );
-
-            Eigen::MatrixXd result = weight_matrix * col_matrix;
-
-            // add bias using broadcasting
-            Eigen::Tensor<double, 2> result_tensor = Eigen::TensorMap<Eigen::Tensor<double, 2>>(
-                result.data(), out_channels_, B_ * h_ * w_
-            );
-            if (bias_) 
-            {
-                Eigen::Tensor<double, 2> bias_broadcasted = biases_.reshape(
-                    Eigen::array<int, 2>{out_channels_, 1}
-                ).broadcast(Eigen::array<int, 2>{1, B_ * h_ * w_});
-                result_tensor += bias_broadcasted;
-            }
-
-            // reshape to 4D tensor
-            Eigen::Tensor<double, 4> pre_activation = result_tensor.reshape(
-                Eigen::array<int, 4>{B_, out_channels_, h_, w_}
-            );
-
-            // apply activation
-            output_ = activator_->forward(pre_activation);
-            return output_;
-        }
-
-        Eigen::Tensor<double, 4> Conv2d::backward(Eigen::Tensor<double, 4>& grad_out)
-        {
-            // validate gradient dimensions
-            if (grad_out.dimension(0) != B_ || grad_out.dimension(1) != out_channels_ || 
-                grad_out.dimension(2) != h_ || grad_out.dimension(3) != w_) 
-            {
-                throw std::runtime_error("Gradient output dimensions mismatch in layer: " + layer_name_);
-            }
-
-            const int k_h = std::get<0>(kernel_size_);
-            const int k_w = std::get<1>(kernel_size_);
-            //const int stride_h = std::get<0>(stride_);
-            //const int stride_w = std::get<1>(stride_);
-
-            // initialize gradients
-            Eigen::Tensor<double, 4> grad_input(in_cache_.dimensions());
-            grad_input.setZero();
-            if (trainable_) 
-            {
-                grad_weights_.setZero();
-                if (bias_) 
-                {
-                    grad_biases_.setZero();
-                }
-            }
-
-            // pad input for gradient computation
-            Eigen::Tensor<double, 4> input_to_use = pad_input(in_cache_);
-
-            // compute gradient through activation
-            Eigen::Tensor<double, 4> grad_pre_activation = activator_->backward(grad_out);
-
-            // Reshape grad_pre_activation to matrix
-            Eigen::Tensor<double, 2> grad_out_tensor = grad_pre_activation.reshape(
-                Eigen::array<int, 2>{out_channels_, B_ * h_ * w_}
-            );
-            Eigen::Map<Eigen::MatrixXd> grad_out_matrix(
-                grad_out_tensor.data(), 
-                out_channels_, 
-                B_ * h_ * w_
-            );
-
-            if (trainable_)
-            {
-                Eigen::MatrixXd col_matrix = im2col(input_to_use);
-                Eigen::MatrixXd weight_grad_matrix = grad_out_matrix * col_matrix.transpose();
+            if (trainable_) {
+                Eigen::array<int, 2> transpose_dims({1, 0});
+                Eigen::Tensor<double, 2> X_transposed = in_cache.shuffle(transpose_dims);
                 
-                // Convert MatrixXd to Tensor, then reshape
-                Eigen::TensorMap<Eigen::Tensor<double, 2>> weight_grad_tensor(
-                    weight_grad_matrix.data(),
-                    weight_grad_matrix.rows(),
-                    weight_grad_matrix.cols()
-                );
+                Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+                grad_weights = X_transposed.contract(grad_out, product_dims);
                 
-                // Now reshape the tensor
-                grad_weights_ = weight_grad_tensor.reshape(
-                    Eigen::array<int, 4>{out_channels_, in_channels_, k_h, k_w}
-                );
-                
-                if (bias_)
+                if (qkv_bias_) 
                 {
-                    Eigen::VectorXd bias_grad_vec = grad_out_matrix.colwise().sum();
-
-                    Eigen::Tensor<double, 1> bias_grad_tensor(bias_grad_vec.size());
-                    for (int i = 0; i < bias_grad_vec.size(); ++i) 
-                    {
-                        bias_grad_tensor(i) = bias_grad_vec(i);
-                    }
-
-                    grad_biases_ = bias_grad_tensor;
+                    Eigen::array<int, 1> batch_dim({0});
+                    grad_biases = grad_out.sum(batch_dim);
                 }
             }
-
-            // compute input gradients
-            Eigen::Tensor<double, 2> weight_tensor_T = weights_.reshape(
-                Eigen::array<int, 2>{k_h * k_w * in_channels_, out_channels_}
-            );
-
-            Eigen::Map<Eigen::MatrixXd> weight_matrix_T(
-                weight_tensor_T.data(),
-                k_h * k_w * in_channels_,
-                out_channels_
-            );
-
-            Eigen::MatrixXd grad_input_col = weight_matrix_T * grad_out_matrix;
-
-            // convert back to 4D tensor
-            col2im_add(grad_input_col, grad_input);
-
+            Eigen::array<int, 2> transpose_dims({1, 0});
+            Eigen::Tensor<double, 2> weights_transposed = weights.shuffle(transpose_dims);
+            
+            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+            Eigen::Tensor<double, 2> grad_input = grad_out.contract(weights_transposed, product_dims);
+            
             return grad_input;
         }
 
-        void Conv2d::update_parameters(Optimizers::Optimizer& optimizer, double learning_rate)
+        void MultiHeadAttention::init_params_and_grads()
         {
-            optimizer.update(*this, learning_rate);
-        }     
-    }
-}
+            std::random_device rd;
+            std::mt19937 gen(rd());
 
+            double scale = std::sqrt(6.0 / (in_size_ + out_size_));
+            std::uniform_real_distribution<> dis(-scale, scale);
 
-// activations.hpp
-#ifndef ACTIVATIONS_HPP
-#define ACTIVATIONS_HPP
+            // initialize weight-tensors
+            Wq_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            Wk_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            Wv_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
 
-#include <Eigen/Dense>
-#include <unsupported/Eigen/CXX11/Tensor>
-
-namespace CppNet
-{
-    namespace Activations
-    {
-       
-        class Activation
-        {
-            public:
-
-                virtual Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z) = 0;
-                virtual Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da) = 0;
-                virtual double forward(double z) = 0;
-                virtual Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& z) = 0;
-                virtual Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& da) = 0;
-                virtual ~Activation() = default;
-
-            protected:
-
-                Eigen::Tensor<double, 2> in_cache_2d_;
-                Eigen::Tensor<double, 4> in_cache_4d_;
-                Eigen::Tensor<double, 2> sigmoid_cache_2d_; // For Sigmoid
-                Eigen::Tensor<double, 4> sigmoid_cache_4d_; // For Sigmoid
-        };
-
-       
-        class ReLU : public Activation
-        {
-            public:
-
-                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z) override;
-                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da) override;
-                double forward(double z) override;
-                Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& z) override;
-                Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& da) override;
-        };
-
-       
-        class Sigmoid : public Activation
-        {
-            public:
-
-                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& z) override;
-                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& da) override;
-                double forward(double z) override;
-                Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& z) override;
-                Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& da) override;
-        };
-    }
-}
-
-#endif // ACTIVATIONS_HPP
-
-
-// activation.cpp
-#include "activations.hpp"
-#include <cmath>
-
-namespace CppNet
-{
-    namespace Activations
-    {
-        // ReLU implementations
-        Eigen::Tensor<double, 2> ReLU::forward(const Eigen::Tensor<double, 2>& z)
-        {
-            if (z.size() == 0)
+            for (int i = 0; i < in_size_; ++i) 
             {
-                throw std::runtime_error("ReLU: Empty input tensor in 2D forward");
+                for (int j = 0; j < out_size_; ++j) 
+                {
+                    Wq_(i, j) = dis(gen);
+                    Wk_(i, j) = dis(gen);
+                    Wv_(i, j) = dis(gen);
+                }
             }
-            in_cache_2d_ = z;
-            return z.cwiseMax(0.0);
+
+            // initialize weight-gradient matrices with zero
+            grad_Wq_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            grad_Wk_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            grad_Wv_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+
+            grad_Wq_.setZero();
+            grad_Wk_.setZero();
+            grad_Wv_.setZero();
+
+            if (qkv_bias_)
+            {
+                // initialize biases with zero, if bias_ is true.
+                bq_ = Eigen::Tensor<double, 1>(out_size_);
+                bk_ = Eigen::Tensor<double, 1>(out_size_);
+                bv_ = Eigen::Tensor<double, 1>(out_size_);
+
+                bq_.setZero();
+                bk_.setZero();
+                bv_.setZero();
+
+                // initialize bias-gradient matrix with zero.
+                grad_bq_ = Eigen::Tensor<double, 1>(out_size_);
+                grad_bk_ = Eigen::Tensor<double, 1>(out_size_);
+                grad_bv_ = Eigen::Tensor<double, 1>(out_size_);
+
+                grad_bq_.setZero(); 
+                grad_bk_.setZero();
+                grad_bv_.setZero(); 
+            }
+            else
+            {
+                // initialize empty biases and gradients when bias is false
+                bq_ = Eigen::Tensor<double, 1>(0);
+                bk_ = Eigen::Tensor<double, 1>(0);
+                bv_ = Eigen::Tensor<double, 1>(0);
+
+                grad_bq_ = Eigen::Tensor<double, 1>(0);
+                grad_bk_ = Eigen::Tensor<double, 1>(0);
+                grad_bv_ = Eigen::Tensor<double, 1>(0);
+            }
         }
 
-        Eigen::Tensor<double, 2> ReLU::backward(const Eigen::Tensor<double, 2>& da)
+        Eigen::Tensor<bool, 2> create_causal_mask(int context_length) 
         {
-            if (da.dimension(0) != in_cache_2d_.dimension(0) ||
-                da.dimension(1) != in_cache_2d_.dimension(1) ||
-                da.size() == 0)
-            {
-                throw std::runtime_error("ReLU: Shape mismatch or empty input in 2D backward");
+            Eigen::Tensor<int, 2> row_indices(context_length, context_length);
+            Eigen::Tensor<int, 2> col_indices(context_length, context_length);
+            
+            // create coordinate matrices
+            for (int i = 0; i < context_length; ++i) {
+                for (int j = 0; j < context_length; ++j) {
+                    row_indices(i, j) = i;
+                    col_indices(i, j) = j;
+                }
             }
             
-            Eigen::Tensor<double, 2> mask = (in_cache_2d_ > 0.0).template cast<double>();
-            return da * mask;
-        }
-
-        double ReLU::forward(double z)
-        {
-            return std::max(0.0, z);
-        }
-
-        Eigen::Tensor<double, 4> ReLU::forward(const Eigen::Tensor<double, 4>& z)
-        {
-            if (z.size() == 0)
-            {
-                throw std::runtime_error("ReLU: Empty input tensor in 4D forward");
-            }
-            in_cache_4d_ = z;
-            return z.cwiseMax(0.0);
-        }
-
-        Eigen::Tensor<double, 4> ReLU::backward(const Eigen::Tensor<double, 4>& da)
-        {
-            if (da.dimension(0) != in_cache_4d_.dimension(0) ||
-                da.dimension(1) != in_cache_4d_.dimension(1) ||
-                da.dimension(2) != in_cache_4d_.dimension(2) ||
-                da.dimension(3) != in_cache_4d_.dimension(3) ||
-                da.size() == 0)
-            {
-                throw std::runtime_error("ReLU: Shape mismatch or empty input in 4D backward");
-            }
+            // create mask where column > row (upper triangular)
+            Eigen::Tensor<bool, 2> mask = col_indices > row_indices;
             
-            Eigen::Tensor<double, 4> mask = (in_cache_4d_ > 0.0).template cast<double>();
-            return da * mask;
+            return mask;
         }
 
-        // Sigmoid implementations
-        Eigen::Tensor<double, 2> Sigmoid::forward(const Eigen::Tensor<double, 2>& z)
+        void apply_causal_mask(Eigen::Tensor<double, 4>& att_scores, const Eigen::Tensor<bool, 2>& mask, int num_tokens) 
         {
-            if (z.size() == 0)
-            {
-                throw std::runtime_error("Sigmoid: Empty input tensor in 2D forward");
-            }
-            in_cache_2d_ = z;
-            sigmoid_cache_2d_ = (1.0 + (-z).exp()).inverse();
-            return sigmoid_cache_2d_;
-        }
-
-        Eigen::Tensor<double, 2> Sigmoid::backward(const Eigen::Tensor<double, 2>& da)
-        {
-            if (da.dimension(0) != in_cache_2d_.dimension(0) ||
-                da.dimension(1) != in_cache_2d_.dimension(1) ||
-                da.size() == 0)
-            {
-                throw std::runtime_error("Sigmoid: Shape mismatch or empty input in 2D backward");
-            }
+            // get dimensions from attention_scores
+            int batch_size = att_scores.dimension(0);
+            int num_heads = att_scores.dimension(1);
             
-            return da * sigmoid_cache_2d_ * (1.0 - sigmoid_cache_2d_);
-        }
-
-        double Sigmoid::forward(double z)
-        {
-            double exp_neg_z = std::exp(-z);
-            return 1.0 / (1.0 + exp_neg_z);
-        }
-
-        Eigen::Tensor<double, 4> Sigmoid::forward(const Eigen::Tensor<double, 4>& z)
-        {
-            if (z.size() == 0)
-            {
-                throw std::runtime_error("Sigmoid: Empty input tensor in 4D forward");
+            // apply the mask (equivalent to masked_fill with -inf)
+            for (int b = 0; b < batch_size; ++b) {
+                for (int h = 0; h < num_heads; ++h) {
+                    for (int i = 0; i < num_tokens; ++i) {
+                        for (int j = 0; j < num_tokens; ++j) {
+                            if (mask(i, j)) {
+                                att_scores(b, h, i, j) = -std::numeric_limits<double>::infinity();
+                            }
+                        }
+                    }
+                }
             }
-            in_cache_4d_ = z;
-            sigmoid_cache_4d_ = (1.0 + (-z).exp()).inverse();
-            return sigmoid_cache_4d_;
         }
-
-        Eigen::Tensor<double, 4> Sigmoid::backward(const Eigen::Tensor<double, 4>& da)
-        {
-            if (da.dimension(0) != in_cache_4d_.dimension(0) ||
-                da.dimension(1) != in_cache_4d_.dimension(1) ||
-                da.dimension(2) != in_cache_4d_.dimension(2) ||
-                da.dimension(3) != in_cache_4d_.dimension(3) ||
-                da.size() == 0)
-            {
-                throw std::runtime_error("Sigmoid: Shape mismatch or empty input in 4D backward");
-            }
-            
-            return da * sigmoid_cache_4d_ * (1.0 - sigmoid_cache_4d_);
-        }
-    }
-}
-
-// optimizers.hpp
-#ifndef OPTIMIZERS_HPP
-#define OPTIMIZERS_HPP
-
-#include "layers.hpp"
-
-namespace CppNet
-{
-    namespace Optimizers
-    {
-       
-        class Optimizer
-        {
-        public:
-            virtual void update(CppNet::Layers::Linear& layer, double learning_rate) = 0;
-            virtual void update(CppNet::Layers::Conv2d& layer, double learning_rate) = 0;
-            virtual ~Optimizer() = default;
-        };
-
         
-        class SGD : public Optimizer
+        Eigen::Tensor<double, 3> MultiHeadAttention::forward(Eigen::Tensor<double, 3>& X, Eigen::Tensor<double, 3>& Y, bool apply_mask)
         {
-        public:
-            SGD() = default; // Explicit default constructor
-            void update(CppNet::Layers::Linear& layer, double learning_rate) override;
-            void update(CppNet::Layers::Conv2d& layer, double learning_rate) override;
-        };
-    }
-}
-
-#endif // OPTIMIZERS_HPP
-
-// optimizers.cpp
-#include "optimizers.hpp"
-
-
-
-namespace CppNet
-{
-    namespace Optimizers
-    {
-        void SGD::update(CppNet::Layers::Linear& layer, double learning_rate)
-        {
-            if (!layer.is_trainable())
+            int batch_size = X.dimension(0);
+            int num_tokens = X.dimension(1);
+            int in_size = X.dimension(2);
+            Flatten f;
+            
+            if (in_size != in_size_)
             {
-                return;
+                throw std::runtime_error("Multi-Head Attention: Input dimension mismatch.");
+            } 
+            
+            Eigen::Tensor<double, 4> Q;
+            Eigen::Tensor<double, 4> K; 
+            Eigen::Tensor<double, 4> V;
+            Eigen::array<Eigen::Index, 4> reshape_dims = {batch_size, num_tokens, num_heads_, head_size_};
+            Eigen::array<int, 4> shuffle_dims = {0, 2, 1, 3}; // (batch, heads, tokens, head_dim)
+            Eigen::array<int, 4> shuffle_dims1 = {0, 2, 3, 1}; // (batch, heads, head_dim, tokens)
+
+            if (Y.size() != 0)
+            {
+                // cross-attention case: flatten both x and y
+                Eigen::Tensor<double, 2> fx = f.forward(X);
+                Eigen::Tensor<double, 2> fy = f.forward(Y);
+                
+                // cache inputs for backward pass
+                X_cache_ = fx;
+                Y_cache_ = fy;
+
+                // linear projections - Q from Y, K and V from X for cross-attention
+                Eigen::Tensor<double, 2> fq = dense_forward(fy, Wq_, bq_);
+                Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_);
+                Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_);
+
+                // reshape to 4d tensors (batch, tokens, heads, head_dim)
+                Eigen::Tensor<double, 4> Q_reshaped = fq.reshape(reshape_dims);
+                Eigen::Tensor<double, 4> K_reshaped = fk.reshape(reshape_dims);
+                Eigen::Tensor<double, 4> V_reshaped = fv.reshape(reshape_dims);
+                
+                // transpose to (batch, heads, tokens, head_dim)
+                Q = Q_reshaped.shuffle(shuffle_dims);
+                K = K_reshaped.shuffle(shuffle_dims);
+                V = V_reshaped.shuffle(shuffle_dims);    
+            }
+            else
+            {
+                // self-attention case: flatten x
+                Eigen::Tensor<double, 2> fx = f.forward(X);
+                
+                // cache input for backward pass
+                in_cache_ = fx;
+                
+                // linear projections - all from the same input
+                Eigen::Tensor<double, 2> fq = dense_forward(fx, Wq_, bq_);
+                Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_);
+                Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_);
+
+                // reshape to 4d tensors (batch, tokens, heads, head_dim)
+                Eigen::Tensor<double, 4> Q_reshaped = fq.reshape(reshape_dims);
+                Eigen::Tensor<double, 4> K_reshaped = fk.reshape(reshape_dims);
+                Eigen::Tensor<double, 4> V_reshaped = fv.reshape(reshape_dims);
+            
+                // transpose to (batch, heads, tokens, head_dim)
+                Q = Q_reshaped.shuffle(shuffle_dims);
+                K = K_reshaped.shuffle(shuffle_dims);
+                V = V_reshaped.shuffle(shuffle_dims); 
             }
 
-            // validate dimensions
-            const auto& weights = layer.get_weights();
-            const auto& grad_weights = layer.get_grad_weights();
-            if (weights.dimensions() != grad_weights.dimensions())
+            // cache Q, K, V for backward pass
+            Q_cache_ = Q;
+            K_cache_ = K;
+            V_cache_ = V;
+
+            // transpose K for matrix multiplication: (batch, heads, head_dim, tokens)
+            Eigen::Tensor<double, 4> tK = K.shuffle(shuffle_dims1);
+
+            // compute attention scores: Q @ K^T
+            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(3, 2)};
+            Eigen::Tensor<double, 4> att_scores = Q.contract(tK, product_dims);
+            
+            // scale by sqrt(head_size) for stability
+            double scale_factor = 1.0 / std::sqrt(static_cast<double>(head_size_));
+            att_scores = att_scores * scale_factor;
+
+            // apply causal mask if requested
+            if (apply_mask)
             {
-                throw std::runtime_error("Weight and gradient dimension mismatch in Linear layer: " + layer.get_layer_name());
+                apply_causal_mask(att_scores, mask_, num_tokens);
             }
 
-            layer.get_weights() -= learning_rate * layer.get_grad_weights();
+            // Apply softmax along the last dimension (tokens) to get attention weights
+            int total_batch_heads = batch_size * num_heads_;
+            Eigen::array<Eigen::Index, 2> flatten_dims = {total_batch_heads * num_tokens, num_tokens};
+            Eigen::Tensor<double, 2> att_scores_2d = att_scores.reshape(flatten_dims);
+            CppNet::Activations::SoftMax softmax;
+            Eigen::Tensor<double, 2> attention_weights_2d = softmax.forward(att_scores_2d);
+            Eigen::array<Eigen::Index, 4> unflatten_dims = {batch_size, num_heads_, num_tokens, num_tokens};
+            Eigen::Tensor<double, 4> attention_weights = attention_weights_2d.reshape(unflatten_dims);
+            
+            // cache attention weights for backward pass
+            attention_weights_cache_ = attention_weights;
 
-            if (layer.has_bias())
-            {
-                const auto& biases = layer.get_biases();
-                const auto& grad_biases = layer.get_grad_biases();
-                if (biases.dimensions() != grad_biases.dimensions())
-                {
-                    throw std::runtime_error("Bias and gradient dimension mismatch in Linear layer: " + layer.get_layer_name());
-                }
-                layer.get_biases() -= learning_rate * layer.get_grad_biases();
-            }
+            // TODO: apply dropout
+           
+            // compute context vector: attention_weights @ V
+            Eigen::array<Eigen::IndexPair<int>, 1> context_product_dims = {Eigen::IndexPair<int>(3, 2)};
+            Eigen::Tensor<double, 4> context_vector = attention_weights.contract(V, context_product_dims);
+            
+            // transpose back to (batch, tokens, heads, head_dim)
+            Eigen::array<int, 4> output_shuffle_dims = {0, 2, 1, 3};
+            Eigen::Tensor<double, 4> context_transposed = context_vector.shuffle(output_shuffle_dims);
+            
+            // reshape to (batch, tokens, out_size) - concatenate heads
+            Eigen::array<Eigen::Index, 3> final_reshape_dims = {batch_size, num_tokens, out_size_};
+            Eigen::Tensor<double, 3> output = context_transposed.reshape(final_reshape_dims);
+            
+            return output;
         }
 
-        void SGD::update(CppNet::Layers::Conv2d& layer, double learning_rate)
+        Eigen::Tensor<double, 3> MultiHeadAttention::backward(Eigen::Tensor<double, 3>& dA, Eigen::Tensor<double, 3>& dY)
         {
-            if (!layer.is_trainable())
+            // get dimensions from the gradient
+            int batch_size = dA.dimension(0);
+            int num_tokens = dA.dimension(1);
+            int out_size = dA.dimension(2);
+            
+            if (out_size != out_size_)
             {
-                return;
+                throw std::runtime_error("Multi-Head Attention Backward: Output dimension mismatch.");
             }
-
-            // validate dimensions
-            const auto& weights = layer.get_weights();
-            const auto& grad_weights = layer.get_grad_weights();
-            if (weights.dimensions() != grad_weights.dimensions())
+            
+            Flatten f;
+            
+            // reshape gradient to (batch, tokens, heads, head_dim)
+            Eigen::array<Eigen::Index, 4> grad_reshape_dims = {batch_size, num_tokens, num_heads_, head_size_};
+            Eigen::Tensor<double, 4> dA_reshaped = dA.reshape(grad_reshape_dims);
+            
+            // transpose to (batch, heads, tokens, head_dim)
+            Eigen::array<int, 4> shuffle_dims = {0, 2, 1, 3};
+            Eigen::Tensor<double, 4> dA_transposed = dA_reshaped.shuffle(shuffle_dims);
+            
+           
+            // gradient w.r.t. context vector (before concatenation)
+            Eigen::Tensor<double, 4> dContext = dA_transposed;
+            
+            // gradient w.r.t. attention weights: dContext @ V^T
+            Eigen::array<int, 4> V_transpose_dims = {0, 1, 3, 2}; // (batch, heads, head_dim, tokens)
+            Eigen::Tensor<double, 4> V_transposed = V_cache_.shuffle(V_transpose_dims);
+            
+            Eigen::array<Eigen::IndexPair<int>, 1> dAtt_product_dims = {Eigen::IndexPair<int>(3, 2)};
+            Eigen::Tensor<double, 4> dAttention_weights = dContext.contract(V_transposed, dAtt_product_dims);
+            
+            // gradient w.r.t. V: attention_weights^T @ dContext
+            Eigen::array<int, 4> att_transpose_dims = {0, 1, 3, 2}; // (batch, heads, tokens, tokens)
+            Eigen::Tensor<double, 4> attention_weights_transposed = attention_weights_cache_.shuffle(att_transpose_dims);
+            
+            Eigen::array<Eigen::IndexPair<int>, 1> dV_product_dims = {Eigen::IndexPair<int>(2, 2)};
+            Eigen::Tensor<double, 4> dV = attention_weights_transposed.contract(dContext, dV_product_dims);
+            
+            // gradient through softmax
+            int total_batch_heads = batch_size * num_heads_;
+            Eigen::array<Eigen::Index, 2> flatten_dims = {total_batch_heads * num_tokens, num_tokens};
+            Eigen::Tensor<double, 2> dAttention_weights_2d = dAttention_weights.reshape(flatten_dims);
+            CppNet::Activations::SoftMax softmax;
+            Eigen::Tensor<double, 2> dAtt_scores_2d = softmax.backward(dAttention_weights_2d);
+            Eigen::array<Eigen::Index, 4> unflatten_dims = {batch_size, num_heads_, num_tokens, num_tokens};
+            Eigen::Tensor<double, 4> dAtt_scores = dAtt_scores_2d.reshape(unflatten_dims);
+            
+            // apply scaling factor gradient
+            double scale_factor = 1.0 / std::sqrt(static_cast<double>(head_size_));
+            dAtt_scores = dAtt_scores * scale_factor;
+            
+            // gradient w.r.t. Q: dAtt_scores @ K
+            Eigen::array<Eigen::IndexPair<int>, 1> dQ_product_dims = {Eigen::IndexPair<int>(3, 3)};
+            Eigen::Tensor<double, 4> dQ = dAtt_scores.contract(K_cache_, dQ_product_dims);
+            
+            // gradient w.r.t. K: dAtt_scores^T @ Q
+            Eigen::array<int, 4> dAtt_transpose_dims = {0, 1, 3, 2}; // (batch, heads, tokens, tokens)
+            Eigen::Tensor<double, 4> dAtt_scores_transposed = dAtt_scores.shuffle(dAtt_transpose_dims);
+            
+            Eigen::array<Eigen::IndexPair<int>, 1> dK_product_dims = {Eigen::IndexPair<int>(2, 2)};
+            Eigen::Tensor<double, 4> dK = dAtt_scores_transposed.contract(Q_cache_, dK_product_dims);
+            
+            // transpose Q, K, V gradients back to (batch, tokens, heads, head_dim)
+            Eigen::array<int, 4> output_shuffle_dims = {0, 2, 1, 3};
+            Eigen::Tensor<double, 4> dQ_transposed = dQ.shuffle(output_shuffle_dims);
+            Eigen::Tensor<double, 4> dK_transposed = dK.shuffle(output_shuffle_dims);
+            Eigen::Tensor<double, 4> dV_transposed = dV.shuffle(output_shuffle_dims);
+            
+            // reshape to 3D for linear layer backward pass
+            Eigen::array<Eigen::Index, 3> linear_reshape_dims = {batch_size, num_tokens, out_size_};
+            Eigen::Tensor<double, 3> dQ_3d = dQ_transposed.reshape(linear_reshape_dims);
+            Eigen::Tensor<double, 3> dK_3d = dK_transposed.reshape(linear_reshape_dims);
+            Eigen::Tensor<double, 3> dV_3d = dV_transposed.reshape(linear_reshape_dims);
+            
+            // flatten to 2D for dense layer backward pass
+            Eigen::Tensor<double, 2> dQ_2d = f.forward(dQ_3d);
+            Eigen::Tensor<double, 2> dK_2d = f.forward(dK_3d);
+            Eigen::Tensor<double, 2> dV_2d = f.forward(dV_3d);
+            
+            // initialize gradients
+            Eigen::Tensor<double, 2> dX;
+            Eigen::Tensor<double, 2> dY_output;
+            
+            if (dY.size() != 0) // cross-attention case
             {
-                throw std::runtime_error("Weight and gradient dimension mismatch in Conv2d layer: " + layer.get_layer_name());
+                // gradient w.r.t. input X (comes from K and V)
+                Eigen::Tensor<double, 2> dX_from_K = dense_backward(dK_2d, X_cache_, Wk_, grad_Wk_, grad_bk_);
+                Eigen::Tensor<double, 2> dX_from_V = dense_backward(dV_2d, X_cache_, Wv_, grad_Wv_, grad_bv_);
+                dX = dX_from_K + dX_from_V;
+                
+                // gradient w.r.t. input Y (comes from Q)
+                dY_output = dense_backward(dQ_2d, Y_cache_, Wq_, grad_Wq_, grad_bq_);
+                
+                // reshape back to 3D
+                Eigen::array<Eigen::Index, 3> output_reshape_dims = {batch_size, num_tokens, in_size_};
+                Eigen::Tensor<double, 3> dX_3d = dX.reshape(output_reshape_dims);
+                Eigen::Tensor<double, 3> dY_3d = dY_output.reshape(output_reshape_dims);
+                
+                // for cross-attention, we return gradient w.r.t. X, and dY is modified in place
+                dY = dY_3d;
+                return dX_3d;
             }
-
-            layer.get_weights() -= learning_rate * layer.get_grad_weights();
-
-            if (layer.has_bias())
+            else // self-attention case
             {
-                const auto& biases = layer.get_biases();
-                const auto& grad_biases = layer.get_grad_biases();
-                if (biases.dimensions() != grad_biases.dimensions())
-                {
-                    throw std::runtime_error("Bias and gradient dimension mismatch in Conv2d layer: " + layer.get_layer_name());
-                }
-                layer.get_biases() -= learning_rate * layer.get_grad_biases();
+                // all gradients go to the same input X
+                Eigen::Tensor<double, 2> dX_from_Q = dense_backward(dQ_2d, in_cache_, Wq_, grad_Wq_, grad_bq_);
+                Eigen::Tensor<double, 2> dX_from_K = dense_backward(dK_2d, in_cache_, Wk_, grad_Wk_, grad_bk_);
+                Eigen::Tensor<double, 2> dX_from_V = dense_backward(dV_2d, in_cache_, Wv_, grad_Wv_, grad_bv_);
+                
+                dX = dX_from_Q + dX_from_K + dX_from_V;
+                
+                // reshape back to 3D
+                Eigen::array<Eigen::Index, 3> output_reshape_dims = {batch_size, num_tokens, in_size_};
+                return dX.reshape(output_reshape_dims);
             }
         }
-    }
-}
