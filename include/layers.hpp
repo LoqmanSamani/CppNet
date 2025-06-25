@@ -268,15 +268,19 @@ namespace CppNet
                 Eigen::Tensor<double, 4> pad_input(const Eigen::Tensor<double, 4>& X);
         };
 
-        class Flatten : public Layer {
-            public:
-                Flatten(int start_dim = 1, int end_dim = -1, std::string layer_name = "Flatten");
 
-                // Non-template methods for common use cases
+        class Flatten : public Layer
+        {
+            public:
+                // Constructor
+                Flatten(int start_dim = 0, int end_dim = 1, std::string layer_name = "Flatten");
+
+                // Forward pass methods for different tensor ranks
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 4>& X);
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 3>& X);
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& X);
-                
+
+                // Backward pass methods for different tensor ranks
                 Eigen::Tensor<double, 4> backward4D(const Eigen::Tensor<double, 2>& dY);
                 Eigen::Tensor<double, 3> backward3D(const Eigen::Tensor<double, 2>& dY);
                 Eigen::Tensor<double, 2> backward2D(const Eigen::Tensor<double, 2>& dY);
@@ -306,11 +310,20 @@ namespace CppNet
                 int start_dim_;
                 int end_dim_;
                 std::string layer_name_;
-                std::vector<int> in_shape_;
+                int input_rank_;
                 int in_size_;
                 int out_size_;
-                int input_rank_; // track input tensor rank for backward pass
+                std::array<int, 4> in_shape_;
+
+                // Helper function to resolve negative dimensions and validate
+                template<int Rank>
+                std::pair<int, int> resolve_and_validate_dims() const;
+
+                // Optimized dimension calculation
+                template<int Rank>
+                std::pair<int, int> calculate_output_dims(const auto& tensor, int start_dim, int end_dim);
         };
+
 
         class MultiHeadAttention : public Layer //, Flatten
         {
