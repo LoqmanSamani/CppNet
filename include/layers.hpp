@@ -273,7 +273,7 @@ namespace CppNet
         {
             public:
                 // Constructor
-                Flatten(int start_dim = 0, int end_dim = 1, std::string layer_name = "Flatten");
+                Flatten(std::string layer_name = "Flatten");
 
                 // Forward pass methods for different tensor ranks
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 4>& X);
@@ -281,47 +281,22 @@ namespace CppNet
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& X);
 
                 // Backward pass methods for different tensor ranks
-                Eigen::Tensor<double, 4> backward4D(const Eigen::Tensor<double, 2>& dY);
-                Eigen::Tensor<double, 3> backward3D(const Eigen::Tensor<double, 2>& dY);
-                Eigen::Tensor<double, 2> backward2D(const Eigen::Tensor<double, 2>& dY);
+                Eigen::Tensor<double, 4> backward4d(const Eigen::Tensor<double, 2>& dY);
+                Eigen::Tensor<double, 3> backward3d(const Eigen::Tensor<double, 2>& dY);
+                Eigen::Tensor<double, 2> backward2d(const Eigen::Tensor<double, 2>& dY);
 
                 // Layer interface
                 bool is_trainable() const override { return false; }
                 void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) override {}
 
-                int get_input_size() const { return in_size_; }
-                int get_output_size() const { return out_size_; }
                 std::string get_layer_name() const { return layer_name_; }
                 
-                void print_layer_info() const {
-                    std::cout << " Layer: " << layer_name_ << std::endl;
-                    std::cout << " Start Dimension: " << start_dim_ << std::endl;
-                    std::cout << " End Dimension: " << end_dim_ << std::endl;
-                    std::cout << " Input size: " << in_size_ << std::endl;
-                    std::cout << " Output size: " << out_size_ << std::endl;
-                    std::cout << " Input shape: ";
-                    for (size_t i = 0; i < in_shape_.size(); ++i) {
-                        std::cout << in_shape_[i] << (i < in_shape_.size() - 1 ? ", " : "");
-                    }
-                    std::cout << std::endl;
-                }
-
             private:
-                int start_dim_;
-                int end_dim_;
+
                 std::string layer_name_;
-                int input_rank_;
-                int in_size_;
-                int out_size_;
-                std::array<int, 4> in_shape_;
-
-                // Helper function to resolve negative dimensions and validate
-                template<int Rank>
-                std::pair<int, int> resolve_and_validate_dims() const;
-
-                // Optimized dimension calculation
-                template<int Rank>
-                std::pair<int, int> calculate_output_dims(const auto& tensor, int start_dim, int end_dim);
+                std::array<Eigen::Index, 4> in_shape_4d;
+                std::array<Eigen::Index, 3> in_shape_3d;
+                std::array<Eigen::Index, 2> in_shape_2d;
         };
 
 
@@ -427,6 +402,7 @@ namespace CppNet
                 std::string layer_name_;
                 int head_size_;
                 Eigen::Tensor<bool, 2> mask_; 
+                Flatten f_;
                 
                 // weight matrices
                 Eigen::Tensor<double, 2> Wq_;

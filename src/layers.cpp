@@ -829,74 +829,34 @@ namespace CppNet
 
         /************************************** Flatten *******************************************/ 
 
-        Flatten::Flatten(int start_dim, int end_dim, std::string layer_name) :
-            start_dim_(start_dim), end_dim_(end_dim), layer_name_(std::move(layer_name)),
-            input_rank_(0), in_size_(0), out_size_(0) 
-        {
-            if (start_dim < 0) 
-            {
-                throw std::invalid_argument("Flatten: start_dim must be non-negative");
-            }
-        }
-
-        // Template method implementations
-        template<int Rank>
-        std::pair<int, int> Flatten::resolve_and_validate_dims() const 
-        {
-            int resolved_end_dim = end_dim_ < 0 ? Rank + end_dim_ : end_dim_;
-                
-            if (start_dim_ >= Rank || resolved_end_dim >= Rank || start_dim_ > resolved_end_dim) {
-                throw std::invalid_argument("Flatten: Invalid start_dim or end_dim for " + 
-                                        std::to_string(Rank) + "D tensor");
-            }
-            
-            return {start_dim_, resolved_end_dim};
-        }
-
-        template<int Rank>
-        std::pair<int, int> Flatten::calculate_output_dims(const auto& tensor, int start_dim, int end_dim) 
-        {
-            // Calculate batch size (dimensions before start_dim)
-            int batch_size = 1;
-            for (int i = 0; i < start_dim; ++i) 
-            {
-                batch_size *= tensor.dimension(i);
-            }
-            
-            // Calculate flattened size (dimensions from start_dim to end_dim, plus remaining dims)
-            int flattened_size = 1;
-            for (int i = start_dim; i < Rank; ++i) 
-            {
-                flattened_size *= tensor.dimension(i);
-            }
-            
-            return {batch_size, flattened_size};
-        }
-
-        // Forward pass implementations
+        Flatten::Flatten(std::string layer_name) :
+            layer_name_(std::move(layer_name)) {}
+      
+        
+        // forward pass implementations
         Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 4>& X) 
         {
-            if (X.size() == 0)
+            if (X.size() == 0) 
             {
                 throw std::runtime_error("Flatten: Empty input tensor");
             }
 
-            input_rank_ = 4;
-            in_size_ = static_cast<int>(X.size());
-            
-            // Store input shape efficiently
+            // save input shape
             for (int i = 0; i < 4; ++i) 
             {
-                in_shape_[i] = X.dimension(i);
+                in_shape_4d[i] = X.dimension(i);
             }
 
-            auto [start_dim, end_dim] = resolve_and_validate_dims<4>();
-            auto [batch_size, flattened_size] = calculate_output_dims<4>(X, start_dim, end_dim);
-            
-            out_size_ = flattened_size;
-            
-            // Single reshape operation
-            return X.reshape(Eigen::array<int, 2>{batch_size, flattened_size});
+            // compute flattened shape
+            Eigen::Index flat_dim0 = X.dimension(0) * X.dimension(1) * X.dimension(2);
+            Eigen::Index flat_dim1 = X.dimension(3);
+
+            // reshape and copy to new tensor
+            Eigen::array<Eigen::Index, 2> new_shape = {flat_dim0, flat_dim1};
+            Eigen::Tensor<double, 2> fX = X.reshape(new_shape);
+
+            return fX;
+
         }
 
         Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 3>& X) {
@@ -904,22 +864,21 @@ namespace CppNet
             {
                 throw std::runtime_error("Flatten: Empty input tensor");
             }
-
-            input_rank_ = 3;
-            in_size_ = static_cast<int>(X.size());
-            
-            // Store input shape
-            for (int i = 0; i < 3; ++i) 
+            for (int i = 0; i < 3; i++)
             {
-                in_shape_[i] = X.dimension(i);
+                in_shape_3d[i] = X.dimension(i);
             }
 
-            auto [start_dim, end_dim] = resolve_and_validate_dims<3>();
-            auto [batch_size, flattened_size] = calculate_output_dims<3>(X, start_dim, end_dim);
-            
-            out_size_ = flattened_size;
-            
-            return X.reshape(Eigen::array<int, 2>{batch_size, flattened_size});
+            // compute flattened shape
+            Eigen::Index flat_dim0 = X.dimension(0) * X.dimension(1);
+            Eigen::Index flat_dim1 = X.dimension(2);
+
+            // reshape and copy to new tensor
+            Eigen::array<Eigen::Index, 2> new_shape = {flat_dim0, flat_dim1};
+            Eigen::Tensor<double, 2> fX = X.reshape(new_shape);
+
+            return fX;
+
         }
 
         Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 2>& X) 
@@ -928,58 +887,37 @@ namespace CppNet
             {
                 throw std::runtime_error("Flatten: Empty input tensor");
             }
-
-            input_rank_ = 2;
-            in_size_ = static_cast<int>(X.size());
-            out_size_ = in_size_;
-            
-            // Store input shape
-            for (int i = 0; i < 2; ++i) 
+            for (int i = 0; i < 2; i++)
             {
-                in_shape_[i] = X.dimension(i);
+                in_shape_2d[i] = X.dimension(i);
             }
-            
-            // For 2D tensors, validate dimensions but return as-is
-            resolve_and_validate_dims<2>();
-            return X;
+
+            // compute flattened shape
+            Eigen::Index flat_dim0 = X.dimension(0) * X.dimension(1);
+            Eigen::Index flat_dim1 = 1;
+
+            // reshape and copy to new tensor
+            Eigen::array<Eigen::Index, 2> new_shape = {flat_dim0, flat_dim1};
+            Eigen::Tensor<double, 2> fX = X.reshape(new_shape);
+
+            return fX;
+
         }
 
-        Eigen::Tensor<double, 4> Flatten::backward4D(const Eigen::Tensor<double, 2>& dY) {
-            if (input_rank_ != 4) {
-                throw std::runtime_error("Flatten: backward4D called but input was not 4D");
-            }
-            
-            if (static_cast<int>(dY.size()) != in_size_) {
-                throw std::runtime_error("Flatten: Gradient size mismatch in backward pass");
-            }
-
-            return dY.reshape(Eigen::array<int, 4>{in_shape_[0], in_shape_[1], in_shape_[2], in_shape_[3]});
-        }
-
-        Eigen::Tensor<double, 3> Flatten::backward3D(const Eigen::Tensor<double, 2>& dY) 
+        Eigen::Tensor<double, 4> Flatten::backward4d(const Eigen::Tensor<double, 2>& fX)
         {
-            if (input_rank_ != 3) 
-            {
-                throw std::runtime_error("Flatten: backward3D called but input was not 3D");
-            }
-            
-            if (static_cast<int>(dY.size()) != in_size_) 
-            {
-                throw std::runtime_error("Flatten: Gradient size mismatch in backward pass");
-            }
-
-            return dY.reshape(Eigen::array<int, 3>{in_shape_[0], in_shape_[1], in_shape_[2]});
+            return fX.reshape(in_shape_4d);
         }
 
-        Eigen::Tensor<double, 2> Flatten::backward2D(const Eigen::Tensor<double, 2>& dY) 
+        Eigen::Tensor<double, 3> Flatten::backward3d(const Eigen::Tensor<double, 2>& fX)
         {
-            if (input_rank_ != 2) 
-            {
-                throw std::runtime_error("Flatten: backward2D called but input was not 2D");
-            }
-            return dY;
+            return fX.reshape(in_shape_3d);
         }
 
+        Eigen::Tensor<double, 2> Flatten::backward2d(const Eigen::Tensor<double, 2>& fX)
+        {
+            return fX.reshape(in_shape_2d);
+        }
 
         /************************************** Multi-Head Attention *******************************************/ 
         MultiHeadAttention::MultiHeadAttention
@@ -998,7 +936,8 @@ namespace CppNet
             in_size_(in_size), out_size_(out_size),
             num_heads_(num_heads), context_length_(context_length),
             dropout_rate_(dropout_rate), layer_name_(layer_name),
-            trainable_(trainable), qkv_bias_(qkv_bias)
+            trainable_(trainable), qkv_bias_(qkv_bias),
+            f_("attention-flatten")
             {
                 head_size_ = in_size_ / num_heads_;
                 // initialize parameters and gradients
@@ -1209,7 +1148,7 @@ namespace CppNet
             int batch_size = X.dimension(0);
             int num_tokens = X.dimension(1);
             int in_size = X.dimension(2);
-            Flatten f(1, -1, "attention-flatten");
+            //Flatten f("attention-flatten");
             
             if (in_size != in_size_)
             {
@@ -1226,8 +1165,8 @@ namespace CppNet
             if (Y.size() != 0)
             {
                 // cross-attention case: flatten both x and y
-                Eigen::Tensor<double, 2> fx = f.forward(X);
-                Eigen::Tensor<double, 2> fy = f.forward(Y);
+                Eigen::Tensor<double, 2> fx = f_.forward(X);
+                Eigen::Tensor<double, 2> fy = f_.forward(Y);
                 std::cout << "after flatten fx: " << fx.dimensions() << std::endl;
                 std::cout << "after flatten fy: " << fy.dimensions() << std::endl;
                 
@@ -1253,7 +1192,7 @@ namespace CppNet
             else
             {
                 // self-attention case: flatten x
-                Eigen::Tensor<double, 2> fx = f.forward(X);
+                Eigen::Tensor<double, 2> fx = f_.forward(X);
                 
                 // cache input for backward pass
                 in_cache_ = fx;
@@ -1339,7 +1278,7 @@ namespace CppNet
                 throw std::runtime_error("Multi-Head Attention Backward: Output dimension mismatch.");
             }
             
-            Flatten f(1, -1, "flatten");
+            //Flatten f(1, -1, "flatten");
             
             // reshape gradient to (batch, tokens, heads, head_dim)
             Eigen::array<Eigen::Index, 4> grad_reshape_dims = {batch_size, num_tokens, num_heads_, head_size_};
@@ -1404,9 +1343,9 @@ namespace CppNet
             Eigen::Tensor<double, 3> dV_3d = dV_transposed.reshape(linear_reshape_dims);
             
             // flatten to 2D for dense layer backward pass
-            Eigen::Tensor<double, 2> dQ_2d = f.forward(dQ_3d);
-            Eigen::Tensor<double, 2> dK_2d = f.forward(dK_3d);
-            Eigen::Tensor<double, 2> dV_2d = f.forward(dV_3d);
+            Eigen::Tensor<double, 2> dQ_2d = f_.forward(dQ_3d);
+            Eigen::Tensor<double, 2> dK_2d = f_.forward(dK_3d);
+            Eigen::Tensor<double, 2> dV_2d = f_.forward(dV_3d);
             
             // initialize gradients
             Eigen::Tensor<double, 2> dX;
