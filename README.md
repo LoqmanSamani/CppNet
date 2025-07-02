@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="imgs/cppnet_logo_.png" alt="CppNet Logo" width="300"/>
+  <img src="imgs/cppnet_logo.png" alt="CppNet Logo" width="800"/>
 </div>
 
 
