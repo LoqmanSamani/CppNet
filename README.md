@@ -1,3 +1,10 @@
+<div align="center">
+  <img src="imgs/cppnet_logo.png" alt="CppNet Logo" width="300"/>
+</div>
+
+
+
+
 # CppNet
 
 A high-performance C++ deep learning library for building and training neural networks.
