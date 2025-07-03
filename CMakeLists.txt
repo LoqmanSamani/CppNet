@@ -69,8 +69,9 @@ endif()
 
 # define the example programs
 set(EXAMPLES
-    transformer_example
+    #transformer_example
     att_example
+    dropout_example
 )
 
 # build each example program

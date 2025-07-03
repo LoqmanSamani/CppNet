@@ -1001,6 +1001,7 @@ namespace CppNet
             std::cout << "  Final output shape: [" << output.dimension(0) << ", " << output.dimension(1) << "]" << std::endl;
             return output;
         }
+
         Eigen::Tensor<double, 2> MultiHeadAttention::dense_backward(
             const Eigen::Tensor<double, 2>& grad_out,
             Eigen::Tensor<double, 2>in_cache,
@@ -1140,249 +1141,446 @@ namespace CppNet
             
             optimizer.update(*this, learning_rate);
         }
+        /*
+
+        Eigen::Tensor<double, 3> MultiHeadAttention::forward(Eigen::Tensor<double, 3>& X, Eigen::Tensor<double, 3>& Y, bool apply_mask)
+        {
+            int batch_size = X.dimension(0);
+            int T_X = X.dimension(1); // Sequence length for X
+            int in_size = X.dimension(2);
+
+            if (in_size != in_size_)
+            {
+                throw std::runtime_error("Multi-Head Attention: Input dimension mismatch.");
+            }
+
+            int T_Q, T_KV;
+            if (Y.size() != 0)
+            {
+                T_Q = Y.dimension(1); // Sequence length for Q (from Y in cross-attention)
+                T_KV = T_X; // Sequence length for K and V (from X)
+            }
+            else
+            {
+                T_Q = T_X; // Same for self-attention
+                T_KV = T_X;
+            }
+
+            // Flatten inputs for linear projections
+            Eigen::Tensor<double, 2> fx = f_.forward(X);
+            Eigen::Tensor<double, 2> fy = (Y.size() != 0) ? f_.forward(Y) : Eigen::Tensor<double, 2>(0, 0);
+
+            // Cache inputs for backward pass
+            if (Y.size() != 0)
+            {
+                X_cache_ = fx;
+                Y_cache_ = fy;
+            }
+            else
+            {
+                in_cache_ = fx;
+            }
+
+            std::cout << "we are here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+
+            // Linear projections
+            Eigen::Tensor<double, 2> fq, fk, fv;
+            if (Y.size() != 0)
+            {
+                fq = dense_forward(fy, Wq_, bq_); // Q from Y, shape [batch*seq_y, embed]
+                fk = dense_forward(fx, Wk_, bk_); // K from X, shape [batch*seq_x, embed]
+                fv = dense_forward(fx, Wv_, bv_); // V from X, shape [batch*seq_x, embed]
+            }
+            else
+            {
+                fq = dense_forward(fx, Wq_, bq_); // All from X for self-attention
+                fk = dense_forward(fx, Wk_, bk_);
+                fv = dense_forward(fx, Wv_, bv_);
+            }
+
+            std::cout << "we are here (after forward dense)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+
+            // Reshape to 4D tensors (batch, seq, heads, head_dim)
+            Eigen::array<Eigen::Index, 4> reshape_dims_Q = {batch_size, T_Q, num_heads_, head_size_};
+            Eigen::array<Eigen::Index, 4> reshape_dims_KV = {batch_size, T_KV, num_heads_, head_size_};
+            Eigen::array<int, 4> shuffle_dims = {0, 2, 1, 3}; // (batch, heads, tokens, head_dim)
+            Eigen::array<int, 4> shuffle_dims_transpose = {0, 1, 3, 2}; // (batch, heads, head_dim, tokens)
+
+            Eigen::Tensor<double, 4> Q = fq.reshape(reshape_dims_Q).shuffle(shuffle_dims); // [B, H, T_Q, D_H]
+            Eigen::Tensor<double, 4> K = fk.reshape(reshape_dims_KV).shuffle(shuffle_dims); // [B, H, T_KV, D_H]
+            Eigen::Tensor<double, 4> V = fv.reshape(reshape_dims_KV).shuffle(shuffle_dims); // [B, H, T_KV, D_H]
+
+            // Cache Q, K, V for backward pass
+            Q_cache_ = Q;
+            K_cache_ = K;
+            V_cache_ = V;
+
+            // Compute attention scores using loops (batch matrix multiplication)
+            Eigen::Tensor<double, 4> att_scores(batch_size, num_heads_, T_Q, T_KV);
+            Eigen::Tensor<double, 4> tK = K.shuffle(shuffle_dims_transpose); // [B, H, D_H, T_KV]
+
+            for(int b = 0; b < batch_size; ++b) {
+                for(int h = 0; h < num_heads_; ++h) {
+                    // Map Q[b,h,:,:] to matrix [T_Q, D_H]
+                    long offset_q = b * (num_heads_ * T_Q * head_size_) + h * (T_Q * head_size_);
+                    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> Q_bh(
+                        Q.data() + offset_q, T_Q, head_size_);
+
+                    // Map tK[b,h,:,:] to matrix [D_H, T_KV]
+                    long offset_tk = b * (num_heads_ * head_size_ * T_KV) + h * (head_size_ * T_KV);
+                    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> tK_bh(
+                        tK.data() + offset_tk, head_size_, T_KV);
+
+                    // Map att_scores[b,h,:,:] to matrix [T_Q, T_KV]
+                    long offset_as = b * (num_heads_ * T_Q * T_KV) + h * (T_Q * T_KV);
+                    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> att_scores_bh(
+                        att_scores.data() + offset_as, T_Q, T_KV);
+
+                    // Perform matrix multiplication
+                    att_scores_bh.noalias() = Q_bh * tK_bh;
+                }
+            }
+
+            std::cout << "we are here (after attention score)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+
+            // Scale by sqrt(head_size) for stability
+            double scale_factor = 1.0 / std::sqrt(static_cast<double>(head_size_));
+            att_scores = att_scores * scale_factor;
+            std::cout << "we are here (after scale by factor)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
+
+            // Apply causal mask if requested
+            if (apply_mask)
+            {
+                apply_causal_mask(att_scores, mask_, T_KV); // Assuming mask_ handles the sequence length
+            }
+
+            // Apply softmax along the last dimension (tokens) to get attention weights
+            int total_batch_heads = batch_size * num_heads_;
+            Eigen::array<Eigen::Index, 2> flatten_dims = {total_batch_heads * T_Q, T_KV};
+            Eigen::Tensor<double, 2> att_scores_2d = att_scores.reshape(flatten_dims);
+            CppNet::Activations::SoftMax softmax;
+            Eigen::Tensor<double, 2> attention_weights_2d = softmax.forward(att_scores_2d);
+            Eigen::array<Eigen::Index, 4> unflatten_dims = {batch_size, num_heads_, T_Q, T_KV};
+            Eigen::Tensor<double, 4> attention_weights = attention_weights_2d.reshape(unflatten_dims);
+
+            // Cache attention weights for backward pass
+            attention_weights_cache_ = attention_weights;
+
+            // TODO: apply dropout
+
+            // Compute context vector using loops
+            Eigen::Tensor<double, 4> context_vector(batch_size, num_heads_, T_Q, head_size_);
+            for(int b = 0; b < batch_size; ++b) {
+                for(int h = 0; h < num_heads_; ++h) {
+                    // Map attention_weights[b,h,:,:] to matrix [T_Q, T_KV]
+                    long offset_aw = b * (num_heads_ * T_Q * T_KV) + h * (T_Q * T_KV);
+                    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> aw_bh(
+                        attention_weights.data() + offset_aw, T_Q, T_KV);
+
+                    // Map V[b,h,:,:] to matrix [T_KV, head_size_]
+                    long offset_v = b * (num_heads_ * T_KV * head_size_) + h * (T_KV * head_size_);
+                    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> V_bh(
+                        V.data() + offset_v, T_KV, head_size_);
+
+                    // Map context_vector[b,h,:,:] to matrix [T_Q, head_size_]
+                    long offset_cv = b * (num_heads_ * T_Q * head_size_) + h * (T_Q * head_size_);
+                    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> cv_bh(
+                        context_vector.data() + offset_cv, T_Q, head_size_);
+
+                    // Perform matrix multiplication
+                    cv_bh.noalias() = aw_bh * V_bh;
+                }
+            }
+
+            // Transpose back to (batch, tokens, heads, head_dim)
+            Eigen::array<int, 4> output_shuffle_dims = {0, 2, 1, 3};
+            Eigen::Tensor<double, 4> context_transposed = context_vector.shuffle(output_shuffle_dims);
+
+            // Reshape to (batch, tokens, out_size) - concatenate heads
+            Eigen::array<Eigen::Index, 3> final_reshape_dims = {batch_size, T_Q, out_size_};
+            Eigen::Tensor<double, 3> output = context_transposed.reshape(final_reshape_dims);
+
+            return output;
+        }
+        */
 
 
-
+        
         Eigen::Tensor<double, 3> MultiHeadAttention::forward(Eigen::Tensor<double, 3>& X, Eigen::Tensor<double, 3>& Y, bool apply_mask)
         {
             int batch_size = X.dimension(0);
             int num_tokens = X.dimension(1);
             int in_size = X.dimension(2);
-            //Flatten f("attention-flatten");
-            
+
             if (in_size != in_size_)
-            {
                 throw std::runtime_error("Multi-Head Attention: Input dimension mismatch.");
-            } 
 
-            Eigen::Tensor<double, 4> Q;
-            Eigen::Tensor<double, 4> K; 
-            Eigen::Tensor<double, 4> V;
+            // Define shapes
+            Eigen::Tensor<double, 4> Q, K, V;
             Eigen::array<Eigen::Index, 4> reshape_dims = {batch_size, num_tokens, num_heads_, head_size_};
-            Eigen::array<int, 4> shuffle_dims = {0, 2, 1, 3}; // (batch, heads, tokens, head_dim)
-            Eigen::array<int, 4> shuffle_dims1 = {0, 2, 3, 1}; // (batch, heads, head_dim, tokens)
+            Eigen::array<int, 4> shuffle_dims = {0, 2, 1, 3};         // (B, H, T, D)
+            Eigen::array<int, 4> shuffle_dims_transpose = {0, 1, 3, 2}; // (B, H, D, T)
 
-            if (Y.size() != 0)
+            // Linear projections
+            Eigen::Tensor<double, 2> fx = f_.forward(X);
+            Eigen::Tensor<double, 2> fq = dense_forward(fx, Wq_, bq_);
+            Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_);
+            Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_);
+
+            Eigen::Tensor<double, 4> Q_reshaped = fq.reshape(reshape_dims);
+            Eigen::Tensor<double, 4> K_reshaped = fk.reshape(reshape_dims);
+            Eigen::Tensor<double, 4> V_reshaped = fv.reshape(reshape_dims);
+
+            Q = Q_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
+            K = K_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
+            V = V_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
+
+            // Transpose K -> [B, H, D, T]
+            Eigen::Tensor<double, 4> tK = K.shuffle(shuffle_dims_transpose);
+
+            // Compute attention scores manually: Q × K^T => [B, H, T, T]
+            Eigen::Tensor<double, 4> att_scores(batch_size, num_heads_, num_tokens, num_tokens);
+            att_scores.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
             {
-                // cross-attention case: flatten both x and y
-                Eigen::Tensor<double, 2> fx = f_.forward(X);
-                Eigen::Tensor<double, 2> fy = f_.forward(Y);
-                std::cout << "after flatten fx: " << fx.dimensions() << std::endl;
-                std::cout << "after flatten fy: " << fy.dimensions() << std::endl;
-                
-                // cache inputs for backward pass
-                X_cache_ = fx;
-                Y_cache_ = fy;
-
-                // linear projections - Q from Y, K and V from X for cross-attention
-                Eigen::Tensor<double, 2> fq = dense_forward(fy, Wq_, bq_); // [batch*seq_y, embed]
-                Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_); // [batch*seq_x, embed]
-                Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_); // [batch*seq_x, embed]
-
-                // reshape to 4d tensors (batch, tokens, heads, head_dim)
-                Eigen::Tensor<double, 4> Q_reshaped = fq.reshape(reshape_dims);
-                Eigen::Tensor<double, 4> K_reshaped = fk.reshape(reshape_dims);
-                Eigen::Tensor<double, 4> V_reshaped = fv.reshape(reshape_dims);
-                
-                // transpose to (batch, heads, tokens, head_dim)
-                Q = Q_reshaped.shuffle(shuffle_dims);
-                K = K_reshaped.shuffle(shuffle_dims);
-                V = V_reshaped.shuffle(shuffle_dims);    
-            }
-            else
-            {
-                // self-attention case: flatten x
-                Eigen::Tensor<double, 2> fx = f_.forward(X);
-                
-                // cache input for backward pass
-                in_cache_ = fx;
-                
-                // linear projections - all from the same input
-                Eigen::Tensor<double, 2> fq = dense_forward(fx, Wq_, bq_); // [batch*seq, embed]
-                Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_); // [batch*seq, embed]
-                Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_); // [batch*seq, embed]
-
-                // reshape to 4d tensors (batch, tokens, heads, head_dim)
-                Eigen::Tensor<double, 4> Q_reshaped = fq.reshape(reshape_dims);
-                Eigen::Tensor<double, 4> K_reshaped = fk.reshape(reshape_dims);
-                Eigen::Tensor<double, 4> V_reshaped = fv.reshape(reshape_dims);
-            
-                // transpose to (batch, heads, tokens, head_dim)
-                Q = Q_reshaped.shuffle(shuffle_dims);
-                K = K_reshaped.shuffle(shuffle_dims);
-                V = V_reshaped.shuffle(shuffle_dims); 
+                for (int h = 0; h < num_heads_; ++h)
+                {
+                    for (int i = 0; i < num_tokens; ++i)
+                    {
+                        for (int j = 0; j < num_tokens; ++j)
+                        {
+                            double dot = 0.0;
+                            for (int d = 0; d < head_size_; ++d)
+                            {
+                                dot += Q(b, h, i, d) * tK(b, h, d, j);
+                            }
+                            att_scores(b, h, i, j) = dot;
+                        }
+                    }
+                }
             }
 
-            // cache Q, K, V for backward pass
-            Q_cache_ = Q;
-            K_cache_ = K;
-            V_cache_ = V;
-
-            // transpose K for matrix multiplication: (batch, heads, head_dim, tokens)
-            Eigen::Tensor<double, 4> tK = K.shuffle(shuffle_dims1);
-
-            // compute attention scores: Q @ K^T
-            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(3, 2)};
-            Eigen::Tensor<double, 4> att_scores = Q.contract(tK, product_dims);
-            
-            // scale by sqrt(head_size) for stability
+            // Scale attention scores
             double scale_factor = 1.0 / std::sqrt(static_cast<double>(head_size_));
             att_scores = att_scores * scale_factor;
 
-            // apply causal mask if requested
+            // Apply causal mask if needed
             if (apply_mask)
             {
                 apply_causal_mask(att_scores, mask_, num_tokens);
             }
 
-            // Apply softmax along the last dimension (tokens) to get attention weights
-            int total_batch_heads = batch_size * num_heads_;
-            Eigen::array<Eigen::Index, 2> flatten_dims = {total_batch_heads * num_tokens, num_tokens};
-            Eigen::Tensor<double, 2> att_scores_2d = att_scores.reshape(flatten_dims);
+            // Softmax along last dimension
+            Eigen::Tensor<double, 2> att_scores_2d(batch_size * num_heads_ * num_tokens, num_tokens);
+            Eigen::Tensor<double, 2> attention_weights_2d(batch_size * num_heads_ * num_tokens, num_tokens);
+            
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int h = 0; h < num_heads_; ++h)
+                {
+                    for (int t = 0; t < num_tokens; ++t)
+                    {
+                        int row = b * num_heads_ * num_tokens + h * num_tokens + t;
+                        for (int j = 0; j < num_tokens; ++j)
+                            att_scores_2d(row, j) = att_scores(b, h, t, j);
+                    }
+                }
+            }
+
             CppNet::Activations::SoftMax softmax;
-            Eigen::Tensor<double, 2> attention_weights_2d = softmax.forward(att_scores_2d);
-            Eigen::array<Eigen::Index, 4> unflatten_dims = {batch_size, num_heads_, num_tokens, num_tokens};
-            Eigen::Tensor<double, 4> attention_weights = attention_weights_2d.reshape(unflatten_dims);
-            
-            // cache attention weights for backward pass
-            attention_weights_cache_ = attention_weights;
+            attention_weights_2d = softmax.forward(att_scores_2d);
 
+            Eigen::Tensor<double, 4> attention_weights(batch_size, num_heads_, num_tokens, num_tokens);
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int h = 0; h < num_heads_; ++h)
+                {
+                    for (int t = 0; t < num_tokens; ++t)
+                    {
+                        int row = b * num_heads_ * num_tokens + h * num_tokens + t;
+                        for (int j = 0; j < num_tokens; ++j)
+                            attention_weights(b, h, t, j) = attention_weights_2d(row, j);
+                    }
+                }
+            }
 
-            // TODO: apply dropout
-           
-            // compute context vector: attention_weights @ V
-            Eigen::array<Eigen::IndexPair<int>, 1> context_product_dims = {Eigen::IndexPair<int>(3, 2)};
-            Eigen::Tensor<double, 4> context_vector = attention_weights.contract(V, context_product_dims);
-            
-            // transpose back to (batch, tokens, heads, head_dim)
+            // Compute context vector manually: att_weights × V
+            Eigen::Tensor<double, 4> context(batch_size, num_heads_, num_tokens, head_size_);
+            context.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int h = 0; h < num_heads_; ++h)
+                {
+                    for (int i = 0; i < num_tokens; ++i)
+                    {
+                        for (int d = 0; d < head_size_; ++d)
+                        {
+                            double sum = 0.0;
+                            for (int j = 0; j < num_tokens; ++j)
+                            {
+                                sum += attention_weights(b, h, i, j) * V(b, h, j, d);
+                            }
+                            context(b, h, i, d) = sum;
+                        }
+                    }
+                }
+            }
+
+            // Final reshape: (B, T, H, D) → (B, T, H*D)
             Eigen::array<int, 4> output_shuffle_dims = {0, 2, 1, 3};
-            Eigen::Tensor<double, 4> context_transposed = context_vector.shuffle(output_shuffle_dims);
-            
-            // reshape to (batch, tokens, out_size) - concatenate heads
-            Eigen::array<Eigen::Index, 3> final_reshape_dims = {batch_size, num_tokens, out_size_};
-            Eigen::Tensor<double, 3> output = context_transposed.reshape(final_reshape_dims);
-            
+            Eigen::Tensor<double, 4> context_transposed = context.shuffle(output_shuffle_dims); // (B, T, H, D)
+
+            Eigen::array<Eigen::Index, 3> final_shape = {batch_size, num_tokens, out_size_};
+            Eigen::Tensor<double, 3> output = context_transposed.reshape(final_shape);
+
+            // Cache for backward pass (if needed)
+            Q_cache_ = Q;
+            K_cache_ = K;
+            V_cache_ = V;
+            attention_weights_cache_ = attention_weights;
+            in_cache_ = fx;
+
             return output;
         }
 
-        
         Eigen::Tensor<double, 3> MultiHeadAttention::backward(Eigen::Tensor<double, 3>& dA, Eigen::Tensor<double, 3>& dY)
         {
-            // get dimensions from the gradient
             int batch_size = dA.dimension(0);
             int num_tokens = dA.dimension(1);
             int out_size = dA.dimension(2);
-            
+
             if (out_size != out_size_)
-            {
                 throw std::runtime_error("Multi-Head Attention Backward: Output dimension mismatch.");
-            }
-            
-            //Flatten f(1, -1, "flatten");
-            
-            // reshape gradient to (batch, tokens, heads, head_dim)
-            Eigen::array<Eigen::Index, 4> grad_reshape_dims = {batch_size, num_tokens, num_heads_, head_size_};
-            Eigen::Tensor<double, 4> dA_reshaped = dA.reshape(grad_reshape_dims);
-            
-            // transpose to (batch, heads, tokens, head_dim)
-            Eigen::array<int, 4> shuffle_dims = {0, 2, 1, 3};
-            Eigen::Tensor<double, 4> dA_transposed = dA_reshaped.shuffle(shuffle_dims);
-            
-           
-            // gradient w.r.t. context vector (before concatenation)
-            Eigen::Tensor<double, 4> dContext = dA_transposed;
-            
-            // gradient w.r.t. attention weights: dContext @ V^T
-            Eigen::array<int, 4> V_transpose_dims = {0, 1, 3, 2}; // (batch, heads, head_dim, tokens)
-            Eigen::Tensor<double, 4> V_transposed = V_cache_.shuffle(V_transpose_dims);
-            
-            Eigen::array<Eigen::IndexPair<int>, 1> dAtt_product_dims = {Eigen::IndexPair<int>(3, 2)};
-            Eigen::Tensor<double, 4> dAttention_weights = dContext.contract(V_transposed, dAtt_product_dims);
-            
-            // gradient w.r.t. V: attention_weights^T @ dContext
-            Eigen::array<int, 4> att_transpose_dims = {0, 1, 3, 2}; // (batch, heads, tokens, tokens)
-            Eigen::Tensor<double, 4> attention_weights_transposed = attention_weights_cache_.shuffle(att_transpose_dims);
-            
-            Eigen::array<Eigen::IndexPair<int>, 1> dV_product_dims = {Eigen::IndexPair<int>(2, 2)};
-            Eigen::Tensor<double, 4> dV = attention_weights_transposed.contract(dContext, dV_product_dims);
-            
-            // gradient through softmax
+
+            // Step 1: Reshape dA -> (B, T, H, D)
+            Eigen::Tensor<double, 4> dA_reshaped(batch_size, num_tokens, num_heads_, head_size_);
+            for (int b = 0; b < batch_size; ++b)
+                for (int t = 0; t < num_tokens; ++t)
+                    for (int h = 0; h < num_heads_; ++h)
+                        for (int d = 0; d < head_size_; ++d)
+                            dA_reshaped(b, t, h, d) = dA(b, t, h * head_size_ + d);
+
+            // Step 2: Transpose (B, T, H, D) -> (B, H, T, D)
+            Eigen::Tensor<double, 4> dContext(batch_size, num_heads_, num_tokens, head_size_);
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int t = 0; t < num_tokens; ++t)
+                        for (int d = 0; d < head_size_; ++d)
+                            dContext(b, h, t, d) = dA_reshaped(b, t, h, d);
+
+            // Step 3: dAttention_weights = dContext @ V_cache_.transpose(3, 2)
+            Eigen::Tensor<double, 4> dAttention_weights(batch_size, num_heads_, num_tokens, num_tokens);
+            dAttention_weights.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int j = 0; j < num_tokens; ++j)
+                            for (int d = 0; d < head_size_; ++d)
+                                dAttention_weights(b, h, i, j) += dContext(b, h, i, d) * V_cache_(b, h, d, j);
+
+            // Step 4: dV = attention_weights^T @ dContext
+            Eigen::Tensor<double, 4> dV(batch_size, num_heads_, head_size_, num_tokens);
+            dV.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int d = 0; d < head_size_; ++d)
+                            for (int j = 0; j < num_tokens; ++j)
+                                dV(b, h, d, i) += attention_weights_cache_(b, h, j, i) * dContext(b, h, j, d);
+
+            // Step 5: Softmax backward
             int total_batch_heads = batch_size * num_heads_;
-            Eigen::array<Eigen::Index, 2> flatten_dims = {total_batch_heads * num_tokens, num_tokens};
-            Eigen::Tensor<double, 2> dAttention_weights_2d = dAttention_weights.reshape(flatten_dims);
-            CppNet::Activations::SoftMax softmax;
-            Eigen::Tensor<double, 2> dAtt_scores_2d = softmax.backward(dAttention_weights_2d);
-            Eigen::array<Eigen::Index, 4> unflatten_dims = {batch_size, num_heads_, num_tokens, num_tokens};
-            Eigen::Tensor<double, 4> dAtt_scores = dAtt_scores_2d.reshape(unflatten_dims);
-            
-            // apply scaling factor gradient
-            double scale_factor = 1.0 / std::sqrt(static_cast<double>(head_size_));
-            dAtt_scores = dAtt_scores * scale_factor;
-            
-            // gradient w.r.t. Q: dAtt_scores @ K
-            Eigen::array<Eigen::IndexPair<int>, 1> dQ_product_dims = {Eigen::IndexPair<int>(3, 3)};
-            Eigen::Tensor<double, 4> dQ = dAtt_scores.contract(K_cache_, dQ_product_dims);
-            
-            // gradient w.r.t. K: dAtt_scores^T @ Q
-            Eigen::array<int, 4> dAtt_transpose_dims = {0, 1, 3, 2}; // (batch, heads, tokens, tokens)
-            Eigen::Tensor<double, 4> dAtt_scores_transposed = dAtt_scores.shuffle(dAtt_transpose_dims);
-            
-            Eigen::array<Eigen::IndexPair<int>, 1> dK_product_dims = {Eigen::IndexPair<int>(2, 2)};
-            Eigen::Tensor<double, 4> dK = dAtt_scores_transposed.contract(Q_cache_, dK_product_dims);
-            
-            // transpose Q, K, V gradients back to (batch, tokens, heads, head_dim)
-            Eigen::array<int, 4> output_shuffle_dims = {0, 2, 1, 3};
-            Eigen::Tensor<double, 4> dQ_transposed = dQ.shuffle(output_shuffle_dims);
-            Eigen::Tensor<double, 4> dK_transposed = dK.shuffle(output_shuffle_dims);
-            Eigen::Tensor<double, 4> dV_transposed = dV.shuffle(output_shuffle_dims);
-            
-            // reshape to 3D for linear layer backward pass
-            Eigen::array<Eigen::Index, 3> linear_reshape_dims = {batch_size, num_tokens, out_size_};
-            Eigen::Tensor<double, 3> dQ_3d = dQ_transposed.reshape(linear_reshape_dims);
-            Eigen::Tensor<double, 3> dK_3d = dK_transposed.reshape(linear_reshape_dims);
-            Eigen::Tensor<double, 3> dV_3d = dV_transposed.reshape(linear_reshape_dims);
-            
-            // flatten to 2D for dense layer backward pass
+            Eigen::Tensor<double, 2> dAtt_weights_2d(total_batch_heads * num_tokens, num_tokens);
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int j = 0; j < num_tokens; ++j)
+                            dAtt_weights_2d((b * num_heads_ + h) * num_tokens + i, j) = dAttention_weights(b, h, i, j);
+
+            Eigen::Tensor<double, 2> dAtt_scores_2d = CppNet::Activations::SoftMax().backward(dAtt_weights_2d);
+
+            // Unflatten back to (B, H, T, T)
+            Eigen::Tensor<double, 4> dAtt_scores(batch_size, num_heads_, num_tokens, num_tokens);
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int j = 0; j < num_tokens; ++j)
+                            dAtt_scores(b, h, i, j) = dAtt_scores_2d((b * num_heads_ + h) * num_tokens + i, j);
+
+            // Scale
+            double scale = 1.0 / std::sqrt(static_cast<double>(head_size_));
+            dAtt_scores = dAtt_scores * scale;
+
+            // Step 6: dQ = dAtt_scores @ K_cache_
+            Eigen::Tensor<double, 4> dQ(batch_size, num_heads_, num_tokens, head_size_);
+            dQ.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int d = 0; d < head_size_; ++d)
+                            for (int j = 0; j < num_tokens; ++j)
+                                dQ(b, h, i, d) += dAtt_scores(b, h, i, j) * K_cache_(b, h, j, d);
+
+            // Step 7: dK = dAtt_scores^T @ Q_cache_
+            Eigen::Tensor<double, 4> dK(batch_size, num_heads_, num_tokens, head_size_);
+            dK.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int d = 0; d < head_size_; ++d)
+                            for (int j = 0; j < num_tokens; ++j)
+                                dK(b, h, i, d) += dAtt_scores(b, h, j, i) * Q_cache_(b, h, j, d);
+
+            // Step 8: Transpose and flatten dQ/dK/dV back to 3D
+            Eigen::Tensor<double, 3> dQ_3d(batch_size, num_tokens, out_size_);
+            Eigen::Tensor<double, 3> dK_3d(batch_size, num_tokens, out_size_);
+            Eigen::Tensor<double, 3> dV_3d(batch_size, num_tokens, out_size_);
+
+            for (int b = 0; b < batch_size; ++b)
+                for (int t = 0; t < num_tokens; ++t)
+                    for (int h = 0; h < num_heads_; ++h)
+                        for (int d = 0; d < head_size_; ++d)
+                        {
+                            int flat_idx = h * head_size_ + d;
+                            dQ_3d(b, t, flat_idx) = dQ(b, h, t, d);
+                            dK_3d(b, t, flat_idx) = dK(b, h, t, d);
+                            dV_3d(b, t, flat_idx) = dV(b, h, d, t);
+                        }
+
+            // Flatten to 2D
             Eigen::Tensor<double, 2> dQ_2d = f_.forward(dQ_3d);
             Eigen::Tensor<double, 2> dK_2d = f_.forward(dK_3d);
             Eigen::Tensor<double, 2> dV_2d = f_.forward(dV_3d);
-            
-            // initialize gradients
-            Eigen::Tensor<double, 2> dX;
-            Eigen::Tensor<double, 2> dY_output;
-            
-            if (dY.size() != 0) // cross-attention case
+
+            Eigen::Tensor<double, 2> dX, dY_output;
+
+            if (dY.size() != 0)
             {
-                // gradient w.r.t. input X (comes from K and V)
-                Eigen::Tensor<double, 2> dX_from_K = dense_backward(dK_2d, X_cache_, Wk_, grad_Wk_, grad_bk_);
-                Eigen::Tensor<double, 2> dX_from_V = dense_backward(dV_2d, X_cache_, Wv_, grad_Wv_, grad_bv_);
-                dX = dX_from_K + dX_from_V;
-                
-                // gradient w.r.t. input Y (comes from Q)
+                dX = dense_backward(dK_2d, X_cache_, Wk_, grad_Wk_, grad_bk_) + dense_backward(dV_2d, X_cache_, Wv_, grad_Wv_, grad_bv_);
                 dY_output = dense_backward(dQ_2d, Y_cache_, Wq_, grad_Wq_, grad_bq_);
-                
-                // reshape back to 3D
-                Eigen::array<Eigen::Index, 3> output_reshape_dims = {batch_size, num_tokens, in_size_};
-                Eigen::Tensor<double, 3> dX_3d = dX.reshape(output_reshape_dims);
-                Eigen::Tensor<double, 3> dY_3d = dY_output.reshape(output_reshape_dims);
-                
-                // for cross-attention, we return gradient w.r.t. X, and dY is modified in place
+
+                // Reshape
+                Eigen::Tensor<double, 3> dX_3d = dX.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
+                Eigen::Tensor<double, 3> dY_3d = dY_output.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
                 dY = dY_3d;
                 return dX_3d;
             }
-            else // self-attention case
+            else
             {
-                // all gradients go to the same input X
-                Eigen::Tensor<double, 2> dX_from_Q = dense_backward(dQ_2d, in_cache_, Wq_, grad_Wq_, grad_bq_);
-                Eigen::Tensor<double, 2> dX_from_K = dense_backward(dK_2d, in_cache_, Wk_, grad_Wk_, grad_bk_);
-                Eigen::Tensor<double, 2> dX_from_V = dense_backward(dV_2d, in_cache_, Wv_, grad_Wv_, grad_bv_);
-                
-                dX = dX_from_Q + dX_from_K + dX_from_V;
-                
-                // reshape back to 3D
-                Eigen::array<Eigen::Index, 3> output_reshape_dims = {batch_size, num_tokens, in_size_};
-                return dX.reshape(output_reshape_dims);
+                dX = dense_backward(dQ_2d, in_cache_, Wq_, grad_Wq_, grad_bq_) +
+                    dense_backward(dK_2d, in_cache_, Wk_, grad_Wk_, grad_bk_) +
+                    dense_backward(dV_2d, in_cache_, Wv_, grad_Wv_, grad_bv_);
+
+                return dX.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
             }
         }
+
+
     }
 }

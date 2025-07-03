@@ -122,7 +122,8 @@ bool test_forward_pass() {
     }
 }
 
-/*
+
+
 bool test_causal_masking() {
     std::cout << "\n=== Testing Causal Masking ===" << std::endl;
     
@@ -219,7 +220,7 @@ bool test_cross_attention() {
         return false;
     }
 }
-    */
+    
 
 bool test_backward_pass() {
     std::cout << "\n=== Testing Backward Pass ===" << std::endl;
@@ -335,7 +336,7 @@ bool test_parameter_updates() {
     }
 }
 
-/*
+
 bool test_edge_cases() {
     std::cout << "\n=== Testing Edge Cases ===" << std::endl;
     
@@ -422,7 +423,7 @@ bool test_different_head_configurations() {
         return false;
     }
 }
-    */
+    
 
 int main() {
     std::cout << "Multi-Head Attention Layer Test Suite" << std::endl;
@@ -434,12 +435,12 @@ int main() {
     
     // Run all tests
     all_tests_passed &= test_forward_pass();
-    //all_tests_passed &= test_causal_masking();
-   // all_tests_passed &= test_cross_attention();
+    all_tests_passed &= test_causal_masking();
+    all_tests_passed &= test_cross_attention();
     all_tests_passed &= test_backward_pass();
     all_tests_passed &= test_parameter_updates();
-    //all_tests_passed &= test_edge_cases();
-    //all_tests_passed &= test_different_head_configurations();
+    all_tests_passed &= test_edge_cases();
+    all_tests_passed &= test_different_head_configurations();
     
     std::cout << "\n=====================================" << std::endl;
     if (all_tests_passed) {
