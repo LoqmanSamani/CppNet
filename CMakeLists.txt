@@ -1,37 +1,47 @@
 cmake_minimum_required(VERSION 3.10)
 
-# project name and version
-project(CppNet VERSION 0.1.0 LANGUAGES CXX)
+project(CppNet VERSION 0.1.0 LANGUAGES CXX CUDA)
 
-# set C++ standard to C++17
+# -------------------------------
+# C++ Standard
+# -------------------------------
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# set build type to Release if not specified
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-
-#find_package(Eigen3 REQUIRED)
-#target_link_libraries(CppNet PRIVATE Eigen3::Eigen)
-
-# find Eigen3 (required for linear algebra)
+# -------------------------------
+# Find Eigen
+# -------------------------------
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-if(Eigen3_FOUND)
-    message(STATUS "Eigen3 found: ${EIGEN3_INCLUDE_DIR}")
-else()
-    message(FATAL_ERROR "Eigen3 not found. Please install Eigen3 or set EIGEN3_INCLUDE_DIR.")
-endif()
+message(STATUS "Eigen3 found: ${EIGEN3_INCLUDE_DIR}")
 
-# find OpenMP for parallelization (optional)
+# -------------------------------
+# Find OpenMP
+# -------------------------------
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     message(STATUS "OpenMP found")
 endif()
 
-# define the source files for the CppNet library
+# -------------------------------
+# Find CUDA Toolkit
+# -------------------------------
+find_package(CUDAToolkit)
+if(CUDAToolkit_FOUND)
+    message(STATUS "CUDA found, GPU support enabled")
+    set(USE_CUDA TRUE)
+else()
+    message(STATUS "CUDA not found, building CPU-only version")
+    set(USE_CUDA FALSE)
+endif()
+
+# -------------------------------
+# Library Sources
+# -------------------------------
 set(CPP_NET_SOURCES
     src/activations.cpp
     src/data.cpp
@@ -43,51 +53,47 @@ set(CPP_NET_SOURCES
     src/regularization.cpp
     src/utils.cpp
     src/visualization.cpp
+    src/kernels_cpu.cpp
 )
 
-# define the include directories
-set(CPP_NET_INCLUDE_DIRS
-    ${CMAKE_SOURCE_DIR}/include
-)
+if(USE_CUDA)
+    list(APPEND CPP_NET_SOURCES src/kernels.cu)
+endif()
 
-# create the CppNet library (static library)
+# -------------------------------
+# Create Library
+# -------------------------------
 add_library(CppNet STATIC ${CPP_NET_SOURCES})
+target_include_directories(CppNet PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
-# link dependencies to the CppNet library
 target_link_libraries(CppNet PUBLIC Eigen3::Eigen)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(CppNet PUBLIC OpenMP::OpenMP_CXX)
 endif()
-
-# set include directories for the library
-target_include_directories(CppNet PUBLIC ${CPP_NET_INCLUDE_DIRS})
-
-# enable optimization flags for release build
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_compile_options(CppNet PRIVATE -O3)
+if(USE_CUDA)
+    target_link_libraries(CppNet PUBLIC CUDA::cudart CUDA::cublas CUDA::cusolver)
+    target_compile_definitions(CppNet PUBLIC USE_CUDA)
+    set_target_properties(CppNet PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
-# define the example programs
-set(EXAMPLES
-    #transformer_example
-    att_example
-    dropout_example
-)
+# -------------------------------
+# Examples
+# -------------------------------
+add_executable(openmp_test examples/openmp_test.cpp)
+add_executable(matmul_test examples/matmul_test.cpp)
 
-# build each example program
-foreach(EXAMPLE ${EXAMPLES})
-    add_executable(${EXAMPLE} examples/${EXAMPLE}.cpp)
-    target_link_libraries(${EXAMPLE} PRIVATE CppNet)
-    target_include_directories(${EXAMPLE} PRIVATE ${CPP_NET_INCLUDE_DIRS})
-endforeach()
+# Link against your library
+target_link_libraries(matmul_test PRIVATE CppNet)
 
-# enable warnings and treat them as errors 
-target_compile_options(CppNet PRIVATE -Wall -Wextra -Wpedantic)
-foreach(EXAMPLE ${EXAMPLES})
-    target_compile_options(${EXAMPLE} PRIVATE -Wall -Wextra -Wpedantic)
-endforeach()
+if(CUDA_FOUND)
+    target_compile_definitions(matmul_test PRIVATE USE_CUDA)
+    target_link_libraries(matmul_test PRIVATE CUDA::cudart)
+endif()
 
 
+# -------------------------------
+# Installation
+# -------------------------------
 install(TARGETS CppNet
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
@@ -95,12 +101,12 @@ install(TARGETS CppNet
 )
 install(DIRECTORY include/ DESTINATION include)
 
-# print a summary of the build configuration
+# -------------------------------
+# Build Summary
+# -------------------------------
 message(STATUS "CppNet Build Summary:")
 message(STATUS "  - Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "  - C++ standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "  - Eigen3: ${EIGEN3_INCLUDE_DIR}")
 message(STATUS "  - OpenMP: ${OpenMP_CXX_FOUND}")
-
-
-target_sources(CppNet PRIVATE src/layers.cpp src/optimizers.cpp)
+message(STATUS "  - CUDA: ${USE_CUDA}")

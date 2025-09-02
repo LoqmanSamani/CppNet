@@ -5,6 +5,10 @@
 #include "activations.hpp"
 
 
+Eigen::Tensor<double, 3> CppNet::Layers::MultiHeadAttention::empty_tensor; // temporary handling an issue. it should be later fixed
+
+
+
 
 namespace CppNet
 {
