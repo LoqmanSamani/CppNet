@@ -1,7 +1,7 @@
 # CppNet
 
 <div align="center">
-  <img src="imgs/cpp-logo.png" alt="CppNet Logo" width="600"/>
+  <img src="imgs/cpp-logo.png" alt="CppNet Logo" width="200"/>
 </div>
 
 <p align="center">
