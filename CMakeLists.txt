@@ -78,6 +78,9 @@ endif()
 add_executable(matmul_test examples/matmul_test.cpp)
 target_link_libraries(matmul_test PRIVATE CppNet)
 
+add_executable(main_test examples/main_test.cpp)
+target_link_libraries(main_test PRIVATE CppNet)
+
 # Set CUDA properties for executables too
 if(USE_CUDA)
     target_compile_definitions(matmul_test PRIVATE USE_CUDA)

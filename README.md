@@ -1,54 +1,106 @@
+# CppNet
+
 <div align="center">
-  <img src="imgs/cppnet_logo.png" alt="CppNet Logo" width="800"/>
+  <img src="imgs/cppnet_logo.png" alt="CppNet Logo" width="600"/>
 </div>
 
+<p align="center">
+  <b>CppNet</b> is a high-performance C++ deep learning library for building and training neural networks.  
+  It leverages <a href="https://eigen.tuxfamily.org">Eigen</a> for fast tensor operations,  
+  <a href="https://www.openmp.org/">OpenMP</a> for CPU parallelism,  
+  and <a href="https://developer.nvidia.com/cuda-zone">CUDA</a> for GPU acceleration.  
+</p>
 
+---
 
-A high-performance C++ deep learning library for building and training neural networks.
+## ✨ Features
 
+- 🚀 **High Performance**: Vectorized operations via Eigen and multi-threading with OpenMP.  
+- 🔧 **GPU Acceleration**: CUDA support for heavy computations.  
+- 🧩 **Modular API**: Clear separation of layers, losses, optimizers, metrics, and regularizations.  
+- 📦 **Extensible**: Easy to add custom layers, losses, or optimizers.  
+- 📊 **Visualization**: Tools for plotting training curves and inspecting models.  
+- 🧪 **Examples Included**: CNN, Linear, Transformer, and more.  
 
-## Project Structure
+---
+
+## 📂 Project Structure
 
 ```bash
-
 CppNet/
 ├── CMakeLists.txt
-├── examples/                   # Example scripts for testing and demonstrating usage
-│   ├── cnn_example.cpp         # Example using a CNN
-│   ├── linear_example.cpp      # Example using a Linear layer
-│   └── transformer_example.cpp # Example using a Transformer
-│       ...                     # More examples to be added
-├── include/                    # Header files defining the library's interface
-│   ├── activations.hpp         # Activation functions (ReLU, Sigmoid, etc.)
-│   ├── data.hpp                # Data handling (DataLoader, TensorDataset, etc.)
-│   ├── layers.hpp              # Layer classes (Linear, RNN, CNN, Transformer, etc.)
-│   ├── losses.hpp              # Loss functions (MSE, CrossEntropy, etc.)
-│   ├── metrics.hpp             # Metrics (Accuracy, Precision, etc.)
-│   ├── models.hpp              # Model classes (Sequential, etc.)
-│   ├── optimizers.hpp          # Optimizers (SGD, Adam, etc.)
-│   ├── regularization.hpp      # Regularization (Dropout, L2, etc.)
-│   ├── utils.hpp               # Utilities (tensor ops, initialization, serialization)
-│   └── visualization.hpp       # Visualization tools
+├── examples/                   # Example programs
+│   ├── cnn_example.cpp         # CNN example
+│   ├── linear_example.cpp      # Linear layer example
+│   └── transformer_example.cpp # Transformer example
+├── include/                    # Public headers (library API)
+│   ├── activations.hpp
+│   ├── data.hpp
+│   ├── layers.hpp
+│   ├── losses.hpp
+│   ├── metrics.hpp
+│   ├── models.hpp
+│   ├── optimizers.hpp
+│   ├── regularization.hpp
+│   ├── utils.hpp
+│   └── visualization.hpp
+├── src/                        # Implementations
+│   ├── activations.cpp
+│   ├── data.cpp
+│   ├── layers.cpp
+│   ├── losses.cpp
+│   ├── metrics.cpp
+│   ├── models.cpp
+│   ├── optimizers.cpp
+│   ├── regularization.cpp
+│   ├── utils.cpp
+│   └── visualization.cpp
 ├── LICENSE
-├── README.md
-└── src/                        # Source files with implementations
-    ├── activations.cpp
-    ├── data.cpp
-    ├── layers.cpp
-    ├── losses.cpp
-    ├── metrics.cpp
-    ├── models.cpp
-    ├── optimizers.cpp
-    ├── regularization.cpp
-    ├── utils.cpp
-    └── visualization.cpp
+└── README.md
 ```
 
-## Getting Started
+---
 
-This library is under active development. More details on installation, usage, and examples will be added as the project progresses.
+## ⚡ Installation
 
-## License
+### Prerequisites
+- **C++17 or newer**
+- [Eigen](https://eigen.tuxfamily.org) (header-only, auto-detected if installed)
+- [CMake](https://cmake.org) ≥ 3.14
+- (Optional) CUDA Toolkit for GPU acceleration
+- (Optional) OpenMP for CPU parallelism
 
-See the LICENSE file for details.
+### Build Instructions
+```bash
+git clone https://github.com/LoqmanSamani/CppNet.git
+cd CppNet
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+```
 
+This will build the library and all example programs inside `examples/`.
+
+---
+
+
+## 📚 Roadmap
+
+- [ ] Implement complete set of layers (CNN, RNN, Transformer, etc.)  
+- [ ] Add GPU backend (CUDA kernels for layers and ops)  
+- [ ] Add training utilities (Trainer, Callbacks, Checkpoints)  
+- [ ] Add more examples (GANs, Reinforcement Learning, NLP models)  
+
+---
+
+## 🛠 Contributing
+
+Contributions are welcome!  
+
+Please follow consistent coding style (headers in `include/`, implementations in `src/`).
+
+---
+
+## 📜 License
+
+CppNet is released under the [MIT License](LICENSE).  
