@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>CppNet</b> is a high-performance C++ deep learning library for building and training neural networks.  
-  It leverages <a href="https://eigen.tuxfamily.org">Eigen</a> for fast tensor operations,  
+  It uses <a href="https://eigen.tuxfamily.org">Eigen</a> for fast tensor operations,  
   <a href="https://www.openmp.org/">OpenMP</a> for CPU parallelism,  
   and <a href="https://developer.nvidia.com/cuda-zone">CUDA</a> for GPU acceleration.  
 </p>
