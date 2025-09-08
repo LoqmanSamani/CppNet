@@ -9,7 +9,17 @@ namespace CppNet
     namespace Layers
     {
         /************************************** Linear/Dense *************************************/
-        Linear::Linear() 
+        Linear::Linear(
+            int in_size, 
+            int out_size, 
+            std::string layer_name, 
+            bool trainable, 
+            bool bias, 
+            std::string device,
+            std::string weight_init
+        ) 
+        : in_size_(in_size), out_size_(out_size), layer_name_(layer_name), 
+          trainable_(trainable), bias_(bias), device_(device), weight_init_(weight_init)
         {
             // TODO: Initialize weights and biases
         }
