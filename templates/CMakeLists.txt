@@ -72,7 +72,8 @@ set(EXAMPLES
     #transformer_example
     #att_example
     #dropout_example
-    openmp_test
+    #openmp_test
+    linear_test
 )
 
 # build each example program

@@ -8,6 +8,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <omp.h> // For potential parallelization
 
 namespace CppNet
 {
@@ -114,8 +115,9 @@ namespace CppNet
                 Eigen::Tensor<double, 2> grad_weights_;
                 Eigen::Tensor<double, 1> grad_biases_;
                 
-
                 void init_params_and_grads();
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
         };
 
         class Conv2d : public Layer

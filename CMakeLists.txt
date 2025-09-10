@@ -75,22 +75,24 @@ if(USE_CUDA)
 endif()
 
 # Examples
-add_executable(matmul_test examples/matmul_test.cpp)
-target_link_libraries(matmul_test PRIVATE CppNet)
+#add_executable(matmul_test examples/matmul_test.cpp)
+#target_link_libraries(matmul_test PRIVATE CppNet)
 
-add_executable(main_test examples/main_test.cpp)
-target_link_libraries(main_test PRIVATE CppNet)
+#add_executable(main_test examples/main_test.cpp)
+#target_link_libraries(main_test PRIVATE CppNet)
+add_executable(linear_test examples/linear_test.cpp)
+target_link_libraries(linear_test PRIVATE CppNet)
 
 # Set CUDA properties for executables too
 if(USE_CUDA)
-    target_compile_definitions(matmul_test PRIVATE USE_CUDA)
-    set_target_properties(matmul_test PROPERTIES 
+    target_compile_definitions(linear_test PRIVATE USE_CUDA)
+    set_target_properties(linear_test PROPERTIES 
         CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
         LINKER_LANGUAGE CUDA
         CUDA_RESOLVE_DEVICE_SYMBOLS ON
     )
     # Explicitly link CUDA libraries to the executable
-    target_link_libraries(matmul_test PRIVATE CUDA::cudart)
+    target_link_libraries(linear_test PRIVATE CUDA::cudart)
 endif()
 
 # Installation
