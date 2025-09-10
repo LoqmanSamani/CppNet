@@ -84,6 +84,7 @@ namespace CppNet
                 bool has_bias() const { return bias_; }
 
                 void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) override;
+
                 
                 void print_layer_info() const 
                 {
@@ -114,10 +115,12 @@ namespace CppNet
                 Eigen::Tensor<double, 2> in_cache_;
                 Eigen::Tensor<double, 2> grad_weights_;
                 Eigen::Tensor<double, 1> grad_biases_;
-                
+
+                void reinitialize_weights(const std::string& new_init_method);
                 void init_params_and_grads();
                 // OpenMP utility method
                 static void set_num_threads(int num_threads);
+                  
         };
 
         class Conv2d : public Layer

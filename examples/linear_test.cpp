@@ -44,9 +44,9 @@ int main() {
     std::cout << "Default OpenMP threads: " << omp_get_max_threads() << std::endl;
     
     // Test parameters
-    const int batch_size = 512;
-    const int input_size = 1024;
-    const int output_size = 512;
+    const int batch_size = 1024;
+    const int input_size = 2048;
+    const int output_size = 1024;
     const int num_iterations = 10;
     
     std::cout << "\nTest Configuration:" << std::endl;
@@ -72,7 +72,7 @@ int main() {
         omp_set_num_threads(num_threads);
         
         // Create layer
-        Linear layer(input_size, output_size, "test_layer", true, true, "cpu", "xavier");
+        Linear layer(input_size, output_size, "test_layer", true, true, "cpu", "he_normal");
         layer.print_layer_info();
         
         double total_forward_time = 0.0;
