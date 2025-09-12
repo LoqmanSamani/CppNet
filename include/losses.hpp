@@ -12,11 +12,32 @@ namespace CppNet
 {
     namespace Losses
     {
+        // base class for all losses
         class Loss
         {
-        public:
-            virtual ~Loss() = default;
+            public:
+                virtual ~Loss() = default;
+                virtual double forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets) = 0;
+                virtual Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets) = 0;
         };
+        class BinaryCrossEntropy : public Loss  // Binary Cross Entropy Loss
+        {
+            public:
+                BinaryCrossEntropy(const std::string& reduction = "mean", bool from_logits = false, double pos_weight = 1.0);
+
+                double forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);
+                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);
+
+            private:
+                std::string reduction_; // "mean", "sum", or "none"
+                bool from_logits_; // Whether predictions are logits or probabilities
+                double pos_weight_; // Weight for positive examples
+                // helper function to validate inputs
+                void validate_inputs(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);   
+        };
+        
+
+
 
         class MSE : public Loss  // Mean Squared Error
         {
@@ -74,22 +95,6 @@ namespace CppNet
             Eigen::Tensor<double, 3> backward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<int, 2>& targets);
         };
 
-        class BinaryCrossEntropy : public Loss  // Binary Cross Entropy Loss
-        {
-        private:
-            std::string reduction; // "mean", "sum", or "none"
-            bool from_logits; // Whether predictions are logits or probabilities
-            double pos_weight; // Weight for positive examples
-            
-        public:
-            BinaryCrossEntropy(const std::string& reduction = "mean", bool from_logits = false, double pos_weight = 1.0);
-            
-            double forward(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets);
-            double forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);
-            
-            Eigen::Tensor<double, 1> backward(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets);
-            Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);
-        };
 
         class HuberLoss : public Loss  // Huber Loss (smooth L1 loss)
         {
