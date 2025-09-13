@@ -29,7 +29,7 @@ namespace CppNet
         {
             public:
                 virtual bool is_trainable() const = 0;
-                virtual void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) = 0;
+                virtual void step(Optimizers::Optimizer& optimizer, double learning_rate) = 0;
                 virtual ~Layer() = default;
         };
 
@@ -83,7 +83,7 @@ namespace CppNet
 
                 bool has_bias() const { return bias_; }
 
-                void update_parameters(Optimizers::Optimizer& optimizer, double learning_rate) override;
+                void step(Optimizers::Optimizer& optimizer, double learning_rate) override;
 
                 
                 void print_layer_info() const 

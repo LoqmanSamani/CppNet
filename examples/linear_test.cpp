@@ -284,10 +284,10 @@ int main()
             Eigen::Tensor<double, 2> grad_in4 = in_layer.backward(relu1.backward(grad_in3));
 
             // update parameters
-            in_layer.update_parameters(optimizer, lr);
-            hid1.update_parameters(optimizer, lr);
-            hid2.update_parameters(optimizer, lr);
-            out_layer.update_parameters(optimizer, lr);
+            in_layer.step(optimizer, lr);
+            hid1.step(optimizer, lr);
+            hid2.step(optimizer, lr);
+            out_layer.step(optimizer, lr);
 
             start = end;
             end = std::min(end + train_batch_size, static_cast<int>(train_data.rows()));

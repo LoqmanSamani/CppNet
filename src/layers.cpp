@@ -239,10 +239,10 @@ namespace CppNet
                                         "': " + e.what());
             }
         }
-        void Linear::update_parameters(Optimizers::Optimizer& optimizer, double learning_rate)
+        void Linear::step(Optimizers::Optimizer& optimizer, double learning_rate)
         {    
             // commented out until implemented
-            // optimizer.update(*this, learning_rate);
+            optimizer.step(*this, learning_rate);
         }
 
         Eigen::Tensor<double, 2> Linear::forward(const Eigen::Tensor<double, 2>& input) 
