@@ -34,22 +34,22 @@ namespace CppNet
             const int rows = targets.dimension(0);
             const int cols = targets.dimension(1);
 
-            #pragma omp parallel for collapse(2) reduction(&&:valid_labels)
-            for (int i = 0; i < rows; ++i)
-            {
-                for (int j = 0; j < cols; ++j)
-                {
-                    double val = targets(i, j);
-                    if (val != 0.0 && val != 1.0)
-                    {
-                        valid_labels = false;
-                    }
-                }
-            }
-            if (!valid_labels)
-            {
-                throw std::runtime_error("targets must contain binary labels (0 or 1)!");
-            }
+            //#pragma omp parallel for collapse(2) reduction(&&:valid_labels)
+            //for (int i = 0; i < rows; ++i)
+            //{
+            //    for (int j = 0; j < cols; ++j)
+            //    {
+            //        double val = targets(i, j);
+            //        if (val != 0.0 && val != 1.0)
+            //        {
+            //           valid_labels = false;
+            //        }
+            //    }
+            //}
+            //if (!valid_labels)
+            //{
+            //    throw std::runtime_error("targets must contain binary labels (0 or 1)!");
+            //}
         }
         double BinaryCrossEntropy::forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets)
         {
@@ -262,39 +262,6 @@ namespace CppNet
         Eigen::Tensor<double, 3> CrossEntropy::backward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<int, 2>& targets) 
         {
             Eigen::Tensor<double, 3> grad(predictions.dimension(0), predictions.dimension(1), predictions.dimension(2));
-            grad.setZero();
-            return grad;
-        }
-
-        /************************************** BinaryCrossEntropy *************************************/
-        BinaryCrossEntropy::BinaryCrossEntropy(const std::string& reduction, bool from_logits, double pos_weight) 
-            : reduction(reduction), from_logits(from_logits), pos_weight(pos_weight) 
-        {
-            // Store parameters
-        }
-
-        double BinaryCrossEntropy::forward(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) 
-        {
-            // TODO: Implement BCE: -sum(target * log(sigmoid(pred)) + (1-target) * log(1-sigmoid(pred)))
-            return 0.0;
-        }
-
-        double BinaryCrossEntropy::forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets) 
-        {
-            return 0.0;
-        }
-
-        Eigen::Tensor<double, 1> BinaryCrossEntropy::backward(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) 
-        {
-            // TODO: Implement BCE gradient: sigmoid(pred) - target
-            Eigen::Tensor<double, 1> grad(predictions.dimension(0));
-            grad.setZero();
-            return grad;
-        }
-
-        Eigen::Tensor<double, 2> BinaryCrossEntropy::backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets) 
-        {
-            Eigen::Tensor<double, 2> grad(predictions.dimension(0), predictions.dimension(1));
             grad.setZero();
             return grad;
         }
