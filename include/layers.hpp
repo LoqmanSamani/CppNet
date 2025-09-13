@@ -85,6 +85,9 @@ namespace CppNet
 
                 void step(Optimizers::Optimizer& optimizer, double learning_rate) override;
 
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
+
                 
                 void print_layer_info() const 
                 {
@@ -118,9 +121,7 @@ namespace CppNet
 
                 void reinitialize_weights(const std::string& new_init_method);
                 void init_params_and_grads();
-                // OpenMP utility method
-                static void set_num_threads(int num_threads);
-                  
+                         
         };
 
         class Conv2d : public Layer
