@@ -34,22 +34,22 @@ namespace CppNet
             const int rows = targets.dimension(0);
             const int cols = targets.dimension(1);
 
-            //#pragma omp parallel for collapse(2) reduction(&&:valid_labels)
-            //for (int i = 0; i < rows; ++i)
-            //{
-            //    for (int j = 0; j < cols; ++j)
-            //    {
-            //        double val = targets(i, j);
-            //        if (val != 0.0 && val != 1.0)
-            //        {
-            //           valid_labels = false;
-            //        }
-            //    }
-            //}
-            //if (!valid_labels)
-            //{
-            //    throw std::runtime_error("targets must contain binary labels (0 or 1)!");
-            //}
+            #pragma omp parallel for collapse(2) reduction(&&:valid_labels)
+            for (int i = 0; i < rows; ++i)
+            {
+                for (int j = 0; j < cols; ++j)
+                {
+                    double val = targets(i, j);
+                    if (val != 0.0 && val != 1.0)
+                    {
+                       valid_labels = false;
+                    }
+                }
+            }
+            if (!valid_labels)
+            {
+                throw std::runtime_error("targets must contain binary labels (0 or 1)!");
+            }
         }
         double BinaryCrossEntropy::forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets)
         {
