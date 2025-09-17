@@ -9,7 +9,7 @@ namespace CppNet
 {
     namespace Layers
     {
-        /************************************** Linear/Dense *************************************/
+        //********************* Linear (Fully Connected: Dense) Layer *********************//
         Linear::Linear(
             int in_size, 
             int out_size, 
@@ -235,13 +235,11 @@ namespace CppNet
             {
                 // Restore old method if new one fails
                 weight_init_ = old_method;
-                throw std::runtime_error("Failed to reinitialize with method '" + new_init_method + 
-                                        "': " + e.what());
+                throw std::runtime_error("Failed to reinitialize with method '" + new_init_method + "': " + e.what());
             }
         }
         void Linear::step(Optimizers::Optimizer& optimizer, double learning_rate)
-        {    
-            // commented out until implemented
+        {
             optimizer.step(*this, learning_rate);
         }
 
@@ -381,11 +379,302 @@ namespace CppNet
             }
         }
 
-        /************************************** Conv2d *******************************************/
-        Conv2d::Conv2d() 
+        //********************* Convolutional Layer(2D) *********************//
+        Conv2d::Conv2d(
+            int in_channels,
+            int out_channels,
+            std::tuple<int , int> kernel_size,
+            std::tuple<int, int> stride,
+            std::string layer_name,
+            bool trainable,
+            bool bias,
+            std::string padding,
+            std::tuple<int, int, int, int> num_padding,
+            std::string padding_mode,  
+            std::string device,
+            std::string weight_init,
+            Activations::Activation* activation
+        ) : in_channels_(in_channels), out_channels_(out_channels),
+            kernel_size_(kernel_size), stride_(stride), layer_name_(layer_name),
+            trainable_(trainable), bias_(bias), padding_(padding), num_padding_(num_padding),
+            padding_mode_(padding_mode), device_(device), weight_init_(weight_init),
+            activation_(activation)
         {
-            // TODO: Initialize kernels and biases
+            // Input validation
+            if (in_channels <= 0 || out_channels <= 0) 
+            {
+                throw std::runtime_error("in_channels and out_channels must be positive in layer: " + layer_name_);
+            }
+            if (std::get<0>(kernel_size_) <= 0 || std::get<1>(kernel_size_) <= 0) 
+            {
+                throw std::runtime_error("Kernel size must be positive in layer: " + layer_name_);
+            }
+            if (std::get<0>(stride_) <= 0 || std::get<1>(stride_) <= 0) 
+            {
+                throw std::runtime_error("Stride must be positive in layer: " + layer_name_);
+            }
+            if (padding_ != "valid" && padding_ != "same" && padding_ != "none") 
+            {
+                throw std::runtime_error("Invalid padding mode: " + padding_ + " in layer: " + layer_name_);
+            }
+            if (padding_mode_ != "zero" || padding_mode_ != "reflect" || padding_mode_ != "edge") 
+            {
+                throw std::runtime_error("Invalid padding mode: " + padding_mode_ + " in layer: " + layer_name_);
+            }
+
+            if (std::get<0>(num_padding_) < 0 || std::get<1>(num_padding_) < 0 || std::get<2>(num_padding_) < 0 || std::get<3>(num_padding_) < 0)
+            {
+                throw std::runtime_error("Padding values must be non-negative in layer: " + layer_name_);
+            }
+
+            // default layer name
+            if (layer_name_.empty()) 
+            {
+                layer_name_ = "Conv2D_" + std::to_string(in_channels_) + "x" + std::to_string(out_channels_);
+            }
+
+            // handle activator
+            if (activation_ == nullptr) 
+            {
+                default_relu_ = std::make_unique<Activations::ReLU>();
+                activation_ = default_relu_.get();
+            }
+
+            // initialize parameters and gradients
+            init_params_and_grads();
         }
+
+        void Conv2d::init_params_and_grads()
+        {
+            std::random_device rd;
+            int fan_in = in_channels_ * std::get<0>(kernel_size_) * std::get<1>(kernel_size_);
+            int fan_out = out_channels_ * std::get<0>(kernel_size_) * std::get<1>(kernel_size_);
+            double scale = 0.0;
+            double mean = 0.0;
+            double std_dev = 0.0;
+            bool use_normal = false;  // Flag to determine distribution type
+            
+            // Calculate initialization parameters based on method
+            if (weight_init_ == "xavier" || weight_init_ == "xavier_uniform")
+            {
+                // Xavier/Glorot Uniform: U(-sqrt(6/(fan_in + fan_out)), sqrt(6/(fan_in + fan_out)))
+                scale = std::sqrt(6.0 / (fan_in + fan_out));
+                use_normal = false;
+            }
+            else if (weight_init_ == "xavier_normal" || weight_init_ == "glorot_normal")
+            {
+                // Xavier/Glorot Normal: N(0, sqrt(2/(fan_in + fan_out)))
+                mean = 0.0;
+                std_dev = std::sqrt(2.0 / (fan_in + fan_out));
+                use_normal = true;
+            }
+            else if (weight_init_ == "he" || weight_init_ == "he_uniform")
+            {
+                // He Uniform (for ReLU): U(-sqrt(6/fan_in), sqrt(6/fan_in))
+                scale = std::sqrt(6.0 / fan_in);
+                use_normal = false;
+            }
+            else if (weight_init_ == "he_normal")
+            {
+                // He Normal (for ReLU): N(0, sqrt(2/fan_in))
+                mean = 0.0;
+                std_dev = std::sqrt(2.0 / fan_in);
+                use_normal = true;
+            }
+            else if (weight_init_ == "lecun_uniform")
+            {
+                // LeCun Uniform: U(-sqrt(3/fan_in), sqrt(3/fan_in))
+                scale = std::sqrt(3.0 / fan_in);
+                use_normal = false;
+            }
+            else if (weight_init_ == "lecun_normal")
+            {
+                // LeCun Normal: N(0, sqrt(1/fan_in))
+                mean = 0.0;
+                std_dev = std::sqrt(1.0 / fan_in);
+                use_normal = true;
+            }
+            else if (weight_init_ == "uniform")
+            {
+                // Simple uniform distribution: U(-0.1, 0.1)
+                scale = 0.1;
+                use_normal = false;
+            }
+            else if (weight_init_ == "normal")
+            {
+                // Simple normal distribution: N(0, 0.01)
+                mean = 0.0;
+                std_dev = 0.01;
+                use_normal = true;
+            }
+            else if (weight_init_ == "zeros")
+            {
+                // Initialize with zeros (useful for some specific architectures)
+                scale = 0.0;
+                use_normal = false;
+            }
+            else if (weight_init_ == "ones")
+            {
+                // Initialize with ones (rarely used, but available)
+                scale = -1.0; // Special flag for ones initialization
+                use_normal = false;
+            }
+            else
+            {
+                throw std::runtime_error("Unknown weight initialization method: '" + weight_init_ + 
+                                        "' in layer: " + layer_name_ + 
+                                        "\nSupported methods: xavier, xavier_normal, he, he_normal, " +
+                                        "lecun_uniform, lecun_normal, uniform, normal, zeros, ones");
+            }
+         
+            // Initialize weight tensor
+            weights_ = Eigen::Tensor<double, 4>(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
+
+            // Only parallelize for larger matrices to avoid overhead
+            const int total_elements = out_channels_ * in_channels_ * std::get<0>(kernel_size_) * std::get<1>(kernel_size_);
+            const bool should_parallelize = (total_elements > 10000);   
+            if (weight_init_ == "zeros")
+            {
+                // Special case: zero initialization
+                weights_.setZero();
+            }
+            else if (weight_init_ == "ones")
+            {
+                // Special case: ones initialization
+                weights_.setConstant(1.0);
+            }
+            else if (should_parallelize)
+            {
+                // Parallel initialization for large matrices
+                #pragma omp parallel
+                {
+                    // Each thread gets its own random generator
+                    std::mt19937 local_gen(rd() + omp_get_thread_num() * 1000 + 
+                                        std::chrono::high_resolution_clock::now().time_since_epoch().count() % 1000);
+                    if (use_normal)
+                    {
+                        std::normal_distribution<double> local_dist(mean, std_dev);
+                        #pragma omp for collapse(4)
+                        for (int oc = 0; oc < out_channels_; ++oc)
+                        {
+                            for (int ic = 0; ic < in_channels_; ++ic)
+                            {
+                                for (int kh = 0; kh < std::get<0>(kernel_size_); ++kh)
+                                {
+                                    for (int kw = 0; kw < std::get<1>(kernel_size_); ++kw)
+                                    {
+                                        weights_(oc, ic, kh, kw) = local_dist(local_gen);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        std::uniform_real_distribution<double> local_dist(-scale, scale);
+                        #pragma omp for collapse(4)
+                        for (int oc = 0; oc < out_channels_; ++oc)
+                        {
+                            for (int ic = 0; ic < in_channels_; ++ic)
+                            {
+                                for (int kh = 0; kh < std::get<0>(kernel_size_); ++kh)
+                                {
+                                    for (int kw = 0; kw < std::get<1>(kernel_size_); ++kw)
+                                    {
+                                        weights_(oc, ic, kh, kw) = local_dist(local_gen);
+                                    }
+                                }
+                            }
+                        }
+                    }   
+                }
+            }
+            else
+            {
+                // Serial initialization for small matrices
+                std::mt19937 gen(rd());
+                
+                if (use_normal)
+                {
+                    std::normal_distribution<double> dist(mean, std_dev);
+                    for (int oc = 0; oc < out_channels_; ++oc)
+                    {
+                        for (int ic = 0; ic < in_channels_; ++ic)
+                        {
+                            for (int kh = 0; kh < std::get<0>(kernel_size_); ++kh)
+                            {
+                                for (int kw = 0; kw < std::get<1>(kernel_size_); ++kw)
+                                {
+                                    weights_(oc, ic, kh, kw) = dist(gen);
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    std::uniform_real_distribution<double> dist(-scale, scale);
+                    for (int oc = 0; oc < out_channels_; ++oc)
+                    {
+                        for (int ic = 0; ic < in_channels_; ++ic)
+                        {
+                            for (int kh = 0; kh < std::get<0>(kernel_size_); ++kh)
+                            {
+                                for (int kw = 0; kw < std::get<1>(kernel_size_); ++kw)
+                                {
+                                    weights_(oc, ic, kh, kw) = dist(gen);
+                                }
+                            }
+                        }
+                    }
+                }
+            }   
+            // Initialize weight gradients with zeros
+            grad_weights_ = Eigen::Tensor<double, 4>(out_channels_, in_channels_, std::get<0>(kernel_size_), std::get<1>(kernel_size_));
+            grad_weights_.setZero();    
+            // Initialize biases and bias gradients
+            if (bias_)
+            {
+                biases_ = Eigen::Tensor<double, 1>(out_channels_);
+                grad_biases_ = Eigen::Tensor<double, 1>(out_channels_);     
+                // Biases are typically initialized to zero regardless of weight initialization
+                biases_.setZero();
+                grad_biases_.setZero(); 
+            }
+            else
+            {
+                // Initialize empty tensors when bias is disabled
+                biases_ = Eigen::Tensor<double, 1>(0);
+                grad_biases_ = Eigen::Tensor<double, 1>(0);
+            }   
+
+        }
+
+        void Conv2d::reinitialize_weights(const std::string& new_init_method)
+        {
+            std::string old_method = weight_init_;
+            weight_init_ = new_init_method;
+            
+            try
+            {
+                init_params_and_grads();
+                std::cout << "Layer '" << layer_name_ << "' weights reinitialized from '" 
+                        << old_method << "' to '" << new_init_method << "'" << std::endl;
+            }
+            catch (const std::exception& e)
+            {
+                // Restore old method if new one fails
+                weight_init_ = old_method;
+                throw std::runtime_error("Failed to reinitialize with method '" + new_init_method + "': " + e.what());
+            }
+        }
+
+        void Conv2d::step(Optimizers::Optimizer& optimizer, double learning_rate)
+        {
+           optimizer.step(*this, learning_rate);
+        }
+
+
 
         Eigen::Tensor<double, 4> Conv2d::forward(const Eigen::Tensor<double, 4>& input) 
         {

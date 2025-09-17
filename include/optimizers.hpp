@@ -17,7 +17,7 @@ namespace CppNet
         {
         public:
             virtual void step(CppNet::Layers::Linear& layer, double learning_rate) = 0;
-            //virtual void update(CppNet::Layers::Conv2d& layer, double learning_rate) = 0;
+            virtual void step(CppNet::Layers::Conv2d& layer, double learning_rate) = 0;
             //virtual void update(CppNet::Layers::MultiHeadAttention& layer, double learning_rate) = 0;
             virtual ~Optimizer() = default;
         };
@@ -28,7 +28,7 @@ namespace CppNet
         public:
             SGD() = default; // Explicit default constructor
             void step(CppNet::Layers::Linear& layer, double learning_rate) override;
-            //void step(CppNet::Layers::Conv2d& layer, double learning_rate) override;
+            void step(CppNet::Layers::Conv2d& layer, double learning_rate) override;
             //void step(CppNet::Layers::MultiHeadAttention& layer, double learning_rate) override;
         };
 
