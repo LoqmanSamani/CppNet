@@ -234,6 +234,9 @@ namespace CppNet
                 Eigen::Tensor<double, 4> pad_input(const Eigen::Tensor<double, 4>& input);
                 Eigen::MatrixXd im2col(const Eigen::Tensor<double, 4>& input);
                 void col2im_add(const Eigen::MatrixXd& col_matrix, Eigen::Tensor<double, 4>& grad_input);
+                Eigen::Tensor<double, 4> apply_manual_padding(const Eigen::Tensor<double, 4>& input, int pad_top, int pad_bottom, int pad_left, int pad_right, std::string padding_type);
+                void apply_horizontal_padding(Eigen::Tensor<double, 4>& padded_input, int batch_size, int channels, int padded_height, int width, int pad_left, int pad_right, std::string padding_type, bool use_parallel);
+                void apply_vertical_padding(Eigen::Tensor<double, 4>& padded_input, int batch_size, int channels, int height, int pad_top, int pad_bottom, std::string padding_type, bool use_parallel);
                 
         };
 

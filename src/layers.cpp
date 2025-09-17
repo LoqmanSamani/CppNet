@@ -674,7 +674,242 @@ namespace CppNet
            optimizer.step(*this, learning_rate);
         }
 
+        Eigen::Tensor<double, 4> Conv2d::pad_input(const Eigen::Tensor<double, 4>& input) 
+        {
+            int pad_top = std::get<0>(num_padding_);
+            int pad_bottom = std::get<1>(num_padding_);
+            int pad_left = std::get<2>(num_padding_);
+            int pad_right = std::get<3>(num_padding_);
+            
+            if (padding_ == "same") 
+            {
+                int k_h = std::get<0>(kernel_size_);
+                int k_w = std::get<1>(kernel_size_);
+                int stride_h = std::get<0>(stride_);
+                int stride_w = std::get<1>(stride_);
 
+                // compute padding to maintain output size
+                int output_h = (H_ + stride_h - 1) / stride_h; 
+                int output_w = (W_ + stride_w - 1) / stride_w; 
+                int pad_h_total = std::max(0, (output_h - 1) * stride_h + k_h - H_);
+                int pad_w_total = std::max(0, (output_w - 1) * stride_w + k_w - W_);
+
+                pad_top = pad_h_total / 2;
+                pad_bottom = pad_h_total - pad_top;
+                pad_left = pad_w_total / 2;
+                pad_right = pad_w_total - pad_left;
+              
+            }
+            else if (padding_ == "valid" || padding_ == "none") 
+            {
+                pad_top = 0;
+                pad_bottom = 0;
+                pad_left = 0;
+                pad_right = 0;
+            }
+
+            int height = input.dimension(2);
+            int width = input.dimension(3);
+            
+            if (padding_mode_ == "reflect") 
+            {
+                if (pad_top >= height || pad_bottom >= height || pad_left >= width || pad_right >= width) 
+                {
+                    throw std::runtime_error("Reflect padding size cannot be >= tensor dimension in layer: " + layer_name_);
+                }
+            }
+          
+            // Apply padding
+            if (padding_mode_ == "zero")
+            {
+                // Zero padding using Eigen's pad function
+                Eigen::array<std::pair<int, int>, 4> paddings = {
+                    std::make_pair(0, 0),                        // No padding for batch dimension
+                    std::make_pair(0, 0),                        // No padding for channel dimension
+                    std::make_pair(pad_top, pad_bottom),         // Height padding
+                    std::make_pair(pad_left, pad_right)          // Width padding
+                };
+                return input.pad(paddings);  
+            }
+            else if (padding_mode_ == "reflect")
+            {
+                return apply_manual_padding(input, pad_top, pad_bottom, pad_left, pad_right, "reflect");
+            }
+            else if (padding_mode_ == "edge")
+            {
+                return apply_manual_padding(input, pad_top, pad_bottom, pad_left, pad_right, "edge");
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported padding mode: " + padding_mode_ + " in layer: " + layer_name_);
+            }
+        }
+
+        Eigen::Tensor<double, 4> Conv2d::apply_manual_padding(
+            const Eigen::Tensor<double, 4>& input,
+            int pad_top, int pad_bottom, int pad_left, int pad_right,
+            std::string padding_type)
+        {
+            int batch_size = input.dimension(0);
+            int channels = input.dimension(1);
+            int height = input.dimension(2);
+            int width = input.dimension(3);
+            
+            Eigen::Tensor<double, 4> padded_input(
+                batch_size, channels, 
+                height + pad_top + pad_bottom, 
+                width + pad_left + pad_right
+            );
+            padded_input.setZero();
+
+            // Copy original input to the center
+            padded_input.slice(
+                Eigen::array<int, 4>{0, 0, pad_top, pad_left}, 
+                Eigen::array<int, 4>{batch_size, channels, height, width}
+            ) = input;
+
+            // Determine if parallelization is beneficial
+            const int total_elements = batch_size * channels * (height + pad_top + pad_bottom);
+            const bool use_parallel = total_elements > 10000; // Configurable threshold
+
+            // Apply vertical padding (top and bottom)
+            apply_vertical_padding(padded_input, batch_size, channels, height, pad_top, pad_bottom, padding_type, use_parallel);
+            
+            // Apply horizontal padding (left and right)  
+            apply_horizontal_padding(padded_input, batch_size, channels, height + pad_top + pad_bottom, width, pad_left, pad_right, padding_type, use_parallel);
+
+            return padded_input;
+        }
+
+        void Conv2d::apply_vertical_padding(
+            Eigen::Tensor<double, 4>& padded_input,
+            int batch_size, int channels, int height,
+            int pad_top, int pad_bottom, 
+            std::string padding_type, bool use_parallel)
+        {
+            auto loop_body = [&](int b, int c) 
+            {
+                // Top padding
+                for (int p = 0; p < pad_top; ++p) 
+                {
+                    int source_row;
+                    if (padding_type == "reflect") 
+                    {
+                        source_row = pad_top + (pad_top - p - 1); // Mirror reflection
+                    } 
+                    else 
+                    {
+                        source_row = pad_top; // Extend edge value
+                    }
+                    padded_input(b, c, p, Eigen::all) = padded_input(b, c, source_row, Eigen::all);
+                }
+                
+                // Bottom padding
+                for (int p = 0; p < pad_bottom; ++p) 
+                {
+                    int source_row;
+                    if (padding_type == "reflect") 
+                    {
+                        source_row = height + pad_top - p - 1; // Mirror reflection
+                    } 
+                    else 
+                    { 
+                        source_row = height + pad_top - 1; // Extend edge value
+                    }
+                    padded_input(b, c, height + pad_top + p, Eigen::all) = padded_input(b, c, source_row, Eigen::all);
+                }
+            };
+
+            if (use_parallel) 
+            {
+                #pragma omp parallel for collapse(2)
+                for (int b = 0; b < batch_size; ++b) 
+                {
+                    for (int c = 0; c < channels; ++c) 
+                    {
+                        loop_body(b, c);
+                    }
+                }
+            } 
+            else 
+            {
+                for (int b = 0; b < batch_size; ++b) 
+                {
+                    for (int c = 0; c < channels; ++c) 
+                    {
+                        loop_body(b, c);
+                    }
+                }
+            }
+        }
+
+        void Conv2d::apply_horizontal_padding(
+            Eigen::Tensor<double, 4>& padded_input,
+            int batch_size, int channels, int padded_height, int width,
+            int pad_left, int pad_right,
+            std::string padding_type, bool use_parallel)
+        {
+            auto loop_body = [&](int b, int c, int h) 
+            {
+                // Left padding
+                for (int p = 0; p < pad_left; ++p) 
+                {
+                    int source_col;
+                    if (padding_type == "reflect") 
+                    {
+                        source_col = pad_left + (pad_left - p - 1); // Mirror reflection
+                    } 
+                    else 
+                    {
+                        source_col = pad_left; // Extend edge value
+                    }
+                    padded_input(b, c, h, p) = padded_input(b, c, h, source_col);
+                }
+                
+                // Right padding
+                for (int p = 0; p < pad_right; ++p) 
+                {
+                    int source_col;
+                    if (padding_type == "reflect") 
+                    {
+                        source_col = width + pad_left - p - 1; // Mirror reflection
+                    } 
+                    else 
+                    { 
+                        source_col = width + pad_left - 1; // Extend edge value
+                    }
+                    padded_input(b, c, h, width + pad_left + p) = padded_input(b, c, h, source_col);
+                }
+            };
+
+            if (use_parallel) 
+            {
+                #pragma omp parallel for collapse(3)
+                for (int b = 0; b < batch_size; ++b) 
+                {
+                    for (int c = 0; c < channels; ++c) 
+                    {
+                        for (int h = 0; h < padded_height; ++h) 
+                        {
+                            loop_body(b, c, h);
+                        }
+                    }
+                }
+            } 
+            else 
+            {
+                for (int b = 0; b < batch_size; ++b) 
+                {
+                    for (int c = 0; c < channels; ++c) 
+                    {
+                        for (int h = 0; h < padded_height; ++h) 
+                        {
+                            loop_body(b, c, h);
+                        }
+                    }
+                }
+            }
+        }
 
         Eigen::Tensor<double, 4> Conv2d::forward(const Eigen::Tensor<double, 4>& input) 
         {
