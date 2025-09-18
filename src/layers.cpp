@@ -1,9 +1,9 @@
 #include <cmath>
-#include <omp.h> // For potential parallelization
+#include <omp.h> 
 #include <Eigen/Dense>
 #include "layers.hpp"
-#include "optimizers.hpp"  // Comment out until implemented
-#include "activations.hpp" // Comment out until implemented
+#include "optimizers.hpp"  
+#include "activations.hpp" 
 
 namespace CppNet
 {

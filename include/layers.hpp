@@ -8,7 +8,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
-#include <omp.h> // For potential parallelization
+#include <omp.h>
 
 namespace CppNet
 {
