@@ -392,13 +392,13 @@ namespace CppNet
             std::tuple<int, int, int, int> num_padding,
             std::string padding_mode,  
             std::string device,
-            std::string weight_init,
-            Activations::Activation* activation
+            std::string weight_init
+            //Activations::Activation* activation
         ) : in_channels_(in_channels), out_channels_(out_channels),
             kernel_size_(kernel_size), stride_(stride), layer_name_(layer_name),
             trainable_(trainable), bias_(bias), padding_(padding), num_padding_(num_padding),
-            padding_mode_(padding_mode), device_(device), weight_init_(weight_init),
-            activation_(activation)
+            padding_mode_(padding_mode), device_(device), weight_init_(weight_init)
+            //activation_(activation)
         {
             // Input validation
             if (in_channels <= 0 || out_channels <= 0) 
@@ -434,11 +434,11 @@ namespace CppNet
             }
 
             // handle activator
-            if (activation_ == nullptr) 
-            {
-                default_relu_ = std::make_unique<Activations::ReLU>();
-                activation_ = default_relu_.get();
-            }
+            //if (activation_ == nullptr) 
+            //{
+            //    default_relu_ = std::make_unique<Activations::ReLU>();
+            //    activation_ = default_relu_.get();
+            //}
 
             // initialize parameters and gradients
             init_params_and_grads();
@@ -911,20 +911,344 @@ namespace CppNet
             }
         }
 
-        Eigen::Tensor<double, 4> Conv2d::forward(const Eigen::Tensor<double, 4>& input) 
+        void Conv2d::init_output()
         {
-            // TODO: Implement convolution
-            // For now, return a tensor with same dimensions as input
-            Eigen::Tensor<double, 4> output(input.dimension(0), input.dimension(1), input.dimension(2), input.dimension(3));
-            output.setZero();
-            return output;
+            int k_h = std::get<0>(kernel_size_);
+            int k_w = std::get<1>(kernel_size_);
+            int stride_h = std::get<0>(stride_);
+            int stride_w = std::get<1>(stride_);
+            int pad_h = std::get<2>(num_padding_) + std::get<3>(num_padding_);
+            int pad_w = std::get<0>(num_padding_) + std::get<1>(num_padding_);
+
+            if (padding_ == "valid" || padding_ == "none") 
+            {
+                h_ = (H_ + pad_h - k_h) / stride_h + 1;
+                w_ = (W_ + pad_w - k_w) / stride_w + 1;
+
+                if ((H_ + pad_h - k_h) % stride_h != 0 || (W_ + pad_w - k_w) % stride_w != 0) 
+                {
+                    throw std::runtime_error("Non-integer output dimensions in layer: " + layer_name_);
+                }
+            } else if (padding_ == "same") 
+            {
+                h_ = std::ceil(static_cast<double>(H_) / stride_h);
+                w_ = std::ceil(static_cast<double>(W_) / stride_w);
+            }
+
+            if (h_ <= 0 || w_ <= 0) 
+            {
+                throw std::runtime_error("Invalid output dimensions in layer: " + layer_name_);
+            }
+
+            output_ = Eigen::Tensor<double, 4>(B_, out_channels_, h_, w_);
+            output_.setZero(); // Initialize output tensor with zeros
         }
 
-        Eigen::Tensor<double, 4> Conv2d::backward(const Eigen::Tensor<double, 4>& grad_output) 
+        // Convert input tensor to column matrix for convolution
+        Eigen::Tensor<double, 2> Conv2d::im2col(const Eigen::Tensor<double, 4>& input)
         {
-            // TODO: Implement convolution backward pass
-            Eigen::Tensor<double, 4> grad_input(grad_output.dimension(0), grad_output.dimension(1), grad_output.dimension(2), grad_output.dimension(3));
+            const int k_h = std::get<0>(kernel_size_);
+            const int k_w = std::get<1>(kernel_size_);
+            const int stride_h = std::get<0>(stride_);
+            const int stride_w = std::get<1>(stride_);
+            const int input_h = input.dimension(2);
+            const int input_w = input.dimension(3);
+            int out_h = (input_h - k_h) / stride_h + 1;
+            int out_w = (input_w - k_w) / stride_w + 1;
+            
+            if (out_h <= 0 || out_w <= 0)
+            {
+                throw std::runtime_error("Invalid output dimensions in im2col for layer: " + layer_name_);
+            }
+            
+            int col_height = k_h * k_w * in_channels_;
+            int col_width = B_ * out_h * out_w;
+            Eigen::Tensor<double, 2> col_matrix(col_height, col_width);
+            col_matrix.setZero();
+            
+            // Parallelize outer loops with OpenMP
+            // Use collapse to combine loops for better load balancing
+            #pragma omp parallel for collapse(3)
+            for (int b = 0; b < B_; ++b)
+            {
+                for (int oh = 0; oh < out_h; ++oh)
+                {
+                    for (int ow = 0; ow < out_w; ++ow)
+                    {
+                        int col_idx = b * out_h * out_w + oh * out_w + ow;
+                        
+                        int row_idx = 0;
+                        for (int ic = 0; ic < in_channels_; ++ic)
+                        {
+                            for (int kh = 0; kh < k_h; ++kh)
+                            {
+                                for (int kw = 0; kw < k_w; ++kw)
+                                {
+                                    int ih = oh * stride_h + kh;
+                                    int iw = ow * stride_w + kw;
+                                    if (ih < input_h && iw < input_w)
+                                    {
+                                        col_matrix(row_idx, col_idx) = input(b, ic, ih, iw);
+                                    }
+                                    row_idx++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return col_matrix;
+        }
+
+        // Convert column matrix back to input tensor shape, accumulating gradients
+        void Conv2d::col2im_add(const Eigen::Tensor<double, 2>& grad_input_col, Eigen::Tensor<double, 4>& grad_input)
+        {
+            const int k_h = std::get<0>(kernel_size_);
+            const int k_w = std::get<1>(kernel_size_);
+            const int stride_h = std::get<0>(stride_);
+            const int stride_w = std::get<1>(stride_);
+            const int input_h = grad_input.dimension(2);
+            const int input_w = grad_input.dimension(3);
+            
+            // Parallelize outer loops with OpenMP
+            // Use collapse to combine loops for better load balancing
+            #pragma omp parallel for collapse(3)
+            for (int b = 0; b < B_; ++b)
+            {
+                for (int oh = 0; oh < h_; ++oh)
+                {
+                    for (int ow = 0; ow < w_; ++ow)
+                    {
+                        int col_idx = b * h_ * w_ + oh * w_ + ow;
+                        
+                        int row_idx = 0;
+                        for (int ic = 0; ic < in_channels_; ++ic)
+                        {
+                            for (int kh = 0; kh < k_h; ++kh)
+                            {
+                                for (int kw = 0; kw < k_w; ++kw)
+                                {
+                                    int ih = oh * stride_h + kh;
+                                    int iw = ow * stride_w + kw;
+                                    if (ih < input_h && iw < input_w)
+                                    {
+                                        // Accumulate gradients
+                                        grad_input(b, ic, ih, iw) += grad_input_col(row_idx, col_idx);
+                                    }
+                                    row_idx++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update parameters using optimizer
+        void Conv2d::step(Optimizers::Optimizer& optimizer, double learning_rate)
+        {
+            optimizer.step(*this, learning_rate);
+        } 
+
+        // Forward pass
+        Eigen::Tensor<double, 4> Conv2d::forward(const Eigen::Tensor<double, 4>& input)
+        {
+            // cache input shape for backward pass
+            in_cache_ = input;
+            B_ = input.dimension(0);
+            C_ = input.dimension(1);
+            H_ = input.dimension(2);
+            W_ = input.dimension(3);
+            
+            // validate input
+            if (C_ != in_channels_)
+            {
+                throw std::runtime_error("Input channels mismatch in layer: " + layer_name_);
+            }
+            if (H_ < std::get<0>(kernel_size_) || W_ < std::get<1>(kernel_size_))
+            {
+                throw std::runtime_error("Input dimensions too small for kernel in layer: " + layer_name_);
+            }
+            
+            // pad input if needed
+            Eigen::Tensor<double, 4> input_to_use = pad_input(input);
+            
+            // initialize output dimensions
+            init_output();
+            
+            // im2col transformation
+            Eigen::Tensor<double, 2> col_matrix = im2col(input_to_use);
+            
+            // reshape weights to matrix: [out_channels, k_h * k_w * in_channels]
+            const int k_h = std::get<0>(kernel_size_);
+            const int k_w = std::get<1>(kernel_size_);
+            Eigen::Tensor<double, 2> reshaped_weight = weights_.reshape(
+                Eigen::array<int, 2>{out_channels_, k_h * k_w * in_channels_}
+            );
+            
+            int in_shape = reshaped_weight.dimension(0);   // out_channels_
+            int cols = reshaped_weight.dimension(1);       // k_h * k_w * in_channels_
+            int out_shape = col_matrix.dimension(1);       // B_ * h_ * w_
+            
+            Eigen::Tensor<double, 2> result(in_shape, out_shape);
+            result.setZero();
+            
+            // Manual matrix multiplication with OpenMP parallelization
+            // result(i, k) = sum_j(reshaped_weight(i, j) * col_matrix(j, k))
+            #pragma omp parallel for collapse(2)
+            for (int i = 0; i < in_shape; ++i)
+            {
+                for (int k = 0; k < out_shape; ++k)
+                {
+                    double sum = 0.0;
+                    for (int j = 0; j < cols; ++j)
+                    {
+                        sum += reshaped_weight(i, j) * col_matrix(j, k);
+                    }
+                    result(i, k) = sum;
+                }
+            }
+            
+            // add bias if applicable
+            if (bias_)
+            {
+                Eigen::Tensor<double, 2> bias_broadcasted = biases_.reshape(
+                    Eigen::array<int, 2>{out_channels_, 1}
+                ).broadcast(
+                    Eigen::array<int, 2>{1, B_ * h_ * w_}
+                );
+                result += bias_broadcasted;
+            }
+            
+            // reshape to 4D tensor
+            Eigen::Tensor<double, 4> pre_activation = result.reshape(
+                Eigen::array<int, 4>{B_, out_channels_, h_, w_}
+            );
+            
+            // apply activation  
+            // output_ = activation_-> forward(pre_activation);
+            return output_;
+        }
+
+        // Backward pass
+        Eigen::Tensor<double, 4> Conv2d::backward(const Eigen::Tensor<double, 4>& grad_output)
+        {
+            // validate gradient dimensions
+            if (grad_output.dimension(0) != B_ || grad_output.dimension(1) != out_channels_ ||
+                grad_output.dimension(2) != h_ || grad_output.dimension(3) != w_)
+            {
+                throw std::runtime_error("Gradient output dimensions mismatch in layer: " + layer_name_);
+            }
+            
+            const int k_h = std::get<0>(kernel_size_);
+            const int k_w = std::get<1>(kernel_size_);
+            
+            // initialize gradients
+            Eigen::Tensor<double, 4> grad_input(in_cache_.dimensions());
             grad_input.setZero();
+            
+            if (trainable_)
+            {
+                grad_weights_.setZero();
+                if (bias_)
+                {
+                    grad_biases_.setZero();
+                }
+            }
+            
+            // pad input for gradient computation
+            Eigen::Tensor<double, 4> input_to_use = pad_input(in_cache_);
+            
+            // compute gradient through activation
+            // Eigen::Tensor<double, 4> grad_pre_activation = activation_->backward(grad_output);
+            
+            // Reshape grad_pre_activation to 2D: [out_channels, B*h*w]
+            Eigen::Tensor<double, 2> grad_output_2d = grad_output.reshape(
+                Eigen::array<int, 2>{out_channels_, B_ * h_ * w_}
+            );
+            
+            // compute weight gradients
+            if (trainable_)
+            {
+                Eigen::Tensor<double, 2> col_matrix = im2col(input_to_use);
+                
+                // Manual matrix multiplication for weight gradients with OpenMP
+                // weight_grad = grad_output_2d * col_matrix^T
+                // grad_output_2d: [out_channels, B*h*w]
+                // col_matrix: [k_h*k_w*in_channels, B*h*w]
+                // Result: [out_channels, k_h*k_w*in_channels]
+                
+                int weight_grad_rows = grad_output_2d.dimension(0);  // out_channels
+                int weight_grad_cols = col_matrix.dimension(0);      // k_h*k_w*in_channels
+                int inner_dim = grad_output_2d.dimension(1);         // B*h*w
+                
+                Eigen::Tensor<double, 2> weight_grad(weight_grad_rows, weight_grad_cols);
+                weight_grad.setZero();
+                
+                #pragma omp parallel for collapse(2)
+                for (int i = 0; i < weight_grad_rows; ++i)
+                {
+                    for (int j = 0; j < weight_grad_cols; ++j)
+                    {
+                        double sum = 0.0;
+                        for (int k = 0; k < inner_dim; ++k)
+                        {
+                            // Matrix multiplication: C(i,j) = sum_k A(i,k) * B^T(j,k) = sum_k A(i,k) * B(j,k)
+                            sum += grad_output_2d(i, k) * col_matrix(j, k);
+                        }
+                        weight_grad(i, j) = sum;
+                    }
+                }
+                
+                // reshape back to 4D tensor
+                grad_weights_ = weight_grad.reshape(
+                    Eigen::array<int, 4>{out_channels_, in_channels_, k_h, k_w}
+                );
+                
+                if (bias_)
+                {
+                    Eigen::Tensor<double, 1> bias_grad = grad_output_2d.sum(Eigen::array<int, 1>{1});
+                    grad_biases_ = bias_grad;
+                }
+            }
+            
+            // compute input gradients
+            // We need weights^T for backward: [k_h*k_w*in_channels, out_channels]
+            Eigen::Tensor<double, 2> reshaped_weight = weights_.reshape(
+                Eigen::array<int, 2>{out_channels_, k_h * k_w * in_channels_}
+            );
+            
+            // Manual matrix multiplication: grad_input_col = reshaped_weight^T * grad_output_2d with OpenMP
+            // reshaped_weight^T: [k_h*k_w*in_channels, out_channels]
+            // grad_output_2d: [out_channels, B*h*w]
+            // Result: [k_h*k_w*in_channels, B*h*w]
+            
+            int grad_input_rows = k_h * k_w * in_channels_;  // reshaped_weight transposed rows
+            int grad_input_cols = grad_output_2d.dimension(1);  // B*h*w
+            int inner_dim = out_channels_;                       // out_channels
+            
+            Eigen::Tensor<double, 2> grad_input_col(grad_input_rows, grad_input_cols);
+            grad_input_col.setZero();
+            
+            #pragma omp parallel for collapse(2)
+            for (int i = 0; i < grad_input_rows; ++i)
+            {
+                for (int j = 0; j < grad_input_cols; ++j)
+                {
+                    double sum = 0.0;
+                    for (int k = 0; k < inner_dim; ++k)
+                    {
+                        // Matrix multiplication: C(i,j) = sum_k A^T(i,k) * B(k,j) = sum_k A(k,i) * B(k,j)
+                        sum += reshaped_weight(k, i) * grad_output_2d(k, j);
+                    }
+                    grad_input_col(i, j) = sum;
+                }
+            }
+            
+            // convert back to 4D tensor using col2im
+            col2im_add(grad_input_col, grad_input);
+            
             return grad_input;
         }
 

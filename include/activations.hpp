@@ -19,8 +19,8 @@ namespace CppNet
                 virtual Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& pre_actication) = 0;
                 virtual Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_output) = 0;
                 //virtual double forward(double z) = 0;
-                //virtual Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& z) = 0;
-                //virtual Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& da) = 0;
+                virtual Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& pre_actication) = 0;
+                virtual Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_output) = 0;
                 virtual ~Activation() = default;
 
             //protected:
@@ -45,11 +45,15 @@ namespace CppNet
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& pre_activation);
                 Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_output);
                 
-                //Eigen::Tensor<double, 3> forward(const Eigen::Tensor<double, 3>& input);
-                //Eigen::Tensor<double, 3> backward(const Eigen::Tensor<double, 3>& grad_output, const Eigen::Tensor<double, 3>& input);
+                Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& pre_activation);
+                Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_output);
+
             private:
+
                 Eigen::Tensor<double, 2> input_cache_2d_; // Cache the input for backward pass
                 Eigen::Tensor<double, 2> output_cache_2d_; // Cache the output for backward pass
+                Eigen::Tensor<double, 4> input_cache_4d_;
+                Eigen::Tensor<double, 4> output_cache_4d_;
                 //Eigen::Tensor<double, 1> output_cache_1d_;
                 //Eigen::Tensor<double, 3> output_cache_3d_;
         };
@@ -65,10 +69,13 @@ namespace CppNet
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& pre_activation);
                 Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_output);
                 
-                //Eigen::Tensor<double, 3> forward(const Eigen::Tensor<double, 3>& input);
-                //Eigen::Tensor<double, 3> backward(const Eigen::Tensor<double, 3>& grad_output, const Eigen::Tensor<double, 3>& input);
+                Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& pre_activation);
+                Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_output);
+
             private:
+
                 Eigen::Tensor<double, 2> output_cache_2d_; // Cache the output for backward pass
+                Eigen::Tensor<double, 4> output_cache_4d_;
                 //Eigen::Tensor<double, 1> output_cache_1d_;
                 //Eigen::Tensor<double, 3> output_cache_3d_;   
         };

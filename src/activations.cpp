@@ -6,32 +6,12 @@ namespace CppNet
 {
     namespace Activations
     {
+        /************************************** Sigmoid *************************************/
         Sigmoid::Sigmoid() 
         {
             // No parameters needed for ReLU
         }
-        /************************************** Sigmoid *************************************/
-        //Sigmoid::Sigmoid() 
-        //{
-            // No parameters needed for Sigmoid
-        //}
-
-        //Eigen::Tensor<double, 1> Sigmoid::forward(const Eigen::Tensor<double, 1>& input) 
-        //{
-            // TODO: Implement sigmoid: 1 / (1 + exp(-x))
-        //    Eigen::Tensor<double, 1> output(input.dimension(0));
-        //    output.setZero();
-        //    return output;
-        //}
-
-        //Eigen::Tensor<double, 1> Sigmoid::backward(const Eigen::Tensor<double, 1>& grad_output, const Eigen::Tensor<double, 1>& input) 
-        //{
-            // TODO: Implement sigmoid derivative: sigmoid(x) * (1 - sigmoid(x))
-        //    Eigen::Tensor<double, 1> grad_input(input.dimension(0));
-        //    grad_input.setZero();
-        //    return grad_input;
-        //}
-
+        
         Eigen::Tensor<double, 2> Sigmoid::forward(const Eigen::Tensor<double, 2>& pre_activation) 
         {
             if (pre_activation.size() == 0)
@@ -58,6 +38,45 @@ namespace CppNet
             }
             
             return output_cache_2d_;
+        }
+
+        Eigen::Tensor<double, 4> Sigmoid::forward(const Eigen::Tensor<double, 4>& pre_activation)
+        {
+            if (pre_activation.size() == 0)
+            {
+                throw std::runtime_error("Sigmoid: Empty input tensor in 4D forward");
+            }
+            
+            input_cache_4d_ = pre_activation; // Cache input for backward pass
+            
+            int batch = pre_activation.dimension(0);
+            int channels = pre_activation.dimension(1);
+            int height = pre_activation.dimension(2);
+            int width = pre_activation.dimension(3);
+            
+            output_cache_4d_ = Eigen::Tensor<double, 4>(batch, channels, height, width);
+            output_cache_4d_.setZero();
+            
+            // Compute sigmoid using element-wise operations and parallelization
+            // Collapse all 4 dimensions for maximum parallelization
+            #pragma omp parallel for collapse(4) schedule(static)
+            for (int b = 0; b < batch; ++b)
+            {
+                for (int c = 0; c < channels; ++c)
+                {
+                    for (int h = 0; h < height; ++h)
+                    {
+                        for (int w = 0; w < width; ++w)
+                        {
+                            // Clamp input to prevent overflow/underflow
+                            double clamped_input = std::max(-500.0, std::min(500.0, pre_activation(b, c, h, w)));
+                            output_cache_4d_(b, c, h, w) = 1.0 / (1.0 + std::exp(-clamped_input));
+                        }
+                    }
+                }
+            }
+            
+            return output_cache_4d_;
         }
 
         Eigen::Tensor<double, 2> Sigmoid::backward(const Eigen::Tensor<double, 2>& grad_output)
@@ -87,42 +106,53 @@ namespace CppNet
 
             return grad_input;
         }
+
+        Eigen::Tensor<double, 4> Sigmoid::backward(const Eigen::Tensor<double, 4>& grad_output)
+        {
+            if (grad_output.dimension(0) != input_cache_4d_.dimension(0) ||
+                grad_output.dimension(1) != input_cache_4d_.dimension(1) ||
+                grad_output.dimension(2) != input_cache_4d_.dimension(2) ||
+                grad_output.dimension(3) != input_cache_4d_.dimension(3) ||
+                grad_output.size() == 0)
+            {
+                throw std::runtime_error("Sigmoid: Shape mismatch or empty input in 4D backward");
+            }
+            
+            int batch = grad_output.dimension(0);
+            int channels = grad_output.dimension(1);
+            int height = grad_output.dimension(2);
+            int width = grad_output.dimension(3);
+            
+            Eigen::Tensor<double, 4> grad_input(batch, channels, height, width);
+            grad_input.setZero();
+            
+            // Compute gradient using element-wise operations and parallelization
+            // Collapse all 4 dimensions for maximum parallelization
+            #pragma omp parallel for collapse(4) schedule(static)
+            for (int b = 0; b < batch; ++b)
+            {
+                for (int c = 0; c < channels; ++c)
+                {
+                    for (int h = 0; h < height; ++h)
+                    {
+                        for (int w = 0; w < width; ++w)
+                        {
+                            double sigmoid_val = output_cache_4d_(b, c, h, w);
+                            grad_input(b, c, h, w) = grad_output(b, c, h, w) * sigmoid_val * (1.0 - sigmoid_val);
+                        }
+                    }
+                }
+            }
+            
+            return grad_input;
+        }
       
-        //Eigen::Tensor<double, 3> Sigmoid::forward(const Eigen::Tensor<double, 3>& input) 
-        //{
-        //    Eigen::Tensor<double, 3> output(input.dimension(0), input.dimension(1), input.dimension(2));
-        //    output.setZero();
-        //    return output;
-        //}
-
-        //Eigen::Tensor<double, 3> Sigmoid::backward(const Eigen::Tensor<double, 3>& grad_output, const Eigen::Tensor<double, 3>& input) 
-        //{
-        //    Eigen::Tensor<double, 3> grad_input(input.dimension(0), input.dimension(1), input.dimension(2));
-        //    grad_input.setZero();
-        //    return grad_input;
-        //}
-
+       
         /************************************** ReLU *************************************/
         ReLU::ReLU() 
         {
             // No parameters needed for ReLU
         }
-
-        //Eigen::Tensor<double, 1> ReLU::forward(const Eigen::Tensor<double, 1>& input) 
-        //{
-            // TODO: Implement ReLU: max(0, x)
-        //    Eigen::Tensor<double, 1> output(input.dimension(0));
-        //    output.setZero();
-        //    return output;
-        //}
-
-        //Eigen::Tensor<double, 1> ReLU::backward(const Eigen::Tensor<double, 1>& grad_output, const Eigen::Tensor<double, 1>& input) 
-        //{
-            // TODO: Implement ReLU derivative: 1 if x > 0, else 0
-        //    Eigen::Tensor<double, 1> grad_input(input.dimension(0));
-        //    grad_input.setZero();
-        //    return grad_input;
-        //}
 
         Eigen::Tensor<double, 2> ReLU::forward(const Eigen::Tensor<double, 2>& pre_activation) 
         {
@@ -146,6 +176,41 @@ namespace CppNet
 
         }
 
+        Eigen::Tensor<double, 4> ReLU::forward(const Eigen::Tensor<double, 4>& pre_activation)
+        {
+            if (pre_activation.size() == 0)
+            {
+                throw std::runtime_error("ReLU: Empty input tensor in 4D forward");
+            }
+            
+            int batch = pre_activation.dimension(0);
+            int channels = pre_activation.dimension(1);
+            int height = pre_activation.dimension(2);
+            int width = pre_activation.dimension(3);
+            
+            output_cache_4d_ = Eigen::Tensor<double, 4>(batch, channels, height, width);
+            output_cache_4d_.setZero();
+            
+            // Compute ReLU using element-wise operations and parallelization
+            // Collapse all 4 dimensions for maximum parallelization
+            #pragma omp parallel for collapse(4) schedule(static)
+            for (int b = 0; b < batch; ++b)
+            {
+                for (int c = 0; c < channels; ++c)
+                {
+                    for (int h = 0; h < height; ++h)
+                    {
+                        for (int w = 0; w < width; ++w)
+                        {
+                            output_cache_4d_(b, c, h, w) = std::max(0.0, pre_activation(b, c, h, w));
+                        }
+                    }
+                }
+            }
+            
+            return output_cache_4d_;
+        }
+
         Eigen::Tensor<double, 2> ReLU::backward(const Eigen::Tensor<double, 2>& grad_output) 
         {
             if (grad_output.dimension(0) != output_cache_2d_.dimension(0) ||
@@ -166,6 +231,45 @@ namespace CppNet
             {
                 for (int j = 0; j < cols; ++j) {
                     grad_input(i, j) = grad_output(i, j) * (output_cache_2d_(i, j) > 0.0 ? 1.0 : 0.0);
+                }
+            }
+            
+            return grad_input;
+        }
+
+        Eigen::Tensor<double, 4> ReLU::backward(const Eigen::Tensor<double, 4>& grad_output)
+        {
+            if (grad_output.dimension(0) != output_cache_4d_.dimension(0) ||
+                grad_output.dimension(1) != output_cache_4d_.dimension(1) ||
+                grad_output.dimension(2) != output_cache_4d_.dimension(2) ||
+                grad_output.dimension(3) != output_cache_4d_.dimension(3) ||
+                grad_output.size() == 0)
+            {
+                throw std::runtime_error("ReLU: Shape mismatch or empty input in 4D backward");
+            }
+            
+            int batch = grad_output.dimension(0);
+            int channels = grad_output.dimension(1);
+            int height = grad_output.dimension(2);
+            int width = grad_output.dimension(3);
+            
+            Eigen::Tensor<double, 4> grad_input(batch, channels, height, width);
+            grad_input.setZero();
+            
+            // Element-wise multiplication with the derivative mask and parallelization
+            // Collapse all 4 dimensions for maximum parallelization
+            #pragma omp parallel for collapse(4) schedule(static)
+            for (int b = 0; b < batch; ++b)
+            {
+                for (int c = 0; c < channels; ++c)
+                {
+                    for (int h = 0; h < height; ++h)
+                    {
+                        for (int w = 0; w < width; ++w)
+                        {
+                            grad_input(b, c, h, w) = grad_output(b, c, h, w) * (output_cache_4d_(b, c, h, w) > 0.0 ? 1.0 : 0.0);
+                        }
+                    }
                 }
             }
             

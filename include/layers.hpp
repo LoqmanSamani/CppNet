@@ -16,11 +16,11 @@ namespace CppNet
     {
         class Optimizer;
     }
-    namespace Activations
-    {
-        class Activation;
-        class ReLU;
-    }
+    //namespace Activations
+    //{
+    //    class Activation;
+    //    class ReLU;
+    //}
     
     namespace Layers
     {
@@ -142,8 +142,8 @@ namespace CppNet
                     std::tuple<int, int, int, int> num_padding = std::make_tuple(0, 0, 0, 0),
                     std::string padding_mode = "zero",  
                     std::string device = "cpu",
-                    std::string weight_init = "xavier",
-                    Activations::Activation* activation = nullptr
+                    std::string weight_init = "xavier"
+                    //Activations::Activation* activation = nullptr
                 );
 
                 Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& input);
@@ -219,8 +219,8 @@ namespace CppNet
                 int B_, C_, H_, W_; // Input dimensions
                 int h_, w_;         // Output dimensions
 
-                std::unique_ptr<Activations::ReLU> default_relu_;
-                Activations::Activation* activation_;
+                //std::unique_ptr<Activations::ReLU> default_relu_;
+                //Activations::Activation* activation_;
                 Eigen::Tensor<double, 4> weights_;
                 Eigen::Tensor<double, 1> biases_;
                 Eigen::Tensor<double, 4> grad_weights_;
@@ -232,8 +232,8 @@ namespace CppNet
                 void init_params_and_grads();
                 void init_output();
                 Eigen::Tensor<double, 4> pad_input(const Eigen::Tensor<double, 4>& input);
-                Eigen::MatrixXd im2col(const Eigen::Tensor<double, 4>& input);
-                void col2im_add(const Eigen::MatrixXd& col_matrix, Eigen::Tensor<double, 4>& grad_input);
+                Eigen::Tensor<double, 2> im2col(const Eigen::Tensor<double, 4>& input);
+                void col2im_add(const Eigen::Tensor<double, 2>& grad_input_col, Eigen::Tensor<double, 4>& grad_input);
                 Eigen::Tensor<double, 4> apply_manual_padding(const Eigen::Tensor<double, 4>& input, int pad_top, int pad_bottom, int pad_left, int pad_right, std::string padding_type);
                 void apply_horizontal_padding(Eigen::Tensor<double, 4>& padded_input, int batch_size, int channels, int padded_height, int width, int pad_left, int pad_right, std::string padding_type, bool use_parallel);
                 void apply_vertical_padding(Eigen::Tensor<double, 4>& padded_input, int batch_size, int channels, int height, int pad_top, int pad_bottom, std::string padding_type, bool use_parallel);
