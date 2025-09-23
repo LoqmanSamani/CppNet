@@ -1559,7 +1559,14 @@ namespace CppNet
             output_.setZero(); // Initialize output tensor with zeros    
         }
 
-
+        // helper method to set number of threads
+        void MaxPool2D::set_num_threads(int num_threads) 
+        {
+            if (num_threads > 0) 
+            {
+                omp_set_num_threads(num_threads);
+            }
+        }
 
         Eigen::Tensor<double, 4> MaxPool2D::forward(const Eigen::Tensor<double, 4>& input) 
         {
@@ -1591,7 +1598,7 @@ namespace CppNet
             if (total_operations > parallel_threshold_) 
             {
                 // Apply max pooling with OpenMP parallelization for large workloads
-                #pragma omp parallel for num_threads(num_threads_) collapse(4)
+                #pragma omp parallel for collapse(4)
                 for (int b = 0; b < B_; ++b) 
                 {
                     for (int c = 0; c < C_; ++c) 
@@ -1678,7 +1685,7 @@ namespace CppNet
             if (total_operations > parallel_threshold_) 
             {
                 // Parallel execution with atomic operations to prevent race conditions
-                #pragma omp parallel for num_threads(num_threads_) collapse(4)
+                #pragma omp parallel for collapse(4)
                 for (int b = 0; b < B_; ++b) 
                 {
                     for (int c = 0; c < C_; ++c) 
@@ -1801,7 +1808,7 @@ namespace CppNet
             
             if (total_operations > parallel_threshold_) 
             {
-                #pragma omp parallel for num_threads(num_threads_) collapse(4)
+                #pragma omp parallel for collapse(4)
                 for (int b = 0; b < B_; ++b) 
                 {
                     for (int c = 0; c < C_; ++c) 
@@ -1838,29 +1845,40 @@ namespace CppNet
         }
 
         /*************************************** Flatten ********************************************/
-        Flatten::Flatten() 
-        {
-            // No parameters needed for flatten
-        }
+        Flatten::Flatten(std::string layer_name) : layer_name_(layer_name) {}
 
         Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 4>& input) 
         {
-            // TODO: Implement flattening (4D -> 2D)
+            if (input.size() == 0) 
+            {
+                throw std::runtime_error("Flatten: Empty input tensor");
+            }
+
+            // save input shape
+            for (int i = 0; i < 4; ++i) 
+            {
+                in_shape_4d[i] = input.dimension(i);
+            }
+
             int batch_size = input.dimension(0);
-            int flattened_size = input.dimension(1) * input.dimension(2) * input.dimension(3);
-            Eigen::Tensor<double, 2> output(batch_size, flattened_size);
-            output.setZero();
-            return output;
+            int channels = input.dimension(1);
+            int height = input.dimension(2);
+            int width = input.dimension(3);
+
+            // compute flattened shape
+            Eigen::Index flat_dim1 = batch_size * channels * height;
+            Eigen::Index flat_dim0 = width;
+
+            // reshape and copy to new tensor
+            Eigen::array<Eigen::Index, 2> new_shape = {flat_dim0, flat_dim1};
+            Eigen::Tensor<double, 2> flatten_input = input.reshape(new_shape);
+
+            return flatten_input;
         }
 
         Eigen::Tensor<double, 4> Flatten::backward(const Eigen::Tensor<double, 2>& grad_output) 
         {
-            // TODO: Implement unflatten for backward pass (2D -> 4D)
-            // You'll need to store original dimensions from forward pass
-            int batch_size = grad_output.dimension(0);
-            Eigen::Tensor<double, 4> grad_input(batch_size, 1, 1, grad_output.dimension(1)); // Placeholder dimensions
-            grad_input.setZero();
-            return grad_input;
+            return grad_output.reshape(in_shape_4d);
         }
 
         /********************************* Multi-Head Attention *************************************/

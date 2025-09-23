@@ -48,6 +48,9 @@ namespace CppNet
                 Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& pre_activation);
                 Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_output);
 
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
+
             private:
 
                 Eigen::Tensor<double, 2> input_cache_2d_; // Cache the input for backward pass
@@ -71,6 +74,9 @@ namespace CppNet
                 
                 Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& pre_activation);
                 Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_output);
+
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
 
             private:
 
@@ -118,20 +124,25 @@ namespace CppNet
 
         class Softmax : public Activation
         {
-        private:
-            int axis; // Axis along which to apply softmax
+            public:
+
+                Softmax();
+                
+                //Eigen::Tensor<double, 1> forward(const Eigen::Tensor<double, 1>& input);
+                //Eigen::Tensor<double, 1> backward(const Eigen::Tensor<double, 1>& grad_output, const Eigen::Tensor<double, 1>& input);
+                
+                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& input);
+                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_output);
+
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
+                
+                Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& input);
+                Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_output);
+
+            private:
             
-        public:
-            Softmax(int axis = -1); // -1 means last axis
-            
-            Eigen::Tensor<double, 1> forward(const Eigen::Tensor<double, 1>& input);
-            Eigen::Tensor<double, 1> backward(const Eigen::Tensor<double, 1>& grad_output, const Eigen::Tensor<double, 1>& input);
-            
-            Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& input);
-            Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_output, const Eigen::Tensor<double, 2>& input);
-            
-            Eigen::Tensor<double, 3> forward(const Eigen::Tensor<double, 3>& input);
-            Eigen::Tensor<double, 3> backward(const Eigen::Tensor<double, 3>& grad_output, const Eigen::Tensor<double, 3>& input);
+                Eigen::Tensor<double, 2> output_cache_2d_; // Cache the output for backward pass
         };
     }
 }

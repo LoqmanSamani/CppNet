@@ -9,7 +9,16 @@ namespace CppNet
         /************************************** Sigmoid *************************************/
         Sigmoid::Sigmoid() 
         {
-            // No parameters needed for ReLU
+            // No parameters needed for Sigmoid
+        }
+        
+        // helper method to set number of threads
+        void Sigmoid::set_num_threads(int num_threads) 
+        {
+            if (num_threads > 0) 
+            {
+                omp_set_num_threads(num_threads);
+            }
         }
         
         Eigen::Tensor<double, 2> Sigmoid::forward(const Eigen::Tensor<double, 2>& pre_activation) 
@@ -152,6 +161,14 @@ namespace CppNet
         ReLU::ReLU() 
         {
             // No parameters needed for ReLU
+        }
+        // helper method to set number of threads
+        void ReLU::set_num_threads(int num_threads) 
+        {
+            if (num_threads > 0) 
+            {
+                omp_set_num_threads(num_threads);
+            }
         }
 
         Eigen::Tensor<double, 2> ReLU::forward(const Eigen::Tensor<double, 2>& pre_activation) 
@@ -393,12 +410,97 @@ namespace CppNet
         }
 
         /************************************** Softmax *************************************/
-        Softmax::Softmax(int axis) : axis(axis) 
+        Softmax::Softmax() {}
+
+        // helper method to set number of threads
+        void Softmax::set_num_threads(int num_threads) 
         {
-            // Store the axis parameter
+            if (num_threads > 0) 
+            {
+                omp_set_num_threads(num_threads);
+            }
         }
 
-        Eigen::Tensor<double, 1> Softmax::forward(const Eigen::Tensor<double, 1>& input) 
+        Eigen::Tensor<double, 2> Softmax::forward(const Eigen::Tensor<double, 2>& input)
+        {
+            if (input.size() == 0)
+            {
+                throw std::runtime_error("SoftMax: Empty input tensor in 2D forward");
+            }
+            
+            int batch_size = input.dimension(0);
+            int num_classes = input.dimension(1);
+            
+            output_cache_2d_ = Eigen::Tensor<double, 2>(batch_size, num_classes);
+            
+            // Parallelize across batch dimension
+            #pragma omp parallel for schedule(static)
+            for (int b = 0; b < batch_size; ++b)
+            {
+                // Find max for numerical stability (for this batch sample)
+                double max_val = input(b, 0);
+                for (int j = 1; j < num_classes; ++j)
+                {
+                    if (input(b, j) > max_val)
+                        max_val = input(b, j);
+                }
+                
+                // Compute exp(x - max) and sum
+                double sum_exp = 0.0;
+                for (int j = 0; j < num_classes; ++j)
+                {
+                    double exp_val = std::exp(input(b, j) - max_val);
+                    output_cache_2d_(b, j) = exp_val;
+                    sum_exp += exp_val;
+                }
+                
+                // Normalize to get softmax
+                sum_exp += 1e-15; // numerical stability
+                for (int j = 0; j < num_classes; ++j)
+                {
+                    output_cache_2d_(b, j) /= sum_exp;
+                }
+            }
+            
+            return output_cache_2d_;
+        }
+
+        Eigen::Tensor<double, 2> Softmax::backward(const Eigen::Tensor<double, 2>& grad_output)
+        {
+            if (grad_output.dimension(0) != output_cache_2d_.dimension(0) ||
+                grad_output.dimension(1) != output_cache_2d_.dimension(1) ||
+                grad_output.size() == 0)
+            {
+                throw std::runtime_error("SoftMax: Shape mismatch or empty input in 2D backward");
+            }
+            
+            int batch_size = grad_output.dimension(0);
+            int num_classes = grad_output.dimension(1);
+            
+            Eigen::Tensor<double, 2> grad_input(batch_size, num_classes);
+            
+            // Parallelize across batch dimension
+            #pragma omp parallel for schedule(static)
+            for (int b = 0; b < batch_size; ++b)
+            {
+                // Compute sum(grad_output * softmax) for this batch sample
+                double sum_grad_softmax = 0.0;
+                for (int j = 0; j < num_classes; ++j)
+                {
+                    sum_grad_softmax += grad_output(b, j) * output_cache_2d_(b, j);
+                }
+                
+                // Compute gradient: softmax * (grad_output - sum)
+                for (int j = 0; j < num_classes; ++j)
+                {
+                    grad_input(b, j) = output_cache_2d_(b, j) * (grad_output(b, j) - sum_grad_softmax);
+                }
+            }
+            
+            return grad_input;
+        }
+
+        Eigen::Tensor<double, 4> Softmax::forward(const Eigen::Tensor<double, 4>& input) 
         {
             // TODO: Implement Softmax: exp(x_i) / sum(exp(x_j)) for all j
             // Remember to subtract max for numerical stability
@@ -407,38 +509,10 @@ namespace CppNet
             return output;
         }
 
-        Eigen::Tensor<double, 1> Softmax::backward(const Eigen::Tensor<double, 1>& grad_output, const Eigen::Tensor<double, 1>& input) 
+        Eigen::Tensor<double, 4> Softmax::backward(const Eigen::Tensor<double, 4>& grad_output) 
         {
             // TODO: Implement Softmax derivative: s_i * (δ_ij - s_j) where s = softmax(x)
-            Eigen::Tensor<double, 1> grad_input(input.dimension(0));
-            grad_input.setZero();
-            return grad_input;
-        }
-
-        Eigen::Tensor<double, 2> Softmax::forward(const Eigen::Tensor<double, 2>& input) 
-        {
-            Eigen::Tensor<double, 2> output(input.dimension(0), input.dimension(1));
-            output.setZero();
-            return output;
-        }
-
-        Eigen::Tensor<double, 2> Softmax::backward(const Eigen::Tensor<double, 2>& grad_output, const Eigen::Tensor<double, 2>& input) 
-        {
-            Eigen::Tensor<double, 2> grad_input(input.dimension(0), input.dimension(1));
-            grad_input.setZero();
-            return grad_input;
-        }
-
-        Eigen::Tensor<double, 3> Softmax::forward(const Eigen::Tensor<double, 3>& input) 
-        {
-            Eigen::Tensor<double, 3> output(input.dimension(0), input.dimension(1), input.dimension(2));
-            output.setZero();
-            return output;
-        }
-
-        Eigen::Tensor<double, 3> Softmax::backward(const Eigen::Tensor<double, 3>& grad_output, const Eigen::Tensor<double, 3>& input) 
-        {
-            Eigen::Tensor<double, 3> grad_input(input.dimension(0), input.dimension(1), input.dimension(2));
+            Eigen::Tensor<double, 1> grad_input(grad_output.dimension(0));
             grad_input.setZero();
             return grad_input;
         }

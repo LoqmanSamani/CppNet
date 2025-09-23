@@ -28,6 +28,9 @@ namespace CppNet
                 double forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);
                 Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);
 
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
+
             private:
                 std::string reduction_; // "mean", "sum", or "none"
                 bool from_logits_; // Whether predictions are logits or probabilities
@@ -75,24 +78,32 @@ namespace CppNet
             Eigen::Tensor<double, 3> backward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<double, 3>& targets);
         };
 
-        class CrossEntropy : public Loss  // Cross Entropy Loss
+        class CategoricalCrossEntropy : public Loss  // Cross Entropy Loss
         {
-        private:
-            std::string reduction; // "mean", "sum", or "none"
-            bool from_logits; // Whether predictions are logits or probabilities
-            double label_smoothing; // Label smoothing factor
             
-        public:
-            CrossEntropy(const std::string& reduction = "mean", bool from_logits = true, double label_smoothing = 0.0);
-            
-            // For classification: predictions are class probabilities/logits, targets are class indices or one-hot
-            double forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets); // Class indices
-            double forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets); // One-hot
-            double forward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<int, 2>& targets); // Sequence classification
-            
-            Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets);
-            Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);
-            Eigen::Tensor<double, 3> backward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<int, 2>& targets);
+            public:
+
+                CategoricalCrossEntropy(const std::string& reduction = "mean", bool from_logits = true, double label_smoothing = 0.0);
+                
+                // For classification: predictions are class probabilities/logits, targets are class indices or one-hot
+                double forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets); // Class indices
+                double forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets); // One-hot
+                double forward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<int, 2>& targets); // Sequence classification
+                
+                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets);
+                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets);
+                Eigen::Tensor<double, 3> backward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<int, 2>& targets);
+
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
+
+            private:
+
+                std::string reduction_; // "mean", "sum", or "none"
+                bool from_logits_; // Whether predictions are logits or probabilities
+                double label_smoothing_; // Label smoothing factor
+                Eigen::Tensor<double, 2> softmax_cache_;  // Cache softmax output
+                Eigen::Tensor<double, 2> targets_cache_;  // Cache processed targets
         };
 
 
