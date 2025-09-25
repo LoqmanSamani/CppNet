@@ -316,6 +316,9 @@ namespace CppNet
                 bool is_trainable() const override { return false; }
                 void step(Optimizers::Optimizer& optimizer, double learning_rate) override {}
                 std::string get_layer_name() const { return layer_name_; }
+
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
                 
             private:
 

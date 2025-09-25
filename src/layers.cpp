@@ -1120,12 +1120,10 @@ namespace CppNet
             }
             
             // reshape to 4D tensor
-            Eigen::Tensor<double, 4> pre_activation = result.reshape(
+            output_ = result.reshape(
                 Eigen::array<int, 4>{B_, out_channels_, h_, w_}
             );
-            
-            // apply activation  
-            // output_ = activation_-> forward(pre_activation);
+
             return output_;
         }
 
@@ -1157,9 +1155,6 @@ namespace CppNet
             
             // pad input for gradient computation
             Eigen::Tensor<double, 4> input_to_use = pad_input(in_cache_);
-            
-            // compute gradient through activation
-            // Eigen::Tensor<double, 4> grad_pre_activation = activation_->backward(grad_output);
             
             // Reshape grad_pre_activation to 2D: [out_channels, B*h*w]
             Eigen::Tensor<double, 2> grad_output_2d = grad_output.reshape(
@@ -1847,50 +1842,74 @@ namespace CppNet
         /*************************************** Flatten ********************************************/
         Flatten::Flatten(std::string layer_name) : layer_name_(layer_name) {}
 
-        Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 4>& input) 
+        // helper method to set number of threads
+        void Flatten::set_num_threads(int num_threads) 
+        {
+            if (num_threads > 0) 
+            {
+                omp_set_num_threads(num_threads);
+            }
+        }
+
+        Eigen::Tensor<double, 2> Flatten::forward(const Eigen::Tensor<double, 4>& input)
         {
             if (input.size() == 0) 
             {
                 throw std::runtime_error("Flatten: Empty input tensor");
             }
-
-            // save input shape
-            for (int i = 0; i < 4; ++i) 
-            {
-                in_shape_4d[i] = input.dimension(i);
-            }
-
+            
+            // Save input shape
             B_ = input.dimension(0);
             C_ = input.dimension(1);
             H_ = input.dimension(2);
             W_ = input.dimension(3);
-
-            grad_input_ = Eigen::Tensor<double, 4>(input.dimensions());
-            grad_input_.setZero();
-
-            // compute flattened shape
-            Eigen::Index flat_dim1 = C_ * H_ * W_;
-            Eigen::Index flat_dim0 = B_;
-
-            std::cout << "flat_dim0: " << flat_dim0 << ", flat_dim1: " << flat_dim1 << std::endl;
-
-            // reshape and copy to new tensor
-            Eigen::array<Eigen::Index, 2> new_shape = {flat_dim0, flat_dim1};
-            Eigen::Tensor<double, 2> flattened_input = input.reshape(new_shape);
             
-
-            return flattened_input;
+            for (int i = 0; i < 4; ++i) 
+            {
+                in_shape_4d[i] = input.dimension(i);
+            }
+            
+            // Create flattened tensor
+            Eigen::Index flat_features = C_ * H_ * W_;
+            Eigen::Tensor<double, 2> flattened(B_, flat_features);
+            
+        
+            // (batch, channel, height, width) -> (batch, channel*height*width)
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < B_; ++b) 
+            {
+                for (Eigen::Index f = 0; f < flat_features; ++f) 
+                {
+                    // Convert flat index to 3D coordinates (C, H, W)
+                    int c = f / (H_ * W_);
+                    int remaining = f % (H_ * W_);
+                    int h = remaining / W_;
+                    int w = remaining % W_;
+                    
+                    flattened(b, f) = input(b, c, h, w);
+                }
+            }
+            
+            return flattened;
         }
 
-        Eigen::Tensor<double, 4> Flatten::backward(const Eigen::Tensor<double, 2>& grad_output) 
+        Eigen::Tensor<double, 4> Flatten::backward(const Eigen::Tensor<double, 2>& grad_output)
         {
-            // Manual copying to ensure correct data layout
-            // Convert from [B, C*H*W] back to [B, C, H, W]
+            // Verify dimensions
             Eigen::Index expected_features = C_ * H_ * W_;
-            #pragma omp parallel for collapse(2)
-            for (int b = 0; b < B_; ++b)
+            if (grad_output.dimension(0) != B_ || grad_output.dimension(1) != expected_features) 
             {
-                for (Eigen::Index f = 0; f < expected_features; ++f)
+                throw std::runtime_error("Flatten backward: grad_output dimensions don't match expected shape");
+            }
+            
+            // Create gradient tensor
+            Eigen::Tensor<double, 4> grad_input(B_, C_, H_, W_);
+            
+            // (batch, channel*height*width) -> (batch, channel, height, width)
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < B_; ++b) 
+            {
+                for (Eigen::Index f = 0; f < expected_features; ++f) 
                 {
                     // Convert flat index back to 3D coordinates
                     int c = f / (H_ * W_);
@@ -1898,12 +1917,12 @@ namespace CppNet
                     int h = remaining / W_;
                     int w = remaining % W_;
                     
-                    grad_input_(b, c, h, w) = grad_output(b, f);
+                    grad_input(b, c, h, w) = grad_output(b, f);
                 }
             }
-            return grad_input_;
+            
+            return grad_input;
         }
-
         /********************************* Multi-Head Attention *************************************/
         MultiHeadAttention::MultiHeadAttention() 
         {
