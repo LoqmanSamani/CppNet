@@ -322,7 +322,10 @@ namespace CppNet
                 std::string layer_name_;
                 std::array<Eigen::Index, 2> in_shape_2d;
                 std::array<Eigen::Index, 3> in_shape_3d;
-                std::array<Eigen::Index, 4> in_shape_4d;         
+                std::array<Eigen::Index, 4> in_shape_4d;
+                Eigen::Tensor<double, 4> grad_input_;
+                int B_, C_, H_, W_; // input dimensions
+                      
         };
 
         class MultiHeadAttention : public Layer

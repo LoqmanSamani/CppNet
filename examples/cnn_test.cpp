@@ -16,6 +16,11 @@
 #include <Eigen/Dense>
 #include <random>
 
+
+
+
+/*
+
 // Function to generate random one-hot encoded labels
 Eigen::Tensor<double, 2> generate_one_hot_labels(int batch_size, int num_classes) {
     Eigen::Tensor<double, 2> labels(batch_size, num_classes);
@@ -252,6 +257,65 @@ int main() {
                   << std::setw(12) << std::fixed << std::setprecision(2) << execution_times[i]
                   << std::setw(12) << std::setprecision(2) << speedup
                   << std::setw(14) << std::setprecision(1) << efficiency << "%" << std::endl;
+    }
+    
+    return 0;
+}
+*/
+
+
+
+
+int main()
+{
+    CppNet::Layers::Flatten flatten("flatten");
+    Eigen::Tensor<double, 4> input(2, 3, 4, 4);
+    input.setRandom();
+    
+    std::cout << "Input shape: (" << input.dimension(0) << ","
+              << input.dimension(1) << ","
+              << input.dimension(2) << ","
+              << input.dimension(3) << ")" << std::endl;
+    
+    auto out = flatten.forward(input);
+    std::cout << "Flattened shape: (" << out.dimension(0) << "," << out.dimension(1) << ")" << std::endl;
+    
+    // Create a proper gradient tensor (same shape as flattened output)
+    Eigen::Tensor<double, 2> grad_output(2, 48);
+    grad_output.setRandom(); // or setConstant(1.0) for testing
+    
+    // Test backward pass with proper gradient
+    auto grad_input = flatten.backward(grad_output);
+    std::cout << "Grad input shape: (" << grad_input.dimension(0) << ","
+              << grad_input.dimension(1) << ","
+              << grad_input.dimension(2) << ","
+              << grad_input.dimension(3) << ")" << std::endl;
+    
+    // Verify that forward->backward preserves data structure
+    // Check if reshaping back gives us the same layout
+    int count = 0;
+    bool all_match = true;
+    
+    for (int i = 0; i < 2; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            for (int k = 0; k < 4; ++k) {
+                for (int l = 0; l < 4; ++l) {
+                    // Compare grad_input with corresponding grad_output values
+                    if (grad_input(i, j, k, l) != grad_output(i, count)) {
+                        std::cout << "Mismatch at (" << i << "," << j << "," << k << "," << l << "): "
+                                  << grad_input(i, j, k, l) << " != " << grad_output(i, count) << std::endl;
+                        all_match = false;
+                    }
+                    count++;
+                }
+            }
+        }
+    }
+    
+    if (all_match) {
+        std::cout << "SUCCESS: All values match! Flatten backward works correctly." << std::endl;
+    } else {
+        std::cout << "FAILED: Some values don't match." << std::endl;
     }
     
     return 0;

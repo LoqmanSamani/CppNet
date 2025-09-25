@@ -1860,25 +1860,48 @@ namespace CppNet
                 in_shape_4d[i] = input.dimension(i);
             }
 
-            int batch_size = input.dimension(0);
-            int channels = input.dimension(1);
-            int height = input.dimension(2);
-            int width = input.dimension(3);
+            B_ = input.dimension(0);
+            C_ = input.dimension(1);
+            H_ = input.dimension(2);
+            W_ = input.dimension(3);
+
+            grad_input_ = Eigen::Tensor<double, 4>(input.dimensions());
+            grad_input_.setZero();
 
             // compute flattened shape
-            Eigen::Index flat_dim1 = batch_size * channels * height;
-            Eigen::Index flat_dim0 = width;
+            Eigen::Index flat_dim1 = C_ * H_ * W_;
+            Eigen::Index flat_dim0 = B_;
+
+            std::cout << "flat_dim0: " << flat_dim0 << ", flat_dim1: " << flat_dim1 << std::endl;
 
             // reshape and copy to new tensor
             Eigen::array<Eigen::Index, 2> new_shape = {flat_dim0, flat_dim1};
-            Eigen::Tensor<double, 2> flatten_input = input.reshape(new_shape);
+            Eigen::Tensor<double, 2> flattened_input = input.reshape(new_shape);
+            
 
-            return flatten_input;
+            return flattened_input;
         }
 
         Eigen::Tensor<double, 4> Flatten::backward(const Eigen::Tensor<double, 2>& grad_output) 
         {
-            return grad_output.reshape(in_shape_4d);
+            // Manual copying to ensure correct data layout
+            // Convert from [B, C*H*W] back to [B, C, H, W]
+            Eigen::Index expected_features = C_ * H_ * W_;
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < B_; ++b)
+            {
+                for (Eigen::Index f = 0; f < expected_features; ++f)
+                {
+                    // Convert flat index back to 3D coordinates
+                    int c = f / (H_ * W_);
+                    int remaining = f % (H_ * W_);
+                    int h = remaining / W_;
+                    int w = remaining % W_;
+                    
+                    grad_input_(b, c, h, w) = grad_output(b, f);
+                }
+            }
+            return grad_input_;
         }
 
         /********************************* Multi-Head Attention *************************************/
