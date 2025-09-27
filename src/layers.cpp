@@ -1923,27 +1923,370 @@ namespace CppNet
             
             return grad_input;
         }
-        /********************************* Multi-Head Attention *************************************/
-        MultiHeadAttention::MultiHeadAttention() 
+        /********************************* Multi-Head Attention *************************************/ 
+        MultiHeadAttention::MultiHeadAttention(
+            int in_size,
+            int out_size,
+            int num_heads,
+            int context_length,
+            double dropout_rate,
+            bool trainable,
+            bool qkv_bias,
+            std::string layer_name,
+            std::string device,
+            std::string weight_init,
+            int parallel_threshold
+        ) : in_size_(in_size),
+            out_size_(out_size),
+            num_heads_(num_heads),
+            context_length_(context_length),
+            dropout_rate_(dropout_rate),
+            trainable_(trainable),
+            qkv_bias_(qkv_bias),
+            layer_name_(layer_name),
+            device_(device),
+            weight_init_(weight_init),
+            parallel_threshold_(parallel_threshold)
         {
-            // TODO: Initialize attention parameters
+            head_size_ = in_size_ / num_heads_;
+            mask_ = create_causal_mask(context_length_);
+
+            // initialize parameters and gradients
+            init_params_and_grads();
+            
+            bool is_divisible = (in_size_ % num_heads_) == 0; 
+            if (!is_divisible)
+            {
+                throw std::runtime_error("Multi-Head Attention: Input dimension must be divisible by the number of heads.");
+            }  
         }
 
-        Eigen::Tensor<double, 3> MultiHeadAttention::forward(const Eigen::Tensor<double, 3>& input) 
+        void MultiHeadAttention::init_params_and_grads()
         {
-            // TODO: Implement multi-head attention
-            Eigen::Tensor<double, 3> output(input.dimension(0), input.dimension(1), input.dimension(2));
-            output.setZero();
-            return output;
+            std::random_device rd;
+            double scale = 0.0;
+            double mean = 0.0;
+            double std_dev = 0.0;
+            bool use_normal = false;  // Flag to determine distribution type
+            
+            // Calculate initialization parameters based on method
+            if (weight_init_ == "xavier" || weight_init_ == "xavier_uniform")
+            {
+                // Xavier/Glorot Uniform: U(-sqrt(6/(fan_in + fan_out)), sqrt(6/(fan_in + fan_out)))
+                scale = std::sqrt(6.0 / (in_size_ + out_size_));
+                use_normal = false;
+            }
+            else if (weight_init_ == "xavier_normal" || weight_init_ == "glorot_normal")
+            {
+                // Xavier/Glorot Normal: N(0, sqrt(2/(fan_in + fan_out)))
+                mean = 0.0;
+                std_dev = std::sqrt(2.0 / (in_size_ + out_size_));
+                use_normal = true;
+            }
+            else if (weight_init_ == "he" || weight_init_ == "he_uniform")
+            {
+                // He Uniform (for ReLU): U(-sqrt(6/fan_in), sqrt(6/fan_in))
+                scale = std::sqrt(6.0 / in_size_);
+                use_normal = false;
+            }
+            else if (weight_init_ == "he_normal")
+            {
+                // He Normal (for ReLU): N(0, sqrt(2/fan_in))
+                mean = 0.0;
+                std_dev = std::sqrt(2.0 / in_size_);
+                use_normal = true;
+            }
+            else if (weight_init_ == "lecun_uniform")
+            {
+                // LeCun Uniform: U(-sqrt(3/fan_in), sqrt(3/fan_in))
+                scale = std::sqrt(3.0 / in_size_);
+                use_normal = false;
+            }
+            else if (weight_init_ == "lecun_normal")
+            {
+                // LeCun Normal: N(0, sqrt(1/fan_in))
+                mean = 0.0;
+                std_dev = std::sqrt(1.0 / in_size_);
+                use_normal = true;
+            }
+            else if (weight_init_ == "uniform")
+            {
+                // Simple uniform distribution: U(-0.1, 0.1)
+                scale = 0.1;
+                use_normal = false;
+            }
+            else if (weight_init_ == "normal")
+            {
+                // Simple normal distribution: N(0, 0.01)
+                mean = 0.0;
+                std_dev = 0.01;
+                use_normal = true;
+            }
+            else if (weight_init_ == "zeros")
+            {
+                // Initialize with zeros (useful for some specific architectures)
+                scale = 0.0;
+                use_normal = false;
+            }
+            else if (weight_init_ == "ones")
+            {
+                // Initialize with ones (rarely used, but available)
+                scale = -1.0; // Special flag for ones initialization
+                use_normal = false;
+            }
+            else
+            {
+                throw std::runtime_error("Unknown weight initialization method: '" + weight_init_ + 
+                                        "' in layer: " + layer_name_ + 
+                                        "\nSupported methods: xavier, xavier_normal, he, he_normal, " +
+                                        "lecun_uniform, lecun_normal, uniform, normal, zeros, ones");
+            }
+
+            // initialize weight-tensors
+            Wq_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            Wk_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            Wv_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+
+            // Only parallelize for larger matrices to avoid overhead
+            const int total_elements = in_size_ * out_size_;
+            const bool should_parallelize = (total_elements > parallel_threshold_);
+
+            if (weight_init_ == "zeros")
+            {
+                // Special case: zero initialization
+                Wq_.setZero();
+                Wk_.setZero();
+                Wv_.setZero();
+            }
+            else if (weight_init_ == "ones")
+            {
+                // Special case: ones initialization
+                Wq_.setConstant(1.0);
+                Wk_.setConstant(1.0);
+                Wv_.setConstant(1.0);
+            }
+            else if (should_parallelize)
+            {
+                // Parallel initialization for large matrices
+                #pragma omp parallel
+                {
+                    // Each thread gets its own random generator to avoid race conditions
+                    std::mt19937 local_gen(rd() + omp_get_thread_num() * 1000 + std::chrono::high_resolution_clock::now().time_since_epoch().count() % 1000);
+                    
+                    if (use_normal)
+                    {
+                        std::normal_distribution<double> local_dist(mean, std_dev);
+                        #pragma omp for collapse(2)
+                        for (int i = 0; i < in_size_; ++i)
+                        {
+                            for (int j = 0; j < out_size_; ++j)
+                            {
+                                Wq_(i, j) = local_dist(local_gen);
+                                Wk_(i, j) = local_dist(local_gen);
+                                Wv_(i, j) = local_dist(local_gen);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        std::uniform_real_distribution<double> local_dist(-scale, scale);
+                        #pragma omp for collapse(2)
+                        for (int i = 0; i < in_size_; ++i)
+                        {
+                            for (int j = 0; j < out_size_; ++j)
+                            {
+                                Wq_(i, j) = local_dist(local_gen);
+                                Wk_(i, j) = local_dist(local_gen);
+                                Wv_(i, j) = local_dist(local_gen);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Serial initialization for small matrices
+                std::mt19937 gen(rd());
+                
+                if (use_normal)
+                {
+                    std::normal_distribution<double> dist(mean, std_dev);
+                    for (int i = 0; i < in_size_; ++i)
+                    {
+                        for (int j = 0; j < out_size_; ++j)
+                        {
+                            Wq_(i, j) = dist(gen);
+                            Wk_(i, j) = dist(gen);
+                            Wv_(i, j) = dist(gen);
+                        }
+                    }
+                }
+                else
+                {
+                    std::uniform_real_distribution<double> dist(-scale, scale);
+                    for (int i = 0; i < in_size_; ++i)
+                    {
+                        for (int j = 0; j < out_size_; ++j)
+                        {
+                            Wq_(i, j) = dist(gen);
+                            Wk_(i, j) = dist(gen);
+                            Wv_(i, j) = dist(gen);
+                        }
+                    }
+                }
+            }
+
+            // initialize weight-gradient matrices with zero
+            grad_Wq_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            grad_Wk_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+            grad_Wv_ = Eigen::Tensor<double, 2>(in_size_, out_size_);
+
+            grad_Wq_.setZero();
+            grad_Wk_.setZero();
+            grad_Wv_.setZero();
+
+            // Initialize biases and bias gradients
+            if (qkv_bias_)
+            {
+                // initialize biases with zero, if qkv_bias_ is true.
+                bq_ = Eigen::Tensor<double, 1>(out_size_);
+                bk_ = Eigen::Tensor<double, 1>(out_size_);
+                bv_ = Eigen::Tensor<double, 1>(out_size_);
+
+                bq_.setZero();
+                bk_.setZero();
+                bv_.setZero();
+
+                // initialize bias-gradient matrix with zero.
+                grad_bq_ = Eigen::Tensor<double, 1>(out_size_);
+                grad_bk_ = Eigen::Tensor<double, 1>(out_size_);
+                grad_bv_ = Eigen::Tensor<double, 1>(out_size_);
+
+                grad_bq_.setZero(); 
+                grad_bk_.setZero();
+                grad_bv_.setZero(); 
+            }
+            else
+            {
+                // initialize empty biases and gradients when bias is false
+                bq_ = Eigen::Tensor<double, 1>(0);
+                bk_ = Eigen::Tensor<double, 1>(0);
+                bv_ = Eigen::Tensor<double, 1>(0);
+
+                grad_bq_ = Eigen::Tensor<double, 1>(0);
+                grad_bk_ = Eigen::Tensor<double, 1>(0);
+                grad_bv_ = Eigen::Tensor<double, 1>(0);
+            }
         }
 
-        Eigen::Tensor<double, 3> MultiHeadAttention::backward(const Eigen::Tensor<double, 3>& grad_output) 
+        void MultiHeadAttention::reinitialize_weights(const std::string& new_init_method)
         {
-            // TODO: Implement attention backward pass
-            Eigen::Tensor<double, 3> grad_input(grad_output.dimension(0), grad_output.dimension(1), grad_output.dimension(2));
-            grad_input.setZero();
-            return grad_input;
+            std::string old_method = weight_init_;
+            weight_init_ = new_init_method;
+            
+            try
+            {
+                init_params_and_grads();
+                std::cout << "Layer '" << layer_name_ << "' weights reinitialized from '" 
+                        << old_method << "' to '" << new_init_method << "'" << std::endl;
+            }
+            catch (const std::exception& e)
+            {
+                // Restore old method if new one fails
+                weight_init_ = old_method;
+                throw std::runtime_error("Failed to reinitialize with method '" + new_init_method + "': " + e.what());
+            }
         }
+
+        Eigen::Tensor<bool, 2> MultiHeadAttention::create_causal_mask(int context_length) 
+        {
+            Eigen::Tensor<bool, 2> mask(context_length, context_length); 
+            const int total_elements = context_length * context_length;
+
+            if (total_elements > parallel_threshold_) 
+            {
+                #pragma omp parallel for
+                for (int i = 0; i < context_length; ++i) 
+                {
+                    for (int j = 0; j < context_length; ++j) 
+                    {
+                        mask(i, j) = (j <= i);
+                    }
+                }
+            } 
+            else 
+            {
+                for (int i = 0; i < context_length; ++i) 
+                {
+                    for (int j = 0; j < context_length; ++j) 
+                    {
+                        mask(i, j) = (j <= i);
+                    }
+                }
+            }
+            
+            return mask;
+        }
+
+        void MultiHeadAttention::apply_causal_mask(Eigen::Tensor<double, 4>& att_scores, const Eigen::Tensor<bool, 2>& mask, int num_tokens) 
+        {
+            // Validate dimensions
+            if (mask.dimension(0) != num_tokens || mask.dimension(1) != num_tokens) {
+                throw std::invalid_argument("Mask dimensions don't match num_tokens");
+            }
+            
+            const int batch_size = att_scores.dimension(0);
+            const int num_heads = att_scores.dimension(1);
+            const int total_elements = batch_size * num_heads * num_tokens * num_tokens;
+            const double neg_inf = -std::numeric_limits<double>::infinity();
+            
+            if (total_elements > parallel_threshold_) 
+            {
+                #pragma omp parallel for collapse(2)
+                for (int i = 0; i < num_tokens; ++i) 
+                {
+                    for (int j = 0; j < num_tokens; ++j) 
+                    {
+                        if (!mask(i, j)) 
+                        { 
+                            // Apply mask to all batches and heads for this (i,j) position
+                            for (int b = 0; b < batch_size; ++b) 
+                            {
+                                for (int h = 0; h < num_heads; ++h) 
+                                {
+                                    att_scores(b, h, i, j) = neg_inf;
+                                }
+                            }
+                        }
+                    }
+                }
+            } 
+            else 
+            {
+                for (int i = 0; i < num_tokens; ++i) 
+                {
+                    for (int j = 0; j < num_tokens; ++j) 
+                    {
+                        if (!mask(i, j)) 
+                        {
+                            for (int b = 0; b < batch_size; ++b) 
+                            {
+                                for (int h = 0; h < num_heads; ++h) 
+                                {
+                                    att_scores(b, h, i, j) = neg_inf;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        void MultiHeadAttention::step(Optimizers::Optimizer& optimizer, double learning_rate)
+        {
+            optimizer.step(*this, learning_rate);
+        }
+
 
         /************************************** RNN *************************************/
         RNN::RNN() 
