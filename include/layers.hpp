@@ -353,6 +353,7 @@ namespace CppNet
 
                 Eigen::Tensor<double, 3> forward(Eigen::Tensor<double, 3>& inputs, Eigen::Tensor<double, 3>& targets = empty_tensor, bool apply_mask = false);
                 Eigen::Tensor<double, 3> backward(Eigen::Tensor<double, 3>&grad_outputs, Eigen::Tensor<double, 3>& grad_targets = empty_tensor);
+                
 
                 void reset_grads() 
                 {

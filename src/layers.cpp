@@ -2287,6 +2287,283 @@ namespace CppNet
             optimizer.step(*this, learning_rate);
         }
 
+        Eigen::Tensor<double, 2> MultiHeadAttention::dense_forward(const Eigen::Tensor<double, 2>& inputs, Eigen::Tensor<double, 2>& weights, Eigen::Tensor<double, 1>& biases)
+        {
+            // check dimensions
+            if (inputs.dimension(1) != weights.dimension(0)) 
+            {
+                std::cout << "ERROR: Dimension mismatch in dense_forward!" << std::endl;
+                std::cout << "  X.dimension(1) = " << inputs.dimension(1) << std::endl;
+                std::cout << "  W.dimension(0) = " << weights.dimension(0) << std::endl;
+                throw std::runtime_error("Dense forward: dimension mismatch for matrix multiplication");
+            }
+
+            // get dimensions
+            const int batch_size = inputs.dimension(0);
+            const int input_size = inputs.dimension(1);
+            const int output_size = weights.dimension(1);
+
+            // Create output tensor
+            Eigen::Tensor<double, 2> output(batch_size, output_size);
+
+            // Manual matrix multiplication without OpenMP
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int j = 0; j < output_size; ++j) 
+                {
+                    double sum = 0.0;
+                    // Vectorize inner loop and use reduction for better performance
+                    #pragma omp simd reduction(+:sum)
+                    for (int i = 0; i < input_size; ++i) 
+                    {
+                        sum += inputs(b, i) * weights(i, j);
+                    }
+                    output(b, j) = sum;
+                }
+            }
+
+            // Add bias if enabled
+            if (qkv_bias_) 
+            {
+                #pragma omp parallel for collapse(2)
+                for (int b = 0; b < batch_size; ++b) 
+                {
+                    for (int j = 0; j < output_size; ++j) 
+                    {
+                        output(b, j) += biases(j);
+                    }
+                }
+            }
+            
+            return output;
+
+        }
+
+        Eigen::Tensor<double, 2> MultiHeadAttention::dense_backward(const Eigen::Tensor<double, 2>& grad_outputs, Eigen::Tensor<double, 2>in_cache, Eigen::Tensor<double, 2> weights, Eigen::Tensor<double, 2>& grad_weights, Eigen::Tensor<double, 1>& grad_biases)
+        {
+            // get dimensions
+            const int batch_size = grad_outputs.dimension(0);
+            const int output_size = grad_outputs.dimension(1);
+            const int input_size = in_cache.dimension(1);
+
+
+            // dimension validation
+            if (grad_outputs.dimension(0) != in_cache.dimension(0)) 
+            {
+                throw std::runtime_error("Batch size mismatch in layer: " + layer_name_);
+            }
+            if (grad_outputs.dimension(1) != output_size) 
+            {
+                throw std::runtime_error("Output size mismatch in layer: " + layer_name_);
+            }
+            
+            // compute parameter gradients (only if trainable)
+            if (trainable_) 
+            {
+                // gradient w.r.t. weights: in_cache_^T * grad_output
+                // Manual computation: grad_weights_(i,j) = sum_b(in_cache_(b,i) * grad_output(b,j))
+                #pragma omp parallel for collapse(2)
+                for (int i = 0; i < input_size; ++i) 
+                {
+                    for (int j = 0; j < output_size; ++j) 
+                    {
+                        double sum = 0.0;
+                        #pragma omp simd reduction(+:sum)
+                        for (int b = 0; b < batch_size; ++b) 
+                        {
+                            sum += in_cache_(b, i) * grad_outputs(b, j);
+                        }
+                        grad_weights(i, j) = sum;
+                    }
+                }
+                
+                // gradient w.r.t. biases: sum over batch dimension
+                if (qkv_bias_) 
+                {
+                    #pragma omp parallel for
+                    for (int j = 0; j < output_size; ++j) 
+                    {
+                        double sum = 0.0;
+                        #pragma omp simd reduction(+:sum)
+                        for (int b = 0; b < batch_size; ++b) 
+                        {
+                            sum += grad_outputs(b, j);
+                        }
+                        grad_biases(j) = sum;
+                    }
+                }
+            }
+            
+            // compute gradient w.r.t. input: grad_out * W^T
+            // Manual computation: grad_input(b,i) = sum_j(grad_output(b,j) * weights_(i,j))
+            Eigen::Tensor<double, 2> grad_inputs(batch_size, input_size);
+            
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < batch_size; ++b) 
+            {
+                for (int i = 0; i < input_size; ++i) 
+                {
+                    double sum = 0.0;
+                    #pragma omp simd reduction(+:sum)
+                    for (int j = 0; j < output_size; ++j) 
+                    {
+                        sum += grad_outputs(b, j) * weights(i, j);
+                    }
+                    grad_inputs(b, i) = sum;
+                }
+            }
+            
+            return grad_inputs;
+
+        }
+
+        Eigen::Tensor<double, 3> MultiHeadAttention::forward(Eigen::Tensor<double, 3>& inputs, Eigen::Tensor<double, 3>& targets, bool apply_mask)
+        {
+            int batch_size = inputs.dimension(0);
+            int num_tokens = inputs.dimension(1);
+            int in_size = inputs.dimension(2);
+
+            if (in_size != in_size_)
+            {
+                throw std::runtime_error("Multi-Head Attention: Input dimension mismatch.");
+            }
+            if (num_tokens > context_length_)
+            {
+                throw std::runtime_error("Multi-Head Attention: Number of tokens exceeds context length.");
+            }
+
+
+            // Define shapes
+            Eigen::Tensor<double, 4> Q, K, V;
+            Eigen::array<Eigen::Index, 4> reshape_dims = {batch_size, num_tokens, num_heads_, head_size_};
+            Eigen::array<int, 4> shuffle_dims = {0, 2, 1, 3};         // (B, H, T, D)
+            Eigen::array<int, 4> shuffle_dims_transpose = {0, 1, 3, 2}; // (B, H, D, T)
+
+            // Linear projections
+            Eigen::Tensor<double, 2> fx = f_.forward(X);
+            Eigen::Tensor<double, 2> fq = dense_forward(fx, Wq_, bq_);
+            Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_);
+            Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_);
+
+            Eigen::Tensor<double, 4> Q_reshaped = fq.reshape(reshape_dims);
+            Eigen::Tensor<double, 4> K_reshaped = fk.reshape(reshape_dims);
+            Eigen::Tensor<double, 4> V_reshaped = fv.reshape(reshape_dims);
+
+            Q = Q_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
+            K = K_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
+            V = V_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
+
+            // Transpose K -> [B, H, D, T]
+            Eigen::Tensor<double, 4> tK = K.shuffle(shuffle_dims_transpose);
+
+            // Compute attention scores manually: Q × K^T => [B, H, T, T]
+            Eigen::Tensor<double, 4> att_scores(batch_size, num_heads_, num_tokens, num_tokens);
+            att_scores.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int h = 0; h < num_heads_; ++h)
+                {
+                    for (int i = 0; i < num_tokens; ++i)
+                    {
+                        for (int j = 0; j < num_tokens; ++j)
+                        {
+                            double dot = 0.0;
+                            for (int d = 0; d < head_size_; ++d)
+                            {
+                                dot += Q(b, h, i, d) * tK(b, h, d, j);
+                            }
+                            att_scores(b, h, i, j) = dot;
+                        }
+                    }
+                }
+            }
+
+            // Scale attention scores
+            double scale_factor = 1.0 / std::sqrt(static_cast<double>(head_size_));
+            att_scores = att_scores * scale_factor;
+
+            // Apply causal mask if needed
+            if (apply_mask)
+            {
+                apply_causal_mask(att_scores, mask_, num_tokens);
+            }
+
+            // Softmax along last dimension
+            Eigen::Tensor<double, 2> att_scores_2d(batch_size * num_heads_ * num_tokens, num_tokens);
+            Eigen::Tensor<double, 2> attention_weights_2d(batch_size * num_heads_ * num_tokens, num_tokens);
+            
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int h = 0; h < num_heads_; ++h)
+                {
+                    for (int t = 0; t < num_tokens; ++t)
+                    {
+                        int row = b * num_heads_ * num_tokens + h * num_tokens + t;
+                        for (int j = 0; j < num_tokens; ++j)
+                            att_scores_2d(row, j) = att_scores(b, h, t, j);
+                    }
+                }
+            }
+
+            CppNet::Activations::SoftMax softmax;
+            attention_weights_2d = softmax.forward(att_scores_2d);
+
+            Eigen::Tensor<double, 4> attention_weights(batch_size, num_heads_, num_tokens, num_tokens);
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int h = 0; h < num_heads_; ++h)
+                {
+                    for (int t = 0; t < num_tokens; ++t)
+                    {
+                        int row = b * num_heads_ * num_tokens + h * num_tokens + t;
+                        for (int j = 0; j < num_tokens; ++j)
+                            attention_weights(b, h, t, j) = attention_weights_2d(row, j);
+                    }
+                }
+            }
+
+            // Compute context vector manually: att_weights × V
+            Eigen::Tensor<double, 4> context(batch_size, num_heads_, num_tokens, head_size_);
+            context.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int h = 0; h < num_heads_; ++h)
+                {
+                    for (int i = 0; i < num_tokens; ++i)
+                    {
+                        for (int d = 0; d < head_size_; ++d)
+                        {
+                            double sum = 0.0;
+                            for (int j = 0; j < num_tokens; ++j)
+                            {
+                                sum += attention_weights(b, h, i, j) * V(b, h, j, d);
+                            }
+                            context(b, h, i, d) = sum;
+                        }
+                    }
+                }
+            }
+
+            // Final reshape: (B, T, H, D) → (B, T, H*D)
+            Eigen::array<int, 4> output_shuffle_dims = {0, 2, 1, 3};
+            Eigen::Tensor<double, 4> context_transposed = context.shuffle(output_shuffle_dims); // (B, T, H, D)
+
+            Eigen::array<Eigen::Index, 3> final_shape = {batch_size, num_tokens, out_size_};
+            Eigen::Tensor<double, 3> output = context_transposed.reshape(final_shape);
+
+            // Cache for backward pass (if needed)
+            Q_cache_ = Q;
+            K_cache_ = K;
+            V_cache_ = V;
+            attention_weights_cache_ = attention_weights;
+            in_cache_ = fx;
+
+            return output;
+        }
+
 
         /************************************** RNN *************************************/
         RNN::RNN() 
