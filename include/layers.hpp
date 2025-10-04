@@ -353,7 +353,7 @@ namespace CppNet
 
                 Eigen::Tensor<double, 3> forward(Eigen::Tensor<double, 3>& inputs, Eigen::Tensor<double, 3>& targets = empty_tensor, bool apply_mask = false);
                 Eigen::Tensor<double, 3> backward(Eigen::Tensor<double, 3>&grad_outputs, Eigen::Tensor<double, 3>& grad_targets = empty_tensor);
-                
+
 
                 void reset_grads() 
                 {
@@ -444,6 +444,8 @@ namespace CppNet
                 int parallel_threshold_; // threshold for input size to enable parallelization
                 int head_size_;
                 Eigen::Tensor<bool, 2> mask_;
+                Flatten flatten_;
+                Eigen::Tensor<double, 2> softmax_outputs_;
                 
                 //Flatten flatten_(std::string layer_name = "Flatten_for_MHA");
                 
@@ -479,6 +481,8 @@ namespace CppNet
                 Eigen::Tensor<double, 2> dense_forward(const Eigen::Tensor<double, 2>& inputs, Eigen::Tensor<double, 2>& weights, Eigen::Tensor<double, 1>& biases);
                 Eigen::Tensor<double, 2> dense_backward(const Eigen::Tensor<double, 2>& grad_outputs, Eigen::Tensor<double, 2>in_cache, Eigen::Tensor<double, 2> weights, Eigen::Tensor<double, 2>& grad_weights, Eigen::Tensor<double, 1>& grad_biases);
                 Eigen::Tensor<bool, 2> create_causal_mask(int context_length);
+                Eigen::Tensor<double, 2> softmax_forward(const Eigen::Tensor<double, 2>& inputs);
+                Eigen::Tensor<double, 2> softmax_backward(const Eigen::Tensor<double, 2>& grad_outputs);
                 void apply_causal_mask(Eigen::Tensor<double, 4>& attention_scores, const Eigen::Tensor<bool, 2>& mask, int num_tokens);
         };
 

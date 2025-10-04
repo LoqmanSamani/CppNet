@@ -2418,6 +2418,82 @@ namespace CppNet
 
         }
 
+        Eigen::Tensor<double, 2> MultiHeadAttention::softmax_forward(const Eigen::Tensor<double, 2>& inputs)
+        {
+            // get dimensions
+            const int batch_size = inputs.dimension(0);
+            const int num_tokens = inputs.dimension(1);
+
+            Eigen::Tensor<double, 2> softmax_outputs(batch_size, num_tokens);
+            
+            // Manual computation of softmax
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < batch_size; ++b) 
+            {
+                // Find max for numerical stability
+                double max_val = -std::numeric_limits<double>::infinity();
+                for (int j = 0; j < num_tokens; ++j) 
+                {
+                    if (inputs(b, j) > max_val) 
+                    {
+                        max_val = inputs(b, j);
+                    }
+                }
+
+                // Compute exponentials and sum
+                double sum_exp = 0.0;
+                for (int j = 0; j < num_tokens; ++j) 
+                {
+                    softmax_outputs(b, j) = std::exp(inputs(b, j) - max_val);
+                    sum_exp += softmax_outputs(b, j);
+                }
+
+                // Normalize to get probabilities
+                for (int j = 0; j < num_tokens; ++j) 
+                {
+                    softmax_outputs(b, j) /= sum_exp;
+                }
+            }
+
+            softmax_outputs_ = softmax_outputs; // cache for backward pass 
+            
+            return softmax_outputs;
+        }
+
+        Eigen::Tensor<double, 2> MultiHeadAttention::softmax_backward(const Eigen::Tensor<double, 2>& grad_outputs)
+        {
+            // get dimensions
+            const int batch_size = grad_outputs.dimension(0);
+            const int num_tokens = grad_outputs.dimension(1);
+
+            // dimension validation
+            if (grad_outputs.dimension(0) != softmax_outputs_.dimension(0) || 
+                grad_outputs.dimension(1) != softmax_outputs_.dimension(1)) 
+            {
+                throw std::runtime_error("Dimension mismatch in softmax backward in layer: " + layer_name_);
+            }
+
+            Eigen::Tensor<double, 2> grad_inputs(batch_size, num_tokens);
+            
+            // Manual computation of softmax gradient
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < batch_size; ++b) 
+            {
+                for (int i = 0; i < num_tokens; ++i) 
+                {
+                    double sum = 0.0;
+                    for (int j = 0; j < num_tokens; ++j) 
+                    {
+                        double delta = (i == j) ? 1.0 : 0.0;
+                        sum += grad_outputs(b, j) * softmax_outputs_(b, i) * (delta - softmax_outputs_(b, j));
+                    }
+                    grad_inputs(b, i) = sum;
+                }
+            }
+            
+            return grad_inputs;
+        }
+
         Eigen::Tensor<double, 3> MultiHeadAttention::forward(Eigen::Tensor<double, 3>& inputs, Eigen::Tensor<double, 3>& targets, bool apply_mask)
         {
             int batch_size = inputs.dimension(0);
@@ -2441,7 +2517,7 @@ namespace CppNet
             Eigen::array<int, 4> shuffle_dims_transpose = {0, 1, 3, 2}; // (B, H, D, T)
 
             // Linear projections
-            Eigen::Tensor<double, 2> fx = f_.forward(X);
+            Eigen::Tensor<double, 2> fx = flatten_.forward(inputs); // (B, T, in_size) -> (B*T, in_size)
             Eigen::Tensor<double, 2> fq = dense_forward(fx, Wq_, bq_);
             Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_);
             Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_);
@@ -2461,6 +2537,7 @@ namespace CppNet
             Eigen::Tensor<double, 4> att_scores(batch_size, num_heads_, num_tokens, num_tokens);
             att_scores.setZero();
 
+            #pragma omp parallel for collapse(3)
             for (int b = 0; b < batch_size; ++b)
             {
                 for (int h = 0; h < num_heads_; ++h)
@@ -2494,6 +2571,7 @@ namespace CppNet
             Eigen::Tensor<double, 2> att_scores_2d(batch_size * num_heads_ * num_tokens, num_tokens);
             Eigen::Tensor<double, 2> attention_weights_2d(batch_size * num_heads_ * num_tokens, num_tokens);
             
+            #pragma omp parallel for collapse(3)
             for (int b = 0; b < batch_size; ++b)
             {
                 for (int h = 0; h < num_heads_; ++h)
@@ -2507,10 +2585,11 @@ namespace CppNet
                 }
             }
 
-            CppNet::Activations::SoftMax softmax;
-            attention_weights_2d = softmax.forward(att_scores_2d);
+            attention_weights_2d = softmax_forward(att_scores_2d);
 
             Eigen::Tensor<double, 4> attention_weights(batch_size, num_heads_, num_tokens, num_tokens);
+
+            #pragma omp parallel for collapse(3)
             for (int b = 0; b < batch_size; ++b)
             {
                 for (int h = 0; h < num_heads_; ++h)
@@ -2528,6 +2607,7 @@ namespace CppNet
             Eigen::Tensor<double, 4> context(batch_size, num_heads_, num_tokens, head_size_);
             context.setZero();
 
+            #pragma omp parallel for collapse(3)
             for (int b = 0; b < batch_size; ++b)
             {
                 for (int h = 0; h < num_heads_; ++h)
@@ -2563,6 +2643,8 @@ namespace CppNet
 
             return output;
         }
+
+        
 
 
         /************************************** RNN *************************************/
