@@ -80,11 +80,15 @@ endif()
 
 #add_executable(main_test examples/main_test.cpp)
 #target_link_libraries(main_test PRIVATE CppNet)
+
 add_executable(linear_test examples/linear_test.cpp)
 target_link_libraries(linear_test PRIVATE CppNet)
 
 add_executable(cnn_test examples/cnn_test.cpp)
 target_link_libraries(cnn_test PRIVATE CppNet)
+
+add_executable(attention_test examples/attention_test.cpp)
+target_link_libraries(attention_test PRIVATE CppNet)
 
 # Set CUDA properties for executables too
 if(USE_CUDA)
@@ -107,6 +111,17 @@ if(USE_CUDA)
     )
     # Explicitly link CUDA libraries to the executable
     target_link_libraries(cnn_test PRIVATE CUDA::cudart)
+endif()
+
+if(USE_CUDA)
+    target_compile_definitions(attention_test PRIVATE USE_CUDA)
+    set_target_properties(attention_test PROPERTIES 
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        LINKER_LANGUAGE CUDA
+        CUDA_RESOLVE_DEVICE_SYMBOLS ON
+    )
+    # Explicitly link CUDA libraries to the executable
+    target_link_libraries(attention_test PRIVATE CUDA::cudart)
 endif()
 
 # Installation

@@ -411,6 +411,8 @@ namespace CppNet
                 bool has_bias() const { return qkv_bias_; }
 
                 void step(Optimizers::Optimizer& optimizer, double learning_rate) override;
+                // OpenMP utility method
+                static void set_num_threads(int num_threads);
                 
                 void print_layer_info() const 
                 {

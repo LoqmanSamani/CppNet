@@ -1895,7 +1895,7 @@ namespace CppNet
 
         Eigen::Tensor<double, 2> Flatten::forward_3d(const Eigen::Tensor<double, 3>& input)
         {
-            if (input.size() == 0) 
+            if (input.size() == 0)
             {
                 throw std::runtime_error("Flatten: Empty input tensor");
             }
@@ -1904,9 +1904,8 @@ namespace CppNet
             B_ = input.dimension(0);
             C_ = input.dimension(1);
             H_ = input.dimension(2);
-            //W_ = input.dimension(3);
             
-            for (int i = 0; i < 3; ++i) 
+            for (int i = 0; i < 3; ++i)
             {
                 in_shape_3d[i] = input.dimension(i);
             }
@@ -1915,25 +1914,20 @@ namespace CppNet
             Eigen::Index flat_features = C_ * H_;
             Eigen::Tensor<double, 2> flattened(B_, flat_features);
             
-
             // (batch, num_heads, context_length) -> (batch, num_heads * context_length)
-            #pragma omp parallel for collapse(2)
-            for (int b = 0; b < B_; ++b) 
+            #pragma omp parallel for
+            for (int b = 0; b < B_; ++b)
             {
-                for (int b = 0; b < B_; ++b) 
+                for (Eigen::Index f = 0; f < flat_features; ++f)
                 {
-                    for (Eigen::Index f = 0; f < flat_features; ++f) 
-                    {
-                        int c = f / H_;
-                        int h = f % H_;
-                        flattened(b, f) = input(b, c, h);
-                    }
+                    int c = f / H_;
+                    int h = f % H_;
+                    flattened(b, f) = input(b, c, h);
                 }
             }
             
             return flattened;
-
-        } 
+        }
         
 
         Eigen::Tensor<double, 4> Flatten::backward(const Eigen::Tensor<double, 2>& grad_output)
@@ -1971,7 +1965,7 @@ namespace CppNet
         {
             // Verify dimensions
             Eigen::Index expected_features = C_ * H_;
-            if (grad_output.dimension(0) != B_ || grad_output.dimension(1) != expected_features) 
+            if (grad_output.dimension(0) != B_ || grad_output.dimension(1) != expected_features)
             {
                 throw std::runtime_error("Flatten backward: grad_output dimensions don't match expected shape");
             }
@@ -1980,10 +1974,10 @@ namespace CppNet
             Eigen::Tensor<double, 3> grad_input(B_, C_, H_);
             
             // (batch, num_heads * context_length) -> (batch, num_heads, context_length)
-            #pragma omp parallel for collapse(2)
-            for (int b = 0; b < B_; ++b) 
+            #pragma omp parallel for
+            for (int b = 0; b < B_; ++b)
             {
-                for (Eigen::Index f = 0; f < expected_features; ++f) 
+                for (Eigen::Index f = 0; f < expected_features; ++f)
                 {
                     int c = f / H_;
                     int h = f % H_;
@@ -1992,7 +1986,6 @@ namespace CppNet
             }
             
             return grad_input;
-            
         }
         /********************************* Multi-Head Attention *************************************/ 
         MultiHeadAttention::MultiHeadAttention(
@@ -2030,6 +2023,15 @@ namespace CppNet
             {
                 throw std::runtime_error("Multi-Head Attention: Input dimension must be divisible by the number of heads.");
             }  
+        }
+
+        // helper method to set number of threads
+        void MultiHeadAttention::set_num_threads(int num_threads) 
+        {
+            if (num_threads > 0) 
+            {
+                omp_set_num_threads(num_threads);
+            }
         }
 
         void MultiHeadAttention::init_params_and_grads()
@@ -2494,40 +2496,38 @@ namespace CppNet
             // get dimensions
             const int batch_size = inputs.dimension(0);
             const int num_tokens = inputs.dimension(1);
-
             Eigen::Tensor<double, 2> softmax_outputs(batch_size, num_tokens);
             
             // Manual computation of softmax
-            #pragma omp parallel for collapse(2)
-            for (int b = 0; b < batch_size; ++b) 
+            #pragma omp parallel for
+            for (int b = 0; b < batch_size; ++b)
             {
                 // Find max for numerical stability
                 double max_val = -std::numeric_limits<double>::infinity();
-                for (int j = 0; j < num_tokens; ++j) 
+                for (int j = 0; j < num_tokens; ++j)
                 {
-                    if (inputs(b, j) > max_val) 
+                    if (inputs(b, j) > max_val)
                     {
                         max_val = inputs(b, j);
                     }
                 }
-
+                
                 // Compute exponentials and sum
                 double sum_exp = 0.0;
-                for (int j = 0; j < num_tokens; ++j) 
+                for (int j = 0; j < num_tokens; ++j)
                 {
                     softmax_outputs(b, j) = std::exp(inputs(b, j) - max_val);
                     sum_exp += softmax_outputs(b, j);
                 }
-
+                
                 // Normalize to get probabilities
-                for (int j = 0; j < num_tokens; ++j) 
+                for (int j = 0; j < num_tokens; ++j)
                 {
                     softmax_outputs(b, j) /= sum_exp;
                 }
             }
-
-            softmax_outputs_ = softmax_outputs; // cache for backward pass 
             
+            softmax_outputs_ = softmax_outputs; // cache for backward pass
             return softmax_outputs;
         }
 
@@ -2536,24 +2536,24 @@ namespace CppNet
             // get dimensions
             const int batch_size = grad_outputs.dimension(0);
             const int num_tokens = grad_outputs.dimension(1);
-
+            
             // dimension validation
-            if (grad_outputs.dimension(0) != softmax_outputs_.dimension(0) || 
-                grad_outputs.dimension(1) != softmax_outputs_.dimension(1)) 
+            if (grad_outputs.dimension(0) != softmax_outputs_.dimension(0) ||
+                grad_outputs.dimension(1) != softmax_outputs_.dimension(1))
             {
                 throw std::runtime_error("Dimension mismatch in softmax backward in layer: " + layer_name_);
             }
-
+            
             Eigen::Tensor<double, 2> grad_inputs(batch_size, num_tokens);
             
             // Manual computation of softmax gradient
             #pragma omp parallel for collapse(2)
-            for (int b = 0; b < batch_size; ++b) 
+            for (int b = 0; b < batch_size; ++b)
             {
-                for (int i = 0; i < num_tokens; ++i) 
+                for (int i = 0; i < num_tokens; ++i)
                 {
                     double sum = 0.0;
-                    for (int j = 0; j < num_tokens; ++j) 
+                    for (int j = 0; j < num_tokens; ++j)
                     {
                         double delta = (i == j) ? 1.0 : 0.0;
                         sum += grad_outputs(b, j) * softmax_outputs_(b, i) * (delta - softmax_outputs_(b, j));
@@ -2844,7 +2844,8 @@ namespace CppNet
 
                 // reshape
                 Eigen::Tensor<double, 3> grad_inputs_3d = grad_inputs.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
-                Eigen::Tensor<double, 3> grad_inputs_3d = grad_outputs_2d.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
+                Eigen::Tensor<double, 3> grad_outputs_3d = grad_outputs_2d.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
+                grad_targets = grad_outputs_3d;
                 
                 return grad_inputs_3d;
             }
