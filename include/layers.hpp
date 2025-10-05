@@ -313,6 +313,9 @@ namespace CppNet
                 Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 4>& input); 
                 Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 2>& grad_output);
 
+                Eigen::Tensor<double, 2> forward_3d(const Eigen::Tensor<double, 3>& input); 
+                Eigen::Tensor<double, 3> backward_3d(const Eigen::Tensor<double, 2>& grad_output);
+
                 bool is_trainable() const override { return false; }
                 void step(Optimizers::Optimizer& optimizer, double learning_rate) override {}
                 std::string get_layer_name() const { return layer_name_; }

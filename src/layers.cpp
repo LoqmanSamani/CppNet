@@ -1893,6 +1893,49 @@ namespace CppNet
             return flattened;
         }
 
+        Eigen::Tensor<double, 2> Flatten::forward_3d(const Eigen::Tensor<double, 3>& input)
+        {
+            if (input.size() == 0) 
+            {
+                throw std::runtime_error("Flatten: Empty input tensor");
+            }
+            
+            // Save input shape
+            B_ = input.dimension(0);
+            C_ = input.dimension(1);
+            H_ = input.dimension(2);
+            //W_ = input.dimension(3);
+            
+            for (int i = 0; i < 3; ++i) 
+            {
+                in_shape_3d[i] = input.dimension(i);
+            }
+            
+            // Create flattened tensor
+            Eigen::Index flat_features = C_ * H_;
+            Eigen::Tensor<double, 2> flattened(B_, flat_features);
+            
+
+            // (batch, num_heads, context_length) -> (batch, num_heads * context_length)
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < B_; ++b) 
+            {
+                for (int b = 0; b < B_; ++b) 
+                {
+                    for (Eigen::Index f = 0; f < flat_features; ++f) 
+                    {
+                        int c = f / H_;
+                        int h = f % H_;
+                        flattened(b, f) = input(b, c, h);
+                    }
+                }
+            }
+            
+            return flattened;
+
+        } 
+        
+
         Eigen::Tensor<double, 4> Flatten::backward(const Eigen::Tensor<double, 2>& grad_output)
         {
             // Verify dimensions
@@ -1922,6 +1965,34 @@ namespace CppNet
             }
             
             return grad_input;
+        }
+
+        Eigen::Tensor<double, 3> Flatten::backward_3d(const Eigen::Tensor<double, 2>& grad_output)
+        {
+            // Verify dimensions
+            Eigen::Index expected_features = C_ * H_;
+            if (grad_output.dimension(0) != B_ || grad_output.dimension(1) != expected_features) 
+            {
+                throw std::runtime_error("Flatten backward: grad_output dimensions don't match expected shape");
+            }
+            
+            // Create gradient tensor
+            Eigen::Tensor<double, 3> grad_input(B_, C_, H_);
+            
+            // (batch, num_heads * context_length) -> (batch, num_heads, context_length)
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < B_; ++b) 
+            {
+                for (Eigen::Index f = 0; f < expected_features; ++f) 
+                {
+                    int c = f / H_;
+                    int h = f % H_;
+                    grad_input(b, c, h) = grad_output(b, f);
+                }
+            }
+            
+            return grad_input;
+            
         }
         /********************************* Multi-Head Attention *************************************/ 
         MultiHeadAttention::MultiHeadAttention(
@@ -2517,7 +2588,7 @@ namespace CppNet
             Eigen::array<int, 4> shuffle_dims_transpose = {0, 1, 3, 2}; // (B, H, D, T)
 
             // Linear projections
-            Eigen::Tensor<double, 2> fx = flatten_.forward(inputs); // (B, T, in_size) -> (B*T, in_size)
+            Eigen::Tensor<double, 2> fx = flatten_.forward_3d(inputs); // (B, T, in_size) -> (B*T, in_size)
             Eigen::Tensor<double, 2> fq = dense_forward(fx, Wq_, bq_);
             Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_);
             Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_);
@@ -2760,9 +2831,9 @@ namespace CppNet
                         }
 
             // flatten to 2d for dense backward
-            Eigen::Tensor<double, 2> grad_query_2d = flatten_.forward(grad_query_3d);
-            Eigen::Tensor<double, 2> grad_key_2d = flatten_.forward(grad_key_3d);
-            Eigen::Tensor<double, 2> grad_value_2d = flatten_.forward(grad_value_3d);
+            Eigen::Tensor<double, 2> grad_query_2d = flatten_.forward_3d(grad_query_3d);
+            Eigen::Tensor<double, 2> grad_key_2d = flatten_.forward_3d(grad_key_3d);
+            Eigen::Tensor<double, 2> grad_value_2d = flatten_.forward_3d(grad_value_3d);
 
             Eigen::Tensor<double, 2> grad_inputs, grad_outputs_2d;
 
