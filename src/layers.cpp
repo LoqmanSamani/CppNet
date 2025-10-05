@@ -2644,7 +2644,149 @@ namespace CppNet
             return output;
         }
 
-        
+        Eigen::Tensor<double, 3> MultiHeadAttention::backward(Eigen::Tensor<double, 3>& grad_outputs, Eigen::Tensor<double, 3>& grad_targets)
+        {
+            int batch_size = grad_outputs.dimension(0);
+            int num_tokens = grad_outputs.dimension(1);
+            int out_size = grad_outputs.dimension(2);
+
+            if (out_size != out_size_)
+                throw std::runtime_error("Multi-Head Attention Backward: Output dimension mismatch.");
+
+            // Reshape grad_outputs -> (B, T, H, D)
+            Eigen::Tensor<double, 4> grad_outputs_4d(batch_size, num_tokens, num_heads_, head_size_);
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < batch_size; ++b)
+                for (int t = 0; t < num_tokens; ++t)
+                    for (int h = 0; h < num_heads_; ++h)
+                        for (int d = 0; d < head_size_; ++d)
+                            grad_outputs_4d(b, t, h, d) = grad_outputs(b, t, h * head_size_ + d);
+
+            // Transpose (B, T, H, D) -> (B, H, T, D)
+            Eigen::Tensor<double, 4> grad_context(batch_size, num_heads_, num_tokens, head_size_);
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int t = 0; t < num_tokens; ++t)
+                        for (int d = 0; d < head_size_; ++d)
+                            grad_context(b, h, t, d) = grad_outputs_4d(b, t, h, d);
+
+            // grad_attention_weights = dContext @ V_cache_.transpose(3, 2)
+            Eigen::Tensor<double, 4> grad_attention_weights(batch_size, num_heads_, num_tokens, num_tokens);
+            grad_attention_weights.setZero();
+            #pragma omp parallel for collapse(3)
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int j = 0; j < num_tokens; ++j)
+                            for (int d = 0; d < head_size_; ++d)
+                                grad_attention_weights(b, h, i, j) += grad_context(b, h, i, d) * V_cache_(b, h, d, j);
+
+            // grad_value = attention_weights^T @ grad_context
+            Eigen::Tensor<double, 4> grad_value(batch_size, num_heads_, head_size_, num_tokens);
+            grad_value.setZero();
+            #pragma omp parallel for collapse(3)
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int d = 0; d < head_size_; ++d)
+                            for (int j = 0; j < num_tokens; ++j)
+                                grad_value(b, h, d, i) += attention_weights_cache_(b, h, j, i) * grad_context(b, h, j, d);
+
+            // softmax backward
+            int total_batch_heads = batch_size * num_heads_;
+            Eigen::Tensor<double, 2> grad_attention_weights_2d(total_batch_heads * num_tokens, num_tokens);
+            #pragma omp parallel for collapse(3)
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int j = 0; j < num_tokens; ++j)
+                            grad_attention_weights_2d((b * num_heads_ + h) * num_tokens + i, j) = grad_attention_weights(b, h, i, j);
+
+            Eigen::Tensor<double, 2> grad_attention_scores_2d = softmax_backward(grad_attention_weights_2d);
+
+            // unflatten back to (B, H, T, T)
+            Eigen::Tensor<double, 4> grad_attention_scores(batch_size, num_heads_, num_tokens, num_tokens);
+            #pragma omp parallel for collapse(3)
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int j = 0; j < num_tokens; ++j)
+                            grad_attention_scores(b, h, i, j) = grad_attention_scores_2d((b * num_heads_ + h) * num_tokens + i, j);
+
+            // scale
+            double scale = 1.0 / std::sqrt(static_cast<double>(head_size_));
+            grad_attention_scores = grad_attention_scores * scale;
+
+            // grad_query = grad_attention_scores @ K_cache_
+            Eigen::Tensor<double, 4> grad_query(batch_size, num_heads_, num_tokens, head_size_);
+            grad_query.setZero();
+
+            #pragma omp parallel for collapse(3)
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int d = 0; d < head_size_; ++d)
+                            for (int j = 0; j < num_tokens; ++j)
+                                grad_query(b, h, i, d) += grad_attention_scores(b, h, i, j) * K_cache_(b, h, j, d);
+
+            // grad_key = grad_attention_scores^T @ Q_cache_
+            Eigen::Tensor<double, 4> grad_key(batch_size, num_heads_, num_tokens, head_size_);
+            grad_key.setZero();
+
+            #pragma omp parallel for collapse(3)
+            for (int b = 0; b < batch_size; ++b)
+                for (int h = 0; h < num_heads_; ++h)
+                    for (int i = 0; i < num_tokens; ++i)
+                        for (int d = 0; d < head_size_; ++d)
+                            for (int j = 0; j < num_tokens; ++j)
+                                grad_key(b, h, i, d) += grad_attention_scores(b, h, j, i) * Q_cache_(b, h, j, d);
+
+            // transpose and flatten grad_query/grad_key/grad_value back to 3d
+            Eigen::Tensor<double, 3> grad_query_3d(batch_size, num_tokens, out_size_);
+            Eigen::Tensor<double, 3> grad_key_3d(batch_size, num_tokens, out_size_);
+            Eigen::Tensor<double, 3> grad_value_3d(batch_size, num_tokens, out_size_);
+
+            #pragma omp parallel for collapse(4)
+            for (int b = 0; b < batch_size; ++b)
+                for (int t = 0; t < num_tokens; ++t)
+                    for (int h = 0; h < num_heads_; ++h)
+                        for (int d = 0; d < head_size_; ++d)
+                        {
+                            int flat_idx = h * head_size_ + d;
+                            grad_query_3d(b, t, flat_idx) = grad_query(b, h, t, d);
+                            grad_key_3d(b, t, flat_idx) = grad_key(b, h, t, d);
+                            grad_value_3d(b, t, flat_idx) = grad_value(b, h, d, t);
+                        }
+
+            // flatten to 2d for dense backward
+            Eigen::Tensor<double, 2> grad_query_2d = flatten_.forward(grad_query_3d);
+            Eigen::Tensor<double, 2> grad_key_2d = flatten_.forward(grad_key_3d);
+            Eigen::Tensor<double, 2> grad_value_2d = flatten_.forward(grad_value_3d);
+
+            Eigen::Tensor<double, 2> grad_inputs, grad_outputs_2d;
+
+            if (grad_targets.size() != 0)
+            {
+                grad_inputs = dense_backward(grad_key_2d, X_cache_, Wk_, grad_Wk_, grad_bk_) + dense_backward(grad_value_2d, X_cache_, Wv_, grad_Wv_, grad_bv_);
+                grad_outputs_2d = dense_backward(grad_query_2d, Y_cache_, Wq_, grad_Wq_, grad_bq_);
+
+                // reshape
+                Eigen::Tensor<double, 3> grad_inputs_3d = grad_inputs.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
+                Eigen::Tensor<double, 3> grad_inputs_3d = grad_outputs_2d.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
+                
+                return grad_inputs_3d;
+            }
+            else
+            {
+                grad_inputs = dense_backward(grad_query_2d, in_cache_, Wq_, grad_Wq_, grad_bq_) +
+                              dense_backward(grad_key_2d, in_cache_, Wk_, grad_Wk_, grad_bk_)   +
+                              dense_backward(grad_value_2d, in_cache_, Wv_, grad_Wv_, grad_bv_);
+
+                return grad_inputs.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
+            }
+        }
+
 
 
         /************************************** RNN *************************************/

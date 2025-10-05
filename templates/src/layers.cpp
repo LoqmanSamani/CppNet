@@ -1560,7 +1560,7 @@ namespace CppNet
 
             Eigen::Tensor<double, 2> dX, dY_output;
 
-            if (dY.size() != 0)
+            if (grad_targets.size() != 0)
             {
                 dX = dense_backward(dK_2d, X_cache_, Wk_, grad_Wk_, grad_bk_) + dense_backward(dV_2d, X_cache_, Wv_, grad_Wv_, grad_bv_);
                 dY_output = dense_backward(dQ_2d, Y_cache_, Wq_, grad_Wq_, grad_bq_);
