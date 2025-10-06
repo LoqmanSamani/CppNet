@@ -1901,28 +1901,30 @@ namespace CppNet
             }
             
             // Save input shape
-            B_ = input.dimension(0);
-            C_ = input.dimension(1);
-            H_ = input.dimension(2);
+            B_ = input.dimension(0);  // batch_size
+            C_ = input.dimension(1);  // sequence_length (or num_tokens)
+            H_ = input.dimension(2);  // features (in_size)
             
             for (int i = 0; i < 3; ++i)
             {
                 in_shape_3d[i] = input.dimension(i);
             }
             
-            // Create flattened tensor
-            Eigen::Index flat_features = C_ * H_;
-            Eigen::Tensor<double, 2> flattened(B_, flat_features);
+            // Create flattened tensor: (B, C, H) -> (B*C, H)
+            Eigen::Index flat_batch = B_ * C_;
+            Eigen::Tensor<double, 2> flattened(flat_batch, H_);
             
-            // (batch, num_heads, context_length) -> (batch, num_heads * context_length)
+            // Flatten first two dimensions: (batch, seq_len, features) -> (batch*seq_len, features)
             #pragma omp parallel for
             for (int b = 0; b < B_; ++b)
             {
-                for (Eigen::Index f = 0; f < flat_features; ++f)
+                for (int c = 0; c < C_; ++c)
                 {
-                    int c = f / H_;
-                    int h = f % H_;
-                    flattened(b, f) = input(b, c, h);
+                    int flat_idx = b * C_ + c;
+                    for (int h = 0; h < H_; ++h)
+                    {
+                        flattened(flat_idx, h) = input(b, c, h);
+                    }
                 }
             }
             
@@ -1964,8 +1966,8 @@ namespace CppNet
         Eigen::Tensor<double, 3> Flatten::backward_3d(const Eigen::Tensor<double, 2>& grad_output)
         {
             // Verify dimensions
-            Eigen::Index expected_features = C_ * H_;
-            if (grad_output.dimension(0) != B_ || grad_output.dimension(1) != expected_features)
+            Eigen::Index expected_flat_batch = B_ * C_;
+            if (grad_output.dimension(0) != expected_flat_batch || grad_output.dimension(1) != H_)
             {
                 throw std::runtime_error("Flatten backward: grad_output dimensions don't match expected shape");
             }
@@ -1973,15 +1975,17 @@ namespace CppNet
             // Create gradient tensor
             Eigen::Tensor<double, 3> grad_input(B_, C_, H_);
             
-            // (batch, num_heads * context_length) -> (batch, num_heads, context_length)
+            // Unflatten: (batch*seq_len, features) -> (batch, seq_len, features)
             #pragma omp parallel for
             for (int b = 0; b < B_; ++b)
             {
-                for (Eigen::Index f = 0; f < expected_features; ++f)
+                for (int c = 0; c < C_; ++c)
                 {
-                    int c = f / H_;
-                    int h = f % H_;
-                    grad_input(b, c, h) = grad_output(b, f);
+                    int flat_idx = b * C_ + c;
+                    for (int h = 0; h < H_; ++h)
+                    {
+                        grad_input(b, c, h) = grad_output(flat_idx, h);
+                    }
                 }
             }
             
@@ -2301,11 +2305,11 @@ namespace CppNet
             return mask;
         }
 
-        void MultiHeadAttention::apply_causal_mask(Eigen::Tensor<double, 4>& att_scores, const Eigen::Tensor<bool, 2>& mask, int num_tokens) 
+        void MultiHeadAttention::apply_causal_mask(Eigen::Tensor<double, 4>& att_scores, const Eigen::Tensor<bool, 2>& mask, int num_tokens)
         {
-            // Validate dimensions
-            if (mask.dimension(0) != num_tokens || mask.dimension(1) != num_tokens) {
-                throw std::invalid_argument("Mask dimensions don't match num_tokens");
+            // Validate that mask is large enough
+            if (mask.dimension(0) < num_tokens || mask.dimension(1) < num_tokens) {
+                throw std::invalid_argument("Mask is too small for the given num_tokens");
             }
             
             const int batch_size = att_scores.dimension(0);
@@ -2313,19 +2317,19 @@ namespace CppNet
             const int total_elements = batch_size * num_heads * num_tokens * num_tokens;
             const double neg_inf = -std::numeric_limits<double>::infinity();
             
-            if (total_elements > parallel_threshold_) 
+            if (total_elements > parallel_threshold_)
             {
                 #pragma omp parallel for collapse(2)
-                for (int i = 0; i < num_tokens; ++i) 
+                for (int i = 0; i < num_tokens; ++i)
                 {
-                    for (int j = 0; j < num_tokens; ++j) 
+                    for (int j = 0; j < num_tokens; ++j)
                     {
-                        if (!mask(i, j)) 
-                        { 
-                            // Apply mask to all batches and heads for this (i,j) position
-                            for (int b = 0; b < batch_size; ++b) 
+                        // Use only the relevant portion of the mask
+                        if (!mask(i, j))
+                        {
+                            for (int b = 0; b < batch_size; ++b)
                             {
-                                for (int h = 0; h < num_heads; ++h) 
+                                for (int h = 0; h < num_heads; ++h)
                                 {
                                     att_scores(b, h, i, j) = neg_inf;
                                 }
@@ -2333,18 +2337,18 @@ namespace CppNet
                         }
                     }
                 }
-            } 
-            else 
+            }
+            else
             {
-                for (int i = 0; i < num_tokens; ++i) 
+                for (int i = 0; i < num_tokens; ++i)
                 {
-                    for (int j = 0; j < num_tokens; ++j) 
+                    for (int j = 0; j < num_tokens; ++j)
                     {
-                        if (!mask(i, j)) 
+                        if (!mask(i, j))
                         {
-                            for (int b = 0; b < batch_size; ++b) 
+                            for (int b = 0; b < batch_size; ++b)
                             {
-                                for (int h = 0; h < num_heads; ++h) 
+                                for (int h = 0; h < num_heads; ++h)
                                 {
                                     att_scores(b, h, i, j) = neg_inf;
                                 }
@@ -2580,31 +2584,68 @@ namespace CppNet
                 throw std::runtime_error("Multi-Head Attention: Number of tokens exceeds context length.");
             }
 
-
-            // Define shapes
-            Eigen::Tensor<double, 4> Q, K, V;
+            // Define shapes for reshaping and shuffling
             Eigen::array<Eigen::Index, 4> reshape_dims = {batch_size, num_tokens, num_heads_, head_size_};
             Eigen::array<int, 4> shuffle_dims = {0, 2, 1, 3};         // (B, H, T, D)
             Eigen::array<int, 4> shuffle_dims_transpose = {0, 1, 3, 2}; // (B, H, D, T)
 
-            // Linear projections
-            Eigen::Tensor<double, 2> fx = flatten_.forward_3d(inputs); // (B, T, in_size) -> (B*T, in_size)
-            Eigen::Tensor<double, 2> fq = dense_forward(fx, Wq_, bq_);
-            Eigen::Tensor<double, 2> fk = dense_forward(fx, Wk_, bk_);
-            Eigen::Tensor<double, 2> fv = dense_forward(fx, Wv_, bv_);
+            // Determine if this is self-attention or cross-attention
+            bool is_cross_attention = (targets.size() != 0);
 
+            Eigen::Tensor<double, 2> fq, fk, fv;
+
+            if (is_cross_attention)
+            {
+                // Cross-attention: Q comes from inputs, K and V come from targets
+                // Flatten inputs and targets: (B, T, in_size) -> (B*T, in_size)
+                Eigen::Tensor<double, 2> fy = flatten_.forward_3d(inputs);   // For Query
+                Eigen::Tensor<double, 2> fx = flatten_.forward_3d(targets);  // For Key and Value
+                
+                std::cout << "Cross-attention mode" << std::endl;
+                std::cout << "fy (inputs) shape: (" << fy.dimension(0) << ", " << fy.dimension(1) << ")" << std::endl;
+                std::cout << "fx (targets) shape: (" << fx.dimension(0) << ", " << fx.dimension(1) << ")" << std::endl;
+                
+                // Linear projections
+                fq = dense_forward(fy, Wq_, bq_);  // Query from inputs
+                fk = dense_forward(fx, Wk_, bk_);  // Key from targets
+                fv = dense_forward(fx, Wv_, bv_);  // Value from targets
+                
+                // Cache for backward pass
+                Y_cache_ = fy;  // Cache inputs (for Query gradients)
+                X_cache_ = fx;  // Cache targets (for Key and Value gradients)
+            }
+            else
+            {
+                // Self-attention: Q, K, V all come from the same input
+                Eigen::Tensor<double, 2> fx = flatten_.forward_3d(inputs);  // (B, T, in_size) -> (B*T, in_size)
+                
+                std::cout << "Self-attention mode" << std::endl;
+                std::cout << "fx shape: (" << fx.dimension(0) << ", " << fx.dimension(1) << ")" << std::endl;
+                std::cout << "Wq_ shape: (" << Wq_.dimension(0) << ", " << Wq_.dimension(1) << ")" << std::endl;
+                
+                // Linear projections (all from same input)
+                fq = dense_forward(fx, Wq_, bq_);
+                fk = dense_forward(fx, Wk_, bk_);
+                fv = dense_forward(fx, Wv_, bv_);
+                
+                // Cache for backward pass
+                in_cache_ = fx;  // Cache single input (for all gradients)
+            }
+
+            // Reshape projections: (B*T, out_size) -> (B, T, H, D)
             Eigen::Tensor<double, 4> Q_reshaped = fq.reshape(reshape_dims);
             Eigen::Tensor<double, 4> K_reshaped = fk.reshape(reshape_dims);
             Eigen::Tensor<double, 4> V_reshaped = fv.reshape(reshape_dims);
 
-            Q = Q_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
-            K = K_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
-            V = V_reshaped.shuffle(shuffle_dims); // [B, H, T, D]
+            // Transpose to (B, H, T, D) for multi-head processing
+            Eigen::Tensor<double, 4> Q = Q_reshaped.shuffle(shuffle_dims);
+            Eigen::Tensor<double, 4> K = K_reshaped.shuffle(shuffle_dims);
+            Eigen::Tensor<double, 4> V = V_reshaped.shuffle(shuffle_dims);
 
-            // Transpose K -> [B, H, D, T]
+            // Transpose K to (B, H, D, T) for attention computation
             Eigen::Tensor<double, 4> tK = K.shuffle(shuffle_dims_transpose);
 
-            // Compute attention scores manually: Q × K^T => [B, H, T, T]
+            // Compute attention scores: Q × K^T => [B, H, T, T]
             Eigen::Tensor<double, 4> att_scores(batch_size, num_heads_, num_tokens, num_tokens);
             att_scores.setZero();
 
@@ -2638,9 +2679,8 @@ namespace CppNet
                 apply_causal_mask(att_scores, mask_, num_tokens);
             }
 
-            // Softmax along last dimension
+            // Flatten for softmax: (B, H, T, T) -> (B*H*T, T)
             Eigen::Tensor<double, 2> att_scores_2d(batch_size * num_heads_ * num_tokens, num_tokens);
-            Eigen::Tensor<double, 2> attention_weights_2d(batch_size * num_heads_ * num_tokens, num_tokens);
             
             #pragma omp parallel for collapse(3)
             for (int b = 0; b < batch_size; ++b)
@@ -2651,13 +2691,17 @@ namespace CppNet
                     {
                         int row = b * num_heads_ * num_tokens + h * num_tokens + t;
                         for (int j = 0; j < num_tokens; ++j)
+                        {
                             att_scores_2d(row, j) = att_scores(b, h, t, j);
+                        }
                     }
                 }
             }
 
-            attention_weights_2d = softmax_forward(att_scores_2d);
+            // Apply softmax
+            Eigen::Tensor<double, 2> attention_weights_2d = softmax_forward(att_scores_2d);
 
+            // Unflatten softmax output: (B*H*T, T) -> (B, H, T, T)
             Eigen::Tensor<double, 4> attention_weights(batch_size, num_heads_, num_tokens, num_tokens);
 
             #pragma omp parallel for collapse(3)
@@ -2669,12 +2713,14 @@ namespace CppNet
                     {
                         int row = b * num_heads_ * num_tokens + h * num_tokens + t;
                         for (int j = 0; j < num_tokens; ++j)
+                        {
                             attention_weights(b, h, t, j) = attention_weights_2d(row, j);
+                        }
                     }
                 }
             }
 
-            // Compute context vector manually: att_weights × V
+            // Compute context vector: attention_weights × V => [B, H, T, D]
             Eigen::Tensor<double, 4> context(batch_size, num_heads_, num_tokens, head_size_);
             context.setZero();
 
@@ -2698,23 +2744,22 @@ namespace CppNet
                 }
             }
 
-            // Final reshape: (B, T, H, D) → (B, T, H*D)
+            // Reshape output: (B, H, T, D) -> (B, T, H, D) -> (B, T, H*D)
             Eigen::array<int, 4> output_shuffle_dims = {0, 2, 1, 3};
-            Eigen::Tensor<double, 4> context_transposed = context.shuffle(output_shuffle_dims); // (B, T, H, D)
+            Eigen::Tensor<double, 4> context_transposed = context.shuffle(output_shuffle_dims);
 
             Eigen::array<Eigen::Index, 3> final_shape = {batch_size, num_tokens, out_size_};
             Eigen::Tensor<double, 3> output = context_transposed.reshape(final_shape);
 
-            // Cache for backward pass (if needed)
+            // Cache intermediate values for backward pass
             Q_cache_ = Q;
             K_cache_ = K;
             V_cache_ = V;
             attention_weights_cache_ = attention_weights;
-            in_cache_ = fx;
+            // Note: in_cache_, X_cache_, Y_cache_ are already set above based on attention type
 
             return output;
         }
-
         Eigen::Tensor<double, 3> MultiHeadAttention::backward(Eigen::Tensor<double, 3>& grad_outputs, Eigen::Tensor<double, 3>& grad_targets)
         {
             int batch_size = grad_outputs.dimension(0);
@@ -2839,13 +2884,19 @@ namespace CppNet
 
             if (grad_targets.size() != 0)
             {
-                grad_inputs = dense_backward(grad_key_2d, X_cache_, Wk_, grad_Wk_, grad_bk_) + dense_backward(grad_value_2d, X_cache_, Wv_, grad_Wv_, grad_bv_);
-                grad_outputs_2d = dense_backward(grad_query_2d, Y_cache_, Wq_, grad_Wq_, grad_bq_);
+                // Keys and Values come from targets (X_cache_)
+                Eigen::Tensor<double, 2> grad_targets_2d = 
+                    dense_backward(grad_key_2d, X_cache_, Wk_, grad_Wk_, grad_bk_) + 
+                    dense_backward(grad_value_2d, X_cache_, Wv_, grad_Wv_, grad_bv_);
+                
+                // Queries come from inputs (Y_cache_)
+                Eigen::Tensor<double, 2> grad_inputs_2d = 
+                    dense_backward(grad_query_2d, Y_cache_, Wq_, grad_Wq_, grad_bq_);
 
-                // reshape
-                Eigen::Tensor<double, 3> grad_inputs_3d = grad_inputs.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
-                Eigen::Tensor<double, 3> grad_outputs_3d = grad_outputs_2d.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
-                grad_targets = grad_outputs_3d;
+                // Reshape
+                grad_targets = grad_targets_2d.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
+                Eigen::Tensor<double, 3> grad_inputs_3d = 
+                    grad_inputs_2d.reshape(Eigen::array<Eigen::Index, 3>{batch_size, num_tokens, in_size_});
                 
                 return grad_inputs_3d;
             }

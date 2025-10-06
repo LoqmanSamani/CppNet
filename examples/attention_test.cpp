@@ -33,7 +33,9 @@ int main()
     std::cout << "Output shape: [" << outputs.dimension(0) << ", " << outputs.dimension(1) << ", " << outputs.dimension(2) << "]" << std::endl;
     Eigen::Tensor<double, 3> grad_outputs(2, 10, 256); // Same shape as outputs
     grad_outputs.setRandom();
-    Eigen::Tensor<double, 3> grad_targets;
+    Eigen::Tensor<double, 3> grad_targets(2, 10, 256); // Same shape as targets
+    grad_targets.setZero();
+    std::cout << "we are here" << std::endl;
     Eigen::Tensor<double, 3> grad_inputs = mha.backward(grad_outputs, grad_targets);
     std::cout << "Grad Inputs shape: [" << grad_inputs.dimension(0) << ", " << grad_inputs.dimension(1) << ", " << grad_inputs.dimension(2) << "]" << std::endl;
     std::cout << "Grad Targets shape: [" << grad_targets.dimension(0) << ", " << grad_targets.dimension(1) << ", " << grad_targets.dimension(2) << "]" << std::endl;
