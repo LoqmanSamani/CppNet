@@ -29,13 +29,17 @@
 ```bash
 CppNet/
 ├── CMakeLists.txt
-├── examples/                   # Example programs
-│   ├── cnn_example.cpp         # CNN example
-│   ├── linear_example.cpp      # Linear layer example
-│   └── transformer_example.cpp # Transformer example
-├── include/                    # Public headers (library API)
+├── examples/             
+│   ├── cnn_example.cpp        
+│   ├── linear_example.cpp      
+│   └── transformer_example.cpp 
+├── include
 │   ├── activations.hpp
 │   ├── data.hpp
+│   ├── kernels
+│   │   ├── cpu.hpp
+│   │   ├── gpu.hpp
+│   │   └── common.hpp
 │   ├── layers.hpp
 │   ├── losses.hpp
 │   ├── metrics.hpp
@@ -44,9 +48,19 @@ CppNet/
 │   ├── regularization.hpp
 │   ├── utils.hpp
 │   └── visualization.hpp
-├── src/                        # Implementations
+│
+├── src
 │   ├── activations.cpp
 │   ├── data.cpp
+│   ├── kernels
+│   │   ├── cpu
+│   │   │   ├── matmul.cpp
+│   │   │   ├── conv.cpp
+│   │   │   └── elementwise.cpp
+│   │   └── gpu
+│   │       ├── matmul.cu
+│   │       ├── conv.cu
+│   │       └── elementwise.cu
 │   ├── layers.cpp
 │   ├── losses.cpp
 │   ├── metrics.cpp

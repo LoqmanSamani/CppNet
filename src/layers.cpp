@@ -2669,6 +2669,7 @@ namespace CppNet
                 }
             }
 
+
             // Scale attention scores
             double scale_factor = 1.0 / std::sqrt(static_cast<double>(head_size_));
             att_scores = att_scores * scale_factor;
