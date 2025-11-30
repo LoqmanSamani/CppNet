@@ -1,9 +1,13 @@
 
+#pragma once
 
+namespace CppNet {
+namespace Kernels {
+namespace GPU {
 
+void matmul_gpu(const float* A, const float* B, float* C,
+                int M, int N, int K);
 
-namespace dl_gpu
-{
-    void matmul(const float* A, const float* B, const float* C, int M, int N, int K);
-    //void conv2d()
-}
+} // namespace GPU
+} // namespace Kernels
+} // namespace CppNet

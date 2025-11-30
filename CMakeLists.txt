@@ -44,6 +44,8 @@ set(CPP_NET_SOURCES
     src/utils.cpp
     src/visualization.cpp
     src/kernels_cpu.cpp
+    src/kernels/gpu/matmul.cu
+    src/kernels/gpu/elementwise.cu
 )
 
 # Only add CUDA sources if CUDA is available
@@ -89,6 +91,24 @@ target_link_libraries(cnn_test PRIVATE CppNet)
 
 add_executable(attention_test examples/attention_test.cpp)
 target_link_libraries(attention_test PRIVATE CppNet)
+
+#################### CUDA Tests ############################
+add_executable(matmul_gpu_test tests/matmul_gpu.cu)
+target_link_libraries(matmul_gpu_test PRIVATE CppNet)
+
+# Set CUDA properties for executables too
+if(USE_CUDA)
+    target_compile_definitions(matmul_gpu_test PRIVATE USE_CUDA)
+    set_target_properties(matmul_gpu_test PROPERTIES 
+        CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}"
+        LINKER_LANGUAGE CUDA
+        CUDA_RESOLVE_DEVICE_SYMBOLS ON
+    )
+    # Explicitly link CUDA libraries to the executable
+    target_link_libraries(matmul_gpu_test PRIVATE CUDA::cudart)
+endif()
+#############################################################
+
 
 # Set CUDA properties for executables too
 if(USE_CUDA)

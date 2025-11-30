@@ -2,7 +2,7 @@
 #include "kernels/gpu.hpp" 
 
 __global__ 
-void elementwise_kernel(float* A, float* B, float* C, int M, int N, int K)
+void elementwise_kernel(const float* A, const float* B, float* C, int M, int N, int K)
 {
     // threadIdx: thread index inside a block
     // blockIdx: block index inside the grid
@@ -22,5 +22,32 @@ void elementwise_kernel(float* A, float* B, float* C, int M, int N, int K)
 
 void matmul_gpu(const float* A, const float* B, float* C, int M, int N, int K)
 {
-    // implementation of memory allocation + kernel launch
+    float *dA, *dB, *dC;
+
+    // allocate gpu memory
+    cudaMalloc(&dA, M*K * sizeof(float));
+    cudaMalloc(&dB, K*N * sizeof(float));
+    cudaMalloc(&dC, M*N * sizeof(float));
+
+    // copy A and B from cpu to gpu
+    cudaMemcpy(dA, A, M*K*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(dB, B, K*N*sizeof(float), cudaMemcpyHostToDevice);
+
+    // configure kernel launch
+    dim3 block(16, 16);
+    dim3 grid((N + 15) / 16, (M + 15) / 16);
+
+    // launch kernel
+    matmul_kernel<<<grid, block>>>(dA, dB, dC, M, N, K);
+
+    // wait for gpu to finish
+    cudaDeviceSynchronize();
+
+    // copy result C from gpu to cpu
+    cudaMemcpy(C, dC, M*N*sizeof(float), cudaMemcpyDeviceToHost);
+
+    // free gpu memory
+    cudaFree(dA);
+    cudaFree(dB);
+    cudaFree(dC);
 }
