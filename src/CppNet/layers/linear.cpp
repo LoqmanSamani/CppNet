@@ -1,5 +1,6 @@
 #include <cmath>
-#include <omp.h> 
+#include <omp.h>
+#include <chrono> 
 #include <Eigen/Dense>
 #include "optimizers.hpp"  
 #include "activations.hpp" 
@@ -310,7 +311,7 @@ namespace CppNet
                     }
                 }
             }
-            else if (should_parallelize && device_ = "gpu")
+            else if (should_parallelize && device_ == "gpu")
             {
                 // use gpu kernels
                 CppNet::Kernels::GPU::matmul_gpu(input.data(), weights_.data(), output.data(), batch_size, output_size, input_size);
@@ -325,12 +326,12 @@ namespace CppNet
             {
                 // forward calculation
                 Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-                output = X.contract(weights_, product_dims);
+                output = input.contract(weights_, product_dims);
 
                 if (bias_) 
                 {
                     // add bias to each row - broadcasting the bias vector
-                    Eigen::array<Eigen::Index, 2> broadcast_dims({X.dimension(0), 1});
+                    Eigen::array<Eigen::Index, 2> broadcast_dims({input.dimension(0), 1});
                     Eigen::Tensor<float, 2> bias_broadcasted = biases_.reshape(Eigen::array<Eigen::Index, 2>({1, biases_.dimension(0)})).broadcast(broadcast_dims);
                     output = output + bias_broadcasted;
                 }
@@ -381,7 +382,7 @@ namespace CppNet
                             {
                                 sum += in_cache_(b, i) * grad_output(b, j);
                             }
-                            grad_weights_(i, j) = sum;
+                            grad_weights_(i, j) += sum;
                         }
                     }
                     
@@ -397,7 +398,7 @@ namespace CppNet
                             {
                                 sum += grad_output(b, j);
                             }
-                            grad_biases_(j) = sum;
+                            grad_biases_(j) += sum;
                         }
                     }
                 }
@@ -417,13 +418,13 @@ namespace CppNet
                     Eigen::Tensor<float, 2> X_transposed = in_cache_.shuffle(transpose_dims);
                     
                     Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-                    grad_weights_ = X_transposed.contract(grad_out, product_dims);
+                    grad_weights_ += X_transposed.contract(grad_output, product_dims);
                     
                     // gradient w.r.t. biases: sum over batch dimension
                     if (bias_) 
                     {
                         Eigen::array<int, 1> batch_dim({0});
-                        grad_biases_ = grad_out.sum(batch_dim);
+                        grad_biases_ += grad_output.sum(batch_dim);
                     }
                 }
                 
@@ -444,14 +445,14 @@ namespace CppNet
                         {
                             sum += grad_output(b, j) * weights_(i, j);
                         }
-                        grad_input(b, i) = sum;
+                        grad_input(b, i) += sum;
                     }
                 }
             }
             else if (should_parallelize && device_ == "gpu")
             {
                 // use gpu kernel
-                CppNet::Kernels::GPU::matmul_grad_input_gpu(grad_output.data(), weights_.data(), grad_input.data(), int batch_size, int input_size, int output_size)
+                CppNet::Kernels::GPU::matmul_grad_input_gpu(grad_output.data(), weights_.data(), grad_input.data(), batch_size, input_size, output_size);
             }
             else if (!should_parallelize)
             {
@@ -459,7 +460,7 @@ namespace CppNet
                 Eigen::Tensor<float, 2> weights_transposed = weights_.shuffle(transpose_dims);
                 
                 Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-                grad_input = grad_out.contract(weights_transposed, product_dims);
+                grad_input += grad_output.contract(weights_transposed, product_dims);
             }
             
             return grad_input;

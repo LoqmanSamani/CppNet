@@ -26,7 +26,7 @@ namespace CppNet
         {
             public:
                 virtual bool is_trainable() const = 0;
-                virtual void step(Optimizers::Optimizer& optimizer, double learning_rate) = 0;
+                virtual void step(Optimizers::Optimizer& optimizer, float learning_rate) = 0;
                 virtual ~Layer() = default;
         };
 
@@ -46,8 +46,8 @@ namespace CppNet
                     int parallel_threshold = 10000
                 ); 
                 
-                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& input);
-                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_output);
+                Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
+                Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
                 void reset_grads() 
                     {
 
@@ -65,16 +65,16 @@ namespace CppNet
                 int get_output_size() const { return out_size_; }
                 std::string get_layer_name() const { return layer_name_; }
 
-                Eigen::Tensor<double, 2>& get_weights() { return weights_; }
-                const Eigen::Tensor<double, 2>& get_weights() const { return weights_; }
-                Eigen::Tensor<double, 1>& get_biases() { return biases_; }
-                const Eigen::Tensor<double, 1>& get_biases() const { return biases_; }
+                Eigen::Tensor<float, 2>& get_weights() { return weights_; }
+                const Eigen::Tensor<float, 2>& get_weights() const { return weights_; }
+                Eigen::Tensor<float, 1>& get_biases() { return biases_; }
+                const Eigen::Tensor<float, 1>& get_biases() const { return biases_; }
 
-                const Eigen::Tensor<double, 2>& get_grad_weights() const { return grad_weights_; }
-                const Eigen::Tensor<double, 1>& get_grad_biases() const { return grad_biases_; }
+                const Eigen::Tensor<float, 2>& get_grad_weights() const { return grad_weights_; }
+                const Eigen::Tensor<float, 1>& get_grad_biases() const { return grad_biases_; }
 
-                void set_weights(const Eigen::Tensor<double, 2>& weights) { weights_ = weights; }
-                void set_biases(const Eigen::Tensor<double, 1>& biases) { biases_ = biases; }
+                void set_weights(const Eigen::Tensor<float, 2>& weights) { weights_ = weights; }
+                void set_biases(const Eigen::Tensor<float, 1>& biases) { biases_ = biases; }
 
                 bool is_trainable() const override { return trainable_; }
 
@@ -83,7 +83,7 @@ namespace CppNet
 
                 bool has_bias() const { return bias_; }
 
-                void step(Optimizers::Optimizer& optimizer, double learning_rate) override;
+                void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
 
                 // OpenMP utility method
                 static void set_num_threads(int num_threads);
@@ -114,11 +114,11 @@ namespace CppNet
                 std::string device_;
                 std::string weight_init_;
                 int parallel_threshold_; // threshold for input size to enable parallelization    
-                Eigen::Tensor<double, 2> weights_;
-                Eigen::Tensor<double, 1> biases_;
-                Eigen::Tensor<double, 2> in_cache_;
-                Eigen::Tensor<double, 2> grad_weights_;
-                Eigen::Tensor<double, 1> grad_biases_;
+                Eigen::Tensor<float, 2> weights_;
+                Eigen::Tensor<float, 1> biases_;
+                Eigen::Tensor<float, 2> in_cache_;
+                Eigen::Tensor<float, 2> grad_weights_;
+                Eigen::Tensor<float, 1> grad_biases_;
 
                 void reinitialize_weights(const std::string& new_init_method);
                 void init_params_and_grads();
