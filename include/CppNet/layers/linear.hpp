@@ -48,6 +48,22 @@ namespace CppNet
                 
                 Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
                 Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
+
+                void Linear::forward_cpu(
+                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+                    int batch_size, int input_size, int output_size);
+
+                void Linear::forward_gpu(
+                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+                    int batch_size, int input_size, int output_size);
+
+                void Linear::forward_eigen(
+                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+                    int batch_size, int input_size, int output_size);
+                    
                 void reset_grads() 
                     {
 

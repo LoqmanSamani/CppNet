@@ -255,6 +255,74 @@ namespace CppNet
             optimizer.step(*this, learning_rate);
         }
 
+        void Linear::forward_gpu(
+            const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+            const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+            int batch_size, int input_size, int output_size)
+        {
+            
+            CppNet::Kernels::GPU::matmul_gpu(input.data(), weights_.data(), output.data(), batch_size, output_size, input_size);
+        
+            if (bias_)
+            {
+                CppNet::Kernels::GPU::add_bias_gpu(output.data(), biases_.data(), batch_size, output_size);
+            }
+        }
+
+        void Linear::forward_cpu(
+            const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+            const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+            int batch_size, int input_size, int output_size)
+        {
+            // manual matrix multiplication with openmp
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int j = 0; j < output_size; ++j) 
+                {
+                    float sum = 0.0;
+                    // vectorize inner loop and use reduction for better performance
+                    #pragma omp simd reduction(+:sum)
+                    for (int i = 0; i < input_size; ++i) 
+                    {
+                        sum += input(b, i) * weights_(i, j);
+                    }
+                    output(b, j) = sum;
+                }
+            }
+
+            // add bias if enabled
+            if (bias_) 
+            {
+                #pragma omp parallel for collapse(2)
+                for (int b = 0; b < batch_size; ++b) 
+                {
+                    for (int j = 0; j < output_size; ++j) 
+                    {
+                        output(b, j) += biases_(j);
+                    }
+                }
+            }
+        }
+
+        void Linear::forward_eigen(
+            const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+            const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+            int batch_size, int input_size, int output_size)
+        {
+            // forward calculation
+            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+            output = input.contract(weights_, product_dims);
+
+            if (bias_) 
+            {
+                // add bias to each row - broadcasting the bias vector
+                Eigen::array<Eigen::Index, 2> broadcast_dims({input.dimension(0), 1});
+                Eigen::Tensor<float, 2> bias_broadcasted = biases_.reshape(Eigen::array<Eigen::Index, 2>({1, biases_.dimension(0)})).broadcast(broadcast_dims);
+                output = output + bias_broadcasted;
+            }
+        }
+
 
         // forward pass 
         Eigen::Tensor<float, 2> Linear::forward(const Eigen::Tensor<float, 2>& input) 
@@ -281,63 +349,17 @@ namespace CppNet
 
             if (should_parallelize && device_ == "cpu")
             {
-                // manual matrix multiplication with openmp
-                #pragma omp parallel for collapse(2)
-                for (int b = 0; b < batch_size; ++b)
-                {
-                    for (int j = 0; j < output_size; ++j) 
-                    {
-                        float sum = 0.0;
-                        // vectorize inner loop and use reduction for better performance
-                        #pragma omp simd reduction(+:sum)
-                        for (int i = 0; i < input_size; ++i) 
-                        {
-                            sum += input(b, i) * weights_(i, j);
-                        }
-                        output(b, j) = sum;
-                    }
-                }
-
-                // add bias if enabled
-                if (bias_) 
-                {
-                    #pragma omp parallel for collapse(2)
-                    for (int b = 0; b < batch_size; ++b) 
-                    {
-                        for (int j = 0; j < output_size; ++j) 
-                        {
-                            output(b, j) += biases_(j);
-                        }
-                    }
-                }
+                Linear::forward_cpu(input, weights_, biases_, output, batch_size, input_size, output_size);
             }
             else if (should_parallelize && device_ == "gpu")
             {
-                // use gpu kernels
-                CppNet::Kernels::GPU::matmul_gpu(input.data(), weights_.data(), output.data(), batch_size, output_size, input_size);
-            
-                if (bias_)
-                {
-                    CppNet::Kernels::GPU::bias_add_gpu(output.data(), biases_.data(), batch_size, output_size);
-                }
-
+                Linear::forward_gpu(input, weights_, biases_, output, batch_size, input_size, output_size);
             }
             else if (!should_parallelize)
             {
-                // forward calculation
-                Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-                output = input.contract(weights_, product_dims);
-
-                if (bias_) 
-                {
-                    // add bias to each row - broadcasting the bias vector
-                    Eigen::array<Eigen::Index, 2> broadcast_dims({input.dimension(0), 1});
-                    Eigen::Tensor<float, 2> bias_broadcasted = biases_.reshape(Eigen::array<Eigen::Index, 2>({1, biases_.dimension(0)})).broadcast(broadcast_dims);
-                    output = output + bias_broadcasted;
-                }
+                Linear::forward_eigen(input, weights_, biases_, output, batch_size, input_size, output_size);
             }
             
-    
             return output;
         }
 
