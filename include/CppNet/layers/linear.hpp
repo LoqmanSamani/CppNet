@@ -47,8 +47,7 @@ namespace CppNet
                 ); 
                 
                 Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
-                Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
-
+                
                 void Linear::forward_cpu(
                     const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
                     const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
@@ -63,7 +62,27 @@ namespace CppNet
                     const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
                     const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
                     int batch_size, int input_size, int output_size);
-                    
+
+                Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
+
+                void Linear::backward_gpu(
+                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
+                
+                void Linear::backward_cpu(
+                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
+
+                void Linear::backward_eigen(
+                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
+
                 void reset_grads() 
                     {
 

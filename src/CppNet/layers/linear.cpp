@@ -258,7 +258,7 @@ namespace CppNet
         void Linear::forward_gpu(
             const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
             const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-            int batch_size, int input_size, int output_size)
+            int batch_size, int input_size, int output_size, bool bias_)
         {
             
             CppNet::Kernels::GPU::matmul_gpu(input.data(), weights_.data(), output.data(), batch_size, output_size, input_size);
@@ -272,7 +272,7 @@ namespace CppNet
         void Linear::forward_cpu(
             const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
             const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-            int batch_size, int input_size, int output_size)
+            int batch_size, int input_size, int output_size, bool bias_)
         {
             // manual matrix multiplication with openmp
             #pragma omp parallel for collapse(2)
@@ -308,7 +308,7 @@ namespace CppNet
         void Linear::forward_eigen(
             const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
             const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-            int batch_size, int input_size, int output_size)
+            int batch_size, int input_size, int output_size, bool bias_)
         {
             // forward calculation
             Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
@@ -349,18 +349,127 @@ namespace CppNet
 
             if (should_parallelize && device_ == "cpu")
             {
-                Linear::forward_cpu(input, weights_, biases_, output, batch_size, input_size, output_size);
+                Linear::forward_cpu(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
             }
             else if (should_parallelize && device_ == "gpu")
             {
-                Linear::forward_gpu(input, weights_, biases_, output, batch_size, input_size, output_size);
+                Linear::forward_gpu(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
             }
             else if (!should_parallelize)
             {
-                Linear::forward_eigen(input, weights_, biases_, output, batch_size, input_size, output_size);
+                Linear::forward_eigen(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
             }
             
             return output;
+        }
+
+        void Linear::backward_gpu(
+            const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+            const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+            Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+            int batch_size, int output_size, int input_size, bool trainable_, bool bias_)
+        {
+            if (trainable_)
+            {
+                CppNet::Kernels::GPU::matmul_grad_weights_gpu(in_cache_.data(), grad_output.data(), grad_weights_.data(), batch_size, input_size, output_size);
+                if (bias_)
+                {
+                    CppNet::Kernels::GPU::bias_grad_gpu(grad_output.data(), grad_biases_.data(), batch_size, output_size);
+                }
+            }
+
+            // use gpu kernel
+            CppNet::Kernels::GPU::matmul_grad_input_gpu(grad_output.data(), weights_.data(), grad_input.data(), batch_size, input_size, output_size);
+            
+        }
+
+        void Linear::backward_cpu(
+            const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+            const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+            Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+            int batch_size, int output_size, int input_size, bool trainable_, bool bias_)
+        {
+            if (trainable_)
+            {
+                // manual computation with openmp: grad_weights_(i,j) = sum_b(in_cache_(b,i) * grad_output(b,j))
+                #pragma omp parallel for collapse(2)
+                for (int i = 0; i < input_size; ++i) 
+                {
+                    for (int j = 0; j < output_size; ++j) 
+                    {
+                        float sum = 0.0;
+                        #pragma omp simd reduction(+:sum)
+                        for (int b = 0; b < batch_size; ++b) 
+                        {
+                            sum += in_cache_(b, i) * grad_output(b, j);
+                        }
+                        grad_weights_(i, j) += sum;
+                    }
+                }
+                
+                // gradient w.r.t. biases: sum over batch dimension
+                if (bias_) 
+                {
+                    #pragma omp parallel for
+                    for (int j = 0; j < output_size; ++j) 
+                    {
+                        float sum = 0.0;
+                        #pragma omp simd reduction(+:sum)
+                        for (int b = 0; b < batch_size; ++b) 
+                        {
+                            sum += grad_output(b, j);
+                        }
+                        grad_biases_(j) += sum;
+                    }
+                }
+            }
+            
+            // manual computation with openmp: grad_input(b,i) = sum_j(grad_output(b,j) * weights_(i,j))
+            #pragma omp parallel for collapse(2)
+            for (int b = 0; b < batch_size; ++b) 
+            {
+                for (int i = 0; i < input_size; ++i) 
+                {
+                    float sum = 0.0;
+                    #pragma omp simd reduction(+:sum)
+                    for (int j = 0; j < output_size; ++j) 
+                    {
+                        sum += grad_output(b, j) * weights_(i, j);
+                    }
+                    grad_input(b, i) += sum;
+                }
+            }
+            
+        }
+
+        void Linear::backward_eigen(
+            const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+            const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+            Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+            int batch_size, int output_size, int input_size, bool trainable_, bool bias_)
+        {
+            if (trainable_)
+            {
+                // gradient w.r.t. weights: X^T * grad_out
+                Eigen::array<int, 2> transpose_dims({1, 0});
+                Eigen::Tensor<float, 2> X_transposed = in_cache_.shuffle(transpose_dims);
+                
+                Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+                grad_weights_ += X_transposed.contract(grad_output, product_dims);
+                
+                // gradient w.r.t. biases: sum over batch dimension
+                if (bias_) 
+                {
+                    Eigen::array<int, 1> batch_dim({0});
+                    grad_biases_ += grad_output.sum(batch_dim);
+                }
+            }
+
+            Eigen::array<int, 2> transpose_dims({1, 0});
+            Eigen::Tensor<float, 2> weights_transposed = weights_.shuffle(transpose_dims);
+            
+            Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
+            grad_input += grad_output.contract(weights_transposed, product_dims);
         }
 
         Eigen::Tensor<float, 2> Linear::backward(const Eigen::Tensor<float, 2>& grad_output) 
@@ -386,105 +495,23 @@ namespace CppNet
             const int total_elements = batch_size * output_size;
             const bool should_parallelize = (total_elements > parallel_threshold_);
             
-            // compute parameter gradients (only if trainable)
-            // gradient w.r.t. weights: in_cache_^T * grad_output
-            if (trainable_) 
-            {
-                if (should_parallelize && device_ == "cpu")
-                {
-                    // manual computation with openmp: grad_weights_(i,j) = sum_b(in_cache_(b,i) * grad_output(b,j))
-                    #pragma omp parallel for collapse(2)
-                    for (int i = 0; i < input_size; ++i) 
-                    {
-                        for (int j = 0; j < output_size; ++j) 
-                        {
-                            float sum = 0.0;
-                            #pragma omp simd reduction(+:sum)
-                            for (int b = 0; b < batch_size; ++b) 
-                            {
-                                sum += in_cache_(b, i) * grad_output(b, j);
-                            }
-                            grad_weights_(i, j) += sum;
-                        }
-                    }
-                    
-                    // gradient w.r.t. biases: sum over batch dimension
-                    if (bias_) 
-                    {
-                        #pragma omp parallel for
-                        for (int j = 0; j < output_size; ++j) 
-                        {
-                            float sum = 0.0;
-                            #pragma omp simd reduction(+:sum)
-                            for (int b = 0; b < batch_size; ++b) 
-                            {
-                                sum += grad_output(b, j);
-                            }
-                            grad_biases_(j) += sum;
-                        }
-                    }
-                }
-                else if (should_parallelize && device_ == "gpu")
-                {
-                    CppNet::Kernels::GPU::matmul_grad_weights_gpu(in_cache_.data(), grad_output.data(), grad_weights_.data(), batch_size, input_size, output_size);
-                    if (bias_)
-                    {
-                        CppNet::Kernels::GPU::bias_grad_gpu(grad_output.data(), grad_biases_.data(), batch_size, output_size);
-                    }
-
-                }
-                else if (!should_parallelize)
-                {
-                    // gradient w.r.t. weights: X^T * grad_out
-                    Eigen::array<int, 2> transpose_dims({1, 0});
-                    Eigen::Tensor<float, 2> X_transposed = in_cache_.shuffle(transpose_dims);
-                    
-                    Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-                    grad_weights_ += X_transposed.contract(grad_output, product_dims);
-                    
-                    // gradient w.r.t. biases: sum over batch dimension
-                    if (bias_) 
-                    {
-                        Eigen::array<int, 1> batch_dim({0});
-                        grad_biases_ += grad_output.sum(batch_dim);
-                    }
-                }
-                
-            }
-            
-            // compute gradient w.r.t. input: grad_out * W^T
             if (should_parallelize && device_ == "cpu")
             {
-                // manual computation with openmp: grad_input(b,i) = sum_j(grad_output(b,j) * weights_(i,j))
-                #pragma omp parallel for collapse(2)
-                for (int b = 0; b < batch_size; ++b) 
-                {
-                    for (int i = 0; i < input_size; ++i) 
-                    {
-                        float sum = 0.0;
-                        #pragma omp simd reduction(+:sum)
-                        for (int j = 0; j < output_size; ++j) 
-                        {
-                            sum += grad_output(b, j) * weights_(i, j);
-                        }
-                        grad_input(b, i) += sum;
-                    }
-                }
+                Linear::backward_cpu(grad_output, in_cache_, grad_weights_, grad_biases_, grad_input, 
+                    batch_size, output_size, input_size, trainable_, bias_)
             }
             else if (should_parallelize && device_ == "gpu")
             {
-                // use gpu kernel
-                CppNet::Kernels::GPU::matmul_grad_input_gpu(grad_output.data(), weights_.data(), grad_input.data(), batch_size, input_size, output_size);
+                Linear::backward_gpu(grad_output, in_cache_, grad_weights_, grad_biases_, grad_input, 
+                    batch_size, output_size, input_size, trainable_, bias_)
+
             }
             else if (!should_parallelize)
             {
-                Eigen::array<int, 2> transpose_dims({1, 0});
-                Eigen::Tensor<float, 2> weights_transposed = weights_.shuffle(transpose_dims);
-                
-                Eigen::array<Eigen::IndexPair<int>, 1> product_dims = {Eigen::IndexPair<int>(1, 0)};
-                grad_input += grad_output.contract(weights_transposed, product_dims);
+                Linear::backward_eigen(grad_output, in_cache_, grad_weights_, grad_biases_, grad_input, 
+                    batch_size, output_size, input_size, trainable_, bias_)
             }
-            
+                   
             return grad_input;
         }
 
