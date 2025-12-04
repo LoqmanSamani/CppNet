@@ -11,7 +11,7 @@ namespace CppNet
     namespace Losses
     {
         /************************************** CategoricalCrossEntropy Loss Function *************************************/
-        CategoricalCrossEntropy::CategoricalCrossEntropy(const std::string& reduction, bool from_logits, double label_smoothing) 
+        CategoricalCrossEntropy::CategoricalCrossEntropy(const std::string& reduction, bool from_logits, float label_smoothing) 
             : reduction_(reduction), from_logits_(from_logits), label_smoothing_(label_smoothing) {}
 
         // helper method to set number of threads
@@ -23,7 +23,7 @@ namespace CppNet
             }
         }
 
-        double CategoricalCrossEntropy::forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets) 
+        float CategoricalCrossEntropy::forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) 
         {
             // TODO: implement CrossEntropy for class indices: -sum(log(softmax(pred)[target]))
             return 0.0;
@@ -31,7 +31,7 @@ namespace CppNet
 
 
 
-        double CategoricalCrossEntropy::forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets)
+        float CategoricalCrossEntropy::forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
         {
             if (predictions.size() == 0 || targets.size() == 0)
             {
@@ -51,7 +51,7 @@ namespace CppNet
             targets_cache_ = targets;
             if (label_smoothing_ > 0.0)
             {
-                double smoothing_factor = label_smoothing_ / num_classes;
+                float smoothing_factor = label_smoothing_ / num_classes;
                 targets_cache_ = targets * (1.0 - label_smoothing_) + smoothing_factor;
             }
             
@@ -59,13 +59,13 @@ namespace CppNet
             if (from_logits_)
             {
                 // apply softmax and cache the result
-                softmax_cache_ = Eigen::Tensor<double, 2>(batch_size, num_classes);
+                softmax_cache_ = Eigen::Tensor<float, 2>(batch_size, num_classes);
                 
                 #pragma omp parallel for schedule(static)
                 for (int b = 0; b < batch_size; ++b)
                 {
                     // find max for numerical stability
-                    double max_val = predictions(b, 0);
+                    float max_val = predictions(b, 0);
                     for (int j = 1; j < num_classes; ++j)
                     {
                         if (predictions(b, j) > max_val)
@@ -73,10 +73,10 @@ namespace CppNet
                     }
                     
                     // compute exp(x - max) and sum
-                    double sum_exp = 0.0;
+                    float sum_exp = 0.0;
                     for (int j = 0; j < num_classes; ++j)
                     {
-                        double exp_val = std::exp(predictions(b, j) - max_val);
+                        float exp_val = std::exp(predictions(b, j) - max_val);
                         softmax_cache_(b, j) = exp_val;
                         sum_exp += exp_val;
                     }
@@ -95,17 +95,17 @@ namespace CppNet
             }
             
             // compute cross-entropy loss using cached softmax: -sum(target * log(pred))
-            double total_loss = 0.0;
-            const double epsilon = 1e-15; // small value to prevent log(0)
+            float total_loss = 0.0;
+            const float epsilon = 1e-15; // small value to prevent log(0)
             
             #pragma omp parallel for reduction(+:total_loss) schedule(static)
             for (int b = 0; b < batch_size; ++b)
             {
-                double sample_loss = 0.0;
+                float sample_loss = 0.0;
                 for (int j = 0; j < num_classes; ++j)
                 {
                     // clip predictions to prevent log(0)
-                    double clipped_pred = std::max(epsilon, std::min(1.0 - epsilon, softmax_cache_(b, j)));
+                    float clipped_pred = std::max(epsilon, std::min(1.0 - epsilon, softmax_cache_(b, j)));
                     sample_loss -= targets_cache_(b, j) * std::log(clipped_pred);
                 }
                 total_loss += sample_loss;
@@ -130,20 +130,20 @@ namespace CppNet
             }
         }
 
-        double CategoricalCrossEntropy::forward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<int, 2>& targets) 
+        float CategoricalCrossEntropy::forward(const Eigen::Tensor<float, 3>& predictions, const Eigen::Tensor<int, 2>& targets) 
         {
             return 0.0;
         }
 
-        Eigen::Tensor<double, 2> CategoricalCrossEntropy::backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets) 
+        Eigen::Tensor<float, 2> CategoricalCrossEntropy::backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) 
         {
             // TODO: implement CrossEntropy gradient: softmax(pred) - one_hot(target)
-            Eigen::Tensor<double, 2> grad(predictions.dimension(0), predictions.dimension(1));
+            Eigen::Tensor<float, 2> grad(predictions.dimension(0), predictions.dimension(1));
             grad.setZero();
             return grad;
         }
 
-        Eigen::Tensor<double, 2> CategoricalCrossEntropy::backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets)
+        Eigen::Tensor<float, 2> CategoricalCrossEntropy::backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
         {
             // check if forward was called first (caches should be populated)
             if (softmax_cache_.size() == 0 || targets_cache_.size() == 0)
@@ -160,7 +160,7 @@ namespace CppNet
             int batch_size = predictions.dimension(0);
             int num_classes = predictions.dimension(1);
             
-            Eigen::Tensor<double, 2> gradients(batch_size, num_classes);
+            Eigen::Tensor<float, 2> gradients(batch_size, num_classes);
             
             if (from_logits_)
             {
@@ -177,7 +177,7 @@ namespace CppNet
             else
             {
                 // input was probabilities: gradient = -targets / predictions
-                const double epsilon = 1e-15;
+                const float epsilon = 1e-15;
                 
                 #pragma omp parallel for collapse(2) schedule(static)
                 for (int b = 0; b < batch_size; ++b)
@@ -185,7 +185,7 @@ namespace CppNet
                     for (int j = 0; j < num_classes; ++j)
                     {
                         // clip predictions to prevent division by 0
-                        double clipped_pred = std::max(epsilon, std::min(1.0 - epsilon, softmax_cache_(b, j)));
+                        float clipped_pred = std::max(epsilon, std::min(1.0 - epsilon, softmax_cache_(b, j)));
                         gradients(b, j) = -targets_cache_(b, j) / clipped_pred;
                     }
                 }
@@ -206,9 +206,9 @@ namespace CppNet
             
             return gradients;
         }
-        Eigen::Tensor<double, 3> CategoricalCrossEntropy::backward(const Eigen::Tensor<double, 3>& predictions, const Eigen::Tensor<int, 2>& targets) 
+        Eigen::Tensor<float, 3> CategoricalCrossEntropy::backward(const Eigen::Tensor<float, 3>& predictions, const Eigen::Tensor<int, 2>& targets) 
         {
-            Eigen::Tensor<double, 3> grad(predictions.dimension(0), predictions.dimension(1), predictions.dimension(2));
+            Eigen::Tensor<float, 3> grad(predictions.dimension(0), predictions.dimension(1), predictions.dimension(2));
             grad.setZero();
             return grad;
         }

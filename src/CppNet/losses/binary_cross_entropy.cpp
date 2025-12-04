@@ -11,7 +11,7 @@ namespace CppNet
     {
         /******************************BinaryCrossEntropy Loss Function********************************/
 
-        BinaryCrossEntropy::BinaryCrossEntropy(const std::string& reduction, bool from_logits, double pos_weight) 
+        BinaryCrossEntropy::BinaryCrossEntropy(const std::string& reduction, bool from_logits, float pos_weight) 
             : reduction_(reduction), from_logits_(from_logits), pos_weight_(pos_weight) 
         {
             if (reduction_ != "mean" && reduction_ != "sum" && reduction_ != "none")
@@ -20,7 +20,7 @@ namespace CppNet
             }
         }
         
-        void BinaryCrossEntropy::validate_inputs(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets)
+        void BinaryCrossEntropy::validate_inputs(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
         {
             // check if tensors have the same dimensions
             if (predictions.dimension(0) != targets.dimension(0) || predictions.dimension(1) != targets.dimension(1))
@@ -42,7 +42,7 @@ namespace CppNet
             {
                 for (int j = 0; j < cols; ++j)
                 {
-                    double val = targets(i, j);
+                    float val = targets(i, j);
                     if (val != 0.0 && val != 1.0)
                     {
                        valid_labels = false;
@@ -64,7 +64,7 @@ namespace CppNet
             }
         }
 
-        double BinaryCrossEntropy::forward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets)
+        float BinaryCrossEntropy::forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
         {
             validate_inputs(predictions, targets);
             
@@ -73,7 +73,7 @@ namespace CppNet
             const int cols = predictions.dimension(1);
             const int total_size = rows * cols;
 
-            double total_loss = 0.0;
+            float total_loss = 0.0;
             
             #pragma omp parallel for collapse(2) reduction(+:total_loss)
             for (int i = 0; i < rows; ++i)
@@ -81,12 +81,11 @@ namespace CppNet
                 for (int j = 0; j < cols; ++j)
                 {
                     // clip values to [1e-15, 1 - 1e-15] to avoid log(0) and division by 0
-                    double pred_clipped = std::max(1e-15, std::min(predictions(i, j), 1.0 - 1e-15));
-                    double target_val = targets(i, j);
+                    float pred_clipped = std::max(1e-15, std::min(predictions(i, j), 1.0 - 1e-15));
+                    float target_val = targets(i, j);
                     
                     // binary cross-entropy: -[y * log(y_hat) + (1-y) * log(1-y_hat)]
-                    double loss_val = -(target_val * std::log(pred_clipped) + 
-                                       (1.0 - target_val) * std::log(1.0 - pred_clipped));
+                    float loss_val = -(target_val * std::log(pred_clipped) + (1.0 - target_val) * std::log(1.0 - pred_clipped));
                     total_loss += loss_val;
                 }
             }
@@ -101,12 +100,12 @@ namespace CppNet
             }
             else // "none"
             {
-                // For "none", we return the mean as a placeholder since the return type is double
+                // for "none", we return the mean as a placeholder since the return type is double
                 return total_loss / total_size;
             }
         }
 
-        Eigen::Tensor<double, 2> BinaryCrossEntropy::backward(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets)
+        Eigen::Tensor<float, 2> BinaryCrossEntropy::backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
         {
             validate_inputs(predictions, targets);
 
@@ -116,7 +115,7 @@ namespace CppNet
             const int total_size = rows * cols;
             
             // create output gradient tensor
-            Eigen::Tensor<double, 2> grad(rows, cols);
+            Eigen::Tensor<float, 2> grad(rows, cols);
             
             // parallelize gradient computation
             #pragma omp parallel for collapse(2)
@@ -125,11 +124,11 @@ namespace CppNet
                 for (int j = 0; j < cols; ++j)
                 {
                     // clip values to [1e-15, 1 - 1e-15] to avoid log(0) and division by 0
-                    double pred_clipped = std::max(1e-15, std::min(predictions(i, j), 1.0 - 1e-15));
-                    double target_val = targets(i, j);
+                    float pred_clipped = std::max(1e-15, std::min(predictions(i, j), 1.0 - 1e-15));
+                    float target_val = targets(i, j);
                     
                     // gradient: (y_hat - y) / (y_hat * (1 - y_hat))
-                    double grad_val = (pred_clipped - target_val) / (pred_clipped * (1.0 - pred_clipped));
+                    float grad_val = (pred_clipped - target_val) / (pred_clipped * (1.0 - pred_clipped));
                     
                     if (reduction_ == "mean")
                     {
