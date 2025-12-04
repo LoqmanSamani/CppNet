@@ -17,11 +17,11 @@ namespace CppNet
         {
             public:
 
-                virtual Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& pre_actication) = 0;
-                virtual Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_output) = 0;
+                virtual Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& pre_actication) = 0;
+                virtual Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output) = 0;
                 
-                virtual Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& pre_actication) = 0;
-                virtual Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_output) = 0;
+                virtual Eigen::Tensor<float, 4> forward(const Eigen::Tensor<float, 4>& pre_actication) = 0;
+                virtual Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 4>& grad_output) = 0;
 
                 virtual ~Activation() = default;
         };
@@ -32,20 +32,20 @@ namespace CppNet
 
                 Sigmoid();
                 
-                Eigen::Tensor<double, 2> forward(const Eigen::Tensor<double, 2>& pre_activation);
-                Eigen::Tensor<double, 2> backward(const Eigen::Tensor<double, 2>& grad_output);
+                Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& pre_activation);
+                Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
                 
-                Eigen::Tensor<double, 4> forward(const Eigen::Tensor<double, 4>& pre_activation);
-                Eigen::Tensor<double, 4> backward(const Eigen::Tensor<double, 4>& grad_output);
+                Eigen::Tensor<float, 4> forward(const Eigen::Tensor<float, 4>& pre_activation);
+                Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 4>& grad_output);
 
                 static void set_num_threads(int num_threads);
 
             private:
 
-                Eigen::Tensor<double, 2> input_cache_2d_; 
-                Eigen::Tensor<double, 2> output_cache_2d_;
-                Eigen::Tensor<double, 4> input_cache_4d_;
-                Eigen::Tensor<double, 4> output_cache_4d_;
+                Eigen::Tensor<float, 2> input_cache_2d_; 
+                Eigen::Tensor<float, 2> output_cache_2d_;
+                Eigen::Tensor<float, 4> input_cache_4d_;
+                Eigen::Tensor<float, 4> output_cache_4d_;
         };   
     }
 }
