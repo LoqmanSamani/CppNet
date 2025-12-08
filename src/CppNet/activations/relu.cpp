@@ -20,7 +20,7 @@ namespace CppNet
             }
         }
 
-        Eigen::Tensor<double, 2> ReLU::forward(const Eigen::Tensor<double, 2>& pre_activation) 
+        Eigen::Tensor<float, 2> ReLU::forward(const Eigen::Tensor<float, 2>& pre_activation) 
         {
             if (pre_activation.size() == 0)
             {
@@ -28,7 +28,7 @@ namespace CppNet
             }
             int rows = pre_activation.dimension(0);
             int cols = pre_activation.dimension(1);
-            output_cache_2d_ = Eigen::Tensor<double, 2>(rows, cols);
+            output_cache_2d_ = Eigen::Tensor<float, 2>(rows, cols);
             output_cache_2d_.setZero(); 
 
             #pragma omp parallel for collapse(2) schedule(static)
@@ -36,14 +36,14 @@ namespace CppNet
             {
                 for (int j = 0; j < cols; ++j) 
                 {
-                    output_cache_2d_(i, j) = std::max(0.0, pre_activation(i, j));
+                    output_cache_2d_(i, j) = std::max(0.0f, pre_activation(i, j));
                 }
             }
             return output_cache_2d_;
 
         }
 
-        Eigen::Tensor<double, 4> ReLU::forward(const Eigen::Tensor<double, 4>& pre_activation)
+        Eigen::Tensor<float, 4> ReLU::forward(const Eigen::Tensor<float, 4>& pre_activation)
         {
             if (pre_activation.size() == 0)
             {
@@ -55,7 +55,7 @@ namespace CppNet
             int height = pre_activation.dimension(2);
             int width = pre_activation.dimension(3);
             
-            output_cache_4d_ = Eigen::Tensor<double, 4>(batch, channels, height, width);
+            output_cache_4d_ = Eigen::Tensor<float, 4>(batch, channels, height, width);
             output_cache_4d_.setZero();
             
             // Compute ReLU using element-wise operations and parallelization
@@ -69,7 +69,7 @@ namespace CppNet
                     {
                         for (int w = 0; w < width; ++w)
                         {
-                            output_cache_4d_(b, c, h, w) = std::max(0.0, pre_activation(b, c, h, w));
+                            output_cache_4d_(b, c, h, w) = std::max(0.0f, pre_activation(b, c, h, w));
                         }
                     }
                 }
@@ -78,7 +78,7 @@ namespace CppNet
             return output_cache_4d_;
         }
 
-        Eigen::Tensor<double, 2> ReLU::backward(const Eigen::Tensor<double, 2>& grad_output) 
+        Eigen::Tensor<float, 2> ReLU::backward(const Eigen::Tensor<float, 2>& grad_output) 
         {
             if (grad_output.dimension(0) != output_cache_2d_.dimension(0) ||
                 grad_output.dimension(1) != output_cache_2d_.dimension(1) ||
@@ -89,7 +89,7 @@ namespace CppNet
 
             int rows = grad_output.dimension(0);
             int cols = grad_output.dimension(1);
-            Eigen::Tensor<double, 2> grad_input(rows, cols);
+            Eigen::Tensor<float, 2> grad_input(rows, cols);
             grad_input.setZero();
 
             #pragma omp parallel for collapse(2) schedule(static)
@@ -103,7 +103,7 @@ namespace CppNet
             return grad_input;
         }
 
-        Eigen::Tensor<double, 4> ReLU::backward(const Eigen::Tensor<double, 4>& grad_output)
+        Eigen::Tensor<float, 4> ReLU::backward(const Eigen::Tensor<float, 4>& grad_output)
         {
             if (grad_output.dimension(0) != output_cache_4d_.dimension(0) ||
                 grad_output.dimension(1) != output_cache_4d_.dimension(1) ||
@@ -119,7 +119,7 @@ namespace CppNet
             int height = grad_output.dimension(2);
             int width = grad_output.dimension(3);
             
-            Eigen::Tensor<double, 4> grad_input(batch, channels, height, width);
+            Eigen::Tensor<float, 4> grad_input(batch, channels, height, width);
             grad_input.setZero();
             
             #pragma omp parallel for collapse(4) schedule(static)
