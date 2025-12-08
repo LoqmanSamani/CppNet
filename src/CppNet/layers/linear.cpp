@@ -5,7 +5,7 @@
 #include "CppNet/optimizers/sgd.hpp"  
 #include "CppNet/activations/relu.hpp"
 #include "CppNet/activations/sigmoid.hpp" 
-#include "CppNet/kernels/gpu.hpp"
+#include "CppNet/kernels/gpu/gpu.hpp"
 #include "CppNet/layers/linear.hpp"
 
 
@@ -350,15 +350,15 @@ namespace CppNet
 
             if (should_parallelize && device_ == "cpu")
             {
-                Linear::forward_cpu(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
+                forward_cpu(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
             }
             else if (should_parallelize && device_ == "gpu")
             {
-                Linear::forward_gpu(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
+                forward_gpu(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
             }
             else if (!should_parallelize)
             {
-                Linear::forward_eigen(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
+                forward_eigen(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
             }
             
             return output;
@@ -498,19 +498,19 @@ namespace CppNet
             
             if (should_parallelize && device_ == "cpu")
             {
-                Linear::backward_cpu(grad_output, in_cache_, grad_weights_, grad_biases_, grad_input, 
-                    batch_size, output_size, input_size, trainable_, bias_)
+                backward_cpu(grad_output, in_cache_, weights_, grad_weights_, grad_biases_, grad_input,
+                     batch_size, output_size, input_size, trainable_, bias_);
             }
             else if (should_parallelize && device_ == "gpu")
             {
-                Linear::backward_gpu(grad_output, in_cache_, grad_weights_, grad_biases_, grad_input, 
-                    batch_size, output_size, input_size, trainable_, bias_)
+                backward_gpu(grad_output, in_cache_, weights_, grad_weights_, grad_biases_, grad_input,
+                     batch_size, output_size, input_size, trainable_, bias_);
 
             }
             else if (!should_parallelize)
             {
-                Linear::backward_eigen(grad_output, in_cache_, grad_weights_, grad_biases_, grad_input, 
-                    batch_size, output_size, input_size, trainable_, bias_)
+                backward_eigen(grad_output, in_cache_, weights_, grad_weights_, grad_biases_, grad_input,
+                     batch_size, output_size, input_size, trainable_, bias_);
             }
                    
             return grad_input;

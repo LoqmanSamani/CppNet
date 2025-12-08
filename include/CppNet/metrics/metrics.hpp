@@ -18,14 +18,14 @@ namespace CppNet
             virtual ~Metric() = default;
 
             // Compute metric on batch
-            virtual double compute(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) { return 0.0; }
-            virtual double compute(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets) { return 0.0; }
-            virtual double compute(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets) { return 0.0; }
+            virtual float compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets) { return 0.0f; }
+            virtual float compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) { return 0.0f; }
+            virtual float compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets) { return 0.0f; }
 
             // For streaming metrics (accumulate across batches)
             virtual void reset() {}
-            virtual void accumulate(double value, int n = 1) {}
-            virtual double result() const { return 0.0; }
+            virtual void accumulate(float value, int n = 1) {}
+            virtual float result() const { return 0.0f; }
         };
 
         /************************************** Accuracy *************************************/
@@ -37,11 +37,11 @@ namespace CppNet
 
         public:
             Accuracy();
-            double compute(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets) override;
+            float compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) override;
 
             void reset() override;
-            void accumulate(double value, int n = 1) override;
-            double result() const override;
+            void accumulate(float value, int n = 1) override;
+            float result() const override;
         };
 
         /************************************** Top-K Accuracy *************************************/
@@ -54,11 +54,11 @@ namespace CppNet
 
         public:
             TopKAccuracy(int k = 5);
-            double compute(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<int, 1>& targets) override;
+            float compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) override;
 
             void reset() override;
-            void accumulate(double value, int n = 1) override;
-            double result() const override;
+            void accumulate(float value, int n = 1) override;
+            float result() const override;
         };
 
         /************************************** Precision *************************************/
@@ -70,11 +70,11 @@ namespace CppNet
 
         public:
             Precision();
-            double compute(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) override;
+            float compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets) override;
 
             void reset() override;
-            void accumulate(double value, int n = 1) override;
-            double result() const override;
+            void accumulate(float value, int n = 1) override;
+            float result() const override;
         };
 
         /************************************** Recall *************************************/
@@ -86,11 +86,11 @@ namespace CppNet
 
         public:
             Recall();
-            double compute(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) override;
+            float compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets) override;
 
             void reset() override;
-            void accumulate(double value, int n = 1) override;
-            double result() const override;
+            void accumulate(float value, int n = 1) override;
+            float result() const override;
         };
 
         /************************************** F1 Score *************************************/
@@ -102,7 +102,7 @@ namespace CppNet
 
         public:
             F1Score();
-            double compute(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) override;
+            float compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets) override;
         };
 
         /************************************** Mean Absolute Error (MAE) *************************************/
@@ -110,8 +110,8 @@ namespace CppNet
         {
         public:
             MAE();
-            double compute(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) override;
-            double compute(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets) override;
+            float compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets) override;
+            float compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets) override;
         };
 
         /************************************** Mean Squared Error (MSE) *************************************/
@@ -119,8 +119,8 @@ namespace CppNet
         {
         public:
             MSE();
-            double compute(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) override;
-            double compute(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets) override;
+            float compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets) override;
+            float compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets) override;
         };
 
         /************************************** R² Score *************************************/
@@ -128,8 +128,8 @@ namespace CppNet
         {
         public:
             R2Score();
-            double compute(const Eigen::Tensor<double, 1>& predictions, const Eigen::Tensor<double, 1>& targets) override;
-            double compute(const Eigen::Tensor<double, 2>& predictions, const Eigen::Tensor<double, 2>& targets) override;
+            float compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets) override;
+            float compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets) override;
         };
     }
 }
