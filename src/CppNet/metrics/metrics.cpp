@@ -1,6 +1,6 @@
 #include <cmath>
 #include <algorithm>
-#include "metrics.hpp"
+#include "metrics/metrics.hpp"
 
 namespace CppNet
 {

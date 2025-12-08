@@ -7,7 +7,10 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include "layers.hpp"
+#include "layers/linear.hpp"
+
+
+
 
 namespace CppNet
 {

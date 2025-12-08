@@ -1,6 +1,9 @@
 #include <cmath>
 #include <Eigen/Dense>
-#include "CppNet/activations/sigmoid.hpp"
+#include "activations/sigmoid.hpp"
+
+
+
 
 namespace CppNet
 {

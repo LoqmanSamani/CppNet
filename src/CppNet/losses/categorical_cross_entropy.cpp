@@ -1,6 +1,6 @@
 #include <cmath>
 #include <Eigen/Dense>
-#include "CppNet/losses/categorical_cross_entropy.hpp"
+#include "losses/categorical_cross_entropy.hpp"
 
 
 

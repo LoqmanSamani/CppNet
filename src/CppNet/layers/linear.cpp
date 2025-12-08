@@ -2,10 +2,11 @@
 #include <omp.h>
 #include <chrono> 
 #include <Eigen/Dense>
-#include "optimizers.hpp"  
-#include "activations.hpp" 
-#include "CppNet/kernels/gpu.hpp"
-#include "CppNet/layers/linear.hpp"
+#include "optimizers/sgd.hpp"  
+#include "activations/relu.hpp"
+#include "activations/sigmoid.hpp" 
+#include "kernels/gpu.hpp"
+#include "layers/linear.hpp"
 
 
 

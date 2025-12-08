@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+
+
 namespace CppNet
 {
     namespace Activations

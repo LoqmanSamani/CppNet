@@ -1,6 +1,6 @@
 #include <cmath>
 #include <Eigen/Dense>
-#include "CppNet/losses/binary_cross_entropy.hpp"
+#include "losses/binary_cross_entropy.hpp"
 
 
 

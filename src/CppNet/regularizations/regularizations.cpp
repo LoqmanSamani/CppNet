@@ -1,4 +1,7 @@
-#include "regularization.hpp"
+#include "regularizations/regularizations.hpp"
+
+
+
 
 namespace CppNet
 {
