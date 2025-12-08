@@ -1,6 +1,6 @@
 #include <cmath>
 #include <Eigen/Dense>
-#include "losses/categorical_cross_entropy.hpp"
+#include "CppNet/losses/categorical_cross_entropy.hpp"
 
 
 
@@ -105,7 +105,7 @@ namespace CppNet
                 for (int j = 0; j < num_classes; ++j)
                 {
                     // clip predictions to prevent log(0)
-                    float clipped_pred = std::max(epsilon, std::min(1.0 - epsilon, softmax_cache_(b, j)));
+                    float clipped_pred = std::max(epsilon, std::min(1.0f - epsilon, softmax_cache_(b, j)));
                     sample_loss -= targets_cache_(b, j) * std::log(clipped_pred);
                 }
                 total_loss += sample_loss;
@@ -185,7 +185,7 @@ namespace CppNet
                     for (int j = 0; j < num_classes; ++j)
                     {
                         // clip predictions to prevent division by 0
-                        float clipped_pred = std::max(epsilon, std::min(1.0 - epsilon, softmax_cache_(b, j)));
+                        float clipped_pred = std::max(epsilon, std::min(1.0f - epsilon, softmax_cache_(b, j)));
                         gradients(b, j) = -targets_cache_(b, j) / clipped_pred;
                     }
                 }

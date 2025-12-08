@@ -1,4 +1,4 @@
-#include "regularizations/regularizations.hpp"
+#include "CppNet/regularizations/regularizations.hpp"
 
 
 
@@ -8,59 +8,59 @@ namespace CppNet
     namespace Regularizations
     {
         /************************************** L1 *************************************/
-        L1::L1(double lambda) : lambda(lambda) {}
+        L1::L1(float lambda) : lambda(lambda) {}
 
-        void L1::apply(Eigen::Tensor<double, 2>& params)
+        void L1::apply(Eigen::Tensor<float, 2>& params)
         {
             // TODO: Implement L1 shrinkage
         }
 
-        double L1::penalty(const Eigen::Tensor<double, 2>& params)
+        float L1::penalty(const Eigen::Tensor<float, 2>& params)
         {
             // TODO: Implement sum(|params|) * lambda
-            return 0.0;
+            return 0.0f;
         }
 
         /************************************** L2 *************************************/
-        L2::L2(double lambda) : lambda(lambda) {}
+        L2::L2(float lambda) : lambda(lambda) {}
 
-        void L2::apply(Eigen::Tensor<double, 2>& params)
+        void L2::apply(Eigen::Tensor<float, 2>& params)
         {
             // TODO: Implement L2 weight decay
         }
 
-        double L2::penalty(const Eigen::Tensor<double, 2>& params)
+        float L2::penalty(const Eigen::Tensor<float, 2>& params)
         {
             // TODO: Implement sum(params²) * lambda
-            return 0.0;
+            return 0.0f;
         }
 
         /************************************** ElasticNet *************************************/
-        ElasticNet::ElasticNet(double l1, double l2) : l1(l1), l2(l2) {}
+        ElasticNet::ElasticNet(float l1, float l2) : l1(l1), l2(l2) {}
 
-        void ElasticNet::apply(Eigen::Tensor<double, 2>& params)
+        void ElasticNet::apply(Eigen::Tensor<float, 2>& params)
         {
             // TODO: Implement ElasticNet update
         }
 
-        double ElasticNet::penalty(const Eigen::Tensor<double, 2>& params)
+        float ElasticNet::penalty(const Eigen::Tensor<float, 2>& params)
         {
             // TODO: Implement l1*|params| + l2*params²
-            return 0.0;
+            return 0.0f;
         }
 
         /************************************** Dropout *************************************/
-        Dropout::Dropout(double rate) : rate(rate) {}
+        Dropout::Dropout(float rate) : rate(rate) {}
 
-        void Dropout::apply(Eigen::Tensor<double, 2>& params)
+        void Dropout::apply(Eigen::Tensor<float, 2>& params)
         {
             // TODO: Implement dropout mask application
         }
 
-        double Dropout::penalty(const Eigen::Tensor<double, 2>& params)
+        float Dropout::penalty(const Eigen::Tensor<float, 2>& params)
         {
             // Dropout usually doesn’t add explicit loss penalty
-            return 0.0;
+            return 0.0f;
         }
     }
 }

@@ -1,4 +1,9 @@
 #pragma once
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+
+
 
 namespace CppNet 
 {
@@ -22,3 +27,5 @@ namespace CppNet
         }
     }
 }
+
+#endif // USE_CUDA

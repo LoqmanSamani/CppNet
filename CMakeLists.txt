@@ -56,8 +56,8 @@ endif()
 # Create library
 add_library(CppNet STATIC ${CPP_NET_SOURCES})
 target_include_directories(CppNet PUBLIC
-    ${PROJECT_SOURCE_DIR}/include/CppNet
-    ${PROJECT_SOURCE_DIR}/src/CppNet
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
 )
 target_link_libraries(CppNet PUBLIC Eigen3::Eigen)
 

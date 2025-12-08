@@ -1,6 +1,6 @@
 #include <cmath>
 #include <Eigen/Dense>
-#include "activations/relu.hpp"
+#include "CppNet/activations/relu.hpp"
 
 
 

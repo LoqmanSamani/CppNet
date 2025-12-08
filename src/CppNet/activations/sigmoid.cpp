@@ -1,6 +1,6 @@
 #include <cmath>
 #include <Eigen/Dense>
-#include "activations/sigmoid.hpp"
+#include "CppNet/activations/sigmoid.hpp"
 
 
 

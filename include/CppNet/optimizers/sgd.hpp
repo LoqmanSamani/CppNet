@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include "layers/linear.hpp"
+#include "CppNet/layers/linear.hpp"
 
 
 
@@ -20,8 +20,8 @@ namespace CppNet
         {
         public:
             virtual void step(CppNet::Layers::Linear& layer, double learning_rate) = 0;
-            virtual void step(CppNet::Layers::Conv2d& layer, double learning_rate) = 0;
-            virtual void step(CppNet::Layers::MultiHeadAttention& layer, double learning_rate) = 0;
+            //virtual void step(CppNet::Layers::Conv2d& layer, double learning_rate) = 0;
+            //virtual void step(CppNet::Layers::MultiHeadAttention& layer, double learning_rate) = 0;
             virtual ~Optimizer() = default;
         };
         
@@ -31,8 +31,8 @@ namespace CppNet
         public:
             SGD() = default; // explicit default constructor
             void step(CppNet::Layers::Linear& layer, double learning_rate) override;
-            void step(CppNet::Layers::Conv2d& layer, double learning_rate) override;
-            void step(CppNet::Layers::MultiHeadAttention& layer, double learning_rate) override;
+            //void step(CppNet::Layers::Conv2d& layer, double learning_rate) override;
+            //void step(CppNet::Layers::MultiHeadAttention& layer, double learning_rate) override;
         };
     }
 }

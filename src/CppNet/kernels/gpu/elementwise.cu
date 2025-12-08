@@ -1,5 +1,5 @@
 #include <cuda_runtime.h>
-#include "kernels/gpu.hpp" 
+#include "CppNet/kernels/gpu.hpp" 
 
 
 namespace CppNet

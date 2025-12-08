@@ -1,6 +1,6 @@
 #include <cmath>
 #include <Eigen/Dense>
-#include "losses/binary_cross_entropy.hpp"
+#include "CppNet/losses/binary_cross_entropy.hpp"
 
 
 
@@ -73,7 +73,7 @@ namespace CppNet
             const int cols = predictions.dimension(1);
             const int total_size = rows * cols;
 
-            float total_loss = 0.0;
+            float total_loss = 0.0f;
             
             #pragma omp parallel for collapse(2) reduction(+:total_loss)
             for (int i = 0; i < rows; ++i)
@@ -81,11 +81,11 @@ namespace CppNet
                 for (int j = 0; j < cols; ++j)
                 {
                     // clip values to [1e-15, 1 - 1e-15] to avoid log(0) and division by 0
-                    float pred_clipped = std::max(1e-15, std::min(predictions(i, j), 1.0 - 1e-15));
+                    float pred_clipped = std::max(1e-15f, std::min(predictions(i, j), 1.0f - 1e-15f));
                     float target_val = targets(i, j);
                     
                     // binary cross-entropy: -[y * log(y_hat) + (1-y) * log(1-y_hat)]
-                    float loss_val = -(target_val * std::log(pred_clipped) + (1.0 - target_val) * std::log(1.0 - pred_clipped));
+                    float loss_val = -(target_val * std::log(pred_clipped) + (1.0f - target_val) * std::log(1.0f - pred_clipped));
                     total_loss += loss_val;
                 }
             }
@@ -124,7 +124,7 @@ namespace CppNet
                 for (int j = 0; j < cols; ++j)
                 {
                     // clip values to [1e-15, 1 - 1e-15] to avoid log(0) and division by 0
-                    float pred_clipped = std::max(1e-15, std::min(predictions(i, j), 1.0 - 1e-15));
+                    float pred_clipped = std::max(1e-15f, std::min(predictions(i, j), 1.0f - 1e-15f));
                     float target_val = targets(i, j);
                     
                     // gradient: (y_hat - y) / (y_hat * (1 - y_hat))
