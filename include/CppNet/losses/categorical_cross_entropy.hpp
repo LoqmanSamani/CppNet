@@ -29,7 +29,7 @@ namespace CppNet
             
             public:
 
-                CategoricalCrossEntropy(const std::string& reduction = "mean", bool from_logits = true, float label_smoothing = 0.0);
+                CategoricalCrossEntropy(const std::string& reduction = "mean", bool from_logits = true, float label_smoothing = 0.0f);
                 
                 // for classification: predictions are class probabilities/logits, targets are class indices or one-hot
                 float forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets); // class indices

@@ -26,7 +26,7 @@ namespace CppNet
         float CategoricalCrossEntropy::forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) 
         {
             // TODO: implement CrossEntropy for class indices: -sum(log(softmax(pred)[target]))
-            return 0.0;
+            return 0.0f;
         }
 
 
@@ -52,7 +52,7 @@ namespace CppNet
             if (label_smoothing_ > 0.0)
             {
                 float smoothing_factor = label_smoothing_ / num_classes;
-                targets_cache_ = targets * (1.0 - label_smoothing_) + smoothing_factor;
+                targets_cache_ = targets * (1.0f - label_smoothing_) + smoothing_factor;
             }
             
             // handle predictions based on from_logits flag
@@ -73,7 +73,7 @@ namespace CppNet
                     }
                     
                     // compute exp(x - max) and sum
-                    float sum_exp = 0.0;
+                    float sum_exp = 0.0f;
                     for (int j = 0; j < num_classes; ++j)
                     {
                         float exp_val = std::exp(predictions(b, j) - max_val);
@@ -95,13 +95,13 @@ namespace CppNet
             }
             
             // compute cross-entropy loss using cached softmax: -sum(target * log(pred))
-            float total_loss = 0.0;
-            const float epsilon = 1e-15; // small value to prevent log(0)
+            float total_loss = 0.0f;
+            const float epsilon = 1e-15f; // small value to prevent log(0)
             
             #pragma omp parallel for reduction(+:total_loss) schedule(static)
             for (int b = 0; b < batch_size; ++b)
             {
-                float sample_loss = 0.0;
+                float sample_loss = 0.0f;
                 for (int j = 0; j < num_classes; ++j)
                 {
                     // clip predictions to prevent log(0)
@@ -132,7 +132,7 @@ namespace CppNet
 
         float CategoricalCrossEntropy::forward(const Eigen::Tensor<float, 3>& predictions, const Eigen::Tensor<int, 2>& targets) 
         {
-            return 0.0;
+            return 0.0f;
         }
 
         Eigen::Tensor<float, 2> CategoricalCrossEntropy::backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) 
@@ -177,7 +177,7 @@ namespace CppNet
             else
             {
                 // input was probabilities: gradient = -targets / predictions
-                const float epsilon = 1e-15;
+                const float epsilon = 1e-15f;
                 
                 #pragma omp parallel for collapse(2) schedule(static)
                 for (int b = 0; b < batch_size; ++b)
