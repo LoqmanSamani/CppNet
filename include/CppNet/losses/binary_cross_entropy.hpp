@@ -27,7 +27,7 @@ namespace CppNet
         {
             public:
 
-                BinaryCrossEntropy(const std::string& reduction = "mean", bool from_logits = false, float pos_weight = 1.0);
+                BinaryCrossEntropy(const std::string& reduction = "mean", bool from_logits = false, float pos_weight = 1.0f);
 
                 float forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets);
                 Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets);

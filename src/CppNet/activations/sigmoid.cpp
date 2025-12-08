@@ -21,7 +21,7 @@ namespace CppNet
             }
         }
         
-        Eigen::Tensor<double, 2> Sigmoid::forward(const Eigen::Tensor<double, 2>& pre_activation) 
+        Eigen::Tensor<float, 2> Sigmoid::forward(const Eigen::Tensor<float, 2>& pre_activation) 
         {
             if (pre_activation.size() == 0)
             {
@@ -31,7 +31,7 @@ namespace CppNet
             input_cache_2d_ = pre_activation; // cache input for backward pass
             int rows = pre_activation.dimension(0);
             int cols = pre_activation.dimension(1);
-            output_cache_2d_ = Eigen::Tensor<double, 2>(rows, cols);
+            output_cache_2d_ = Eigen::Tensor<float, 2>(rows, cols);
             output_cache_2d_.setZero();
 
             // compute sigmoid using element-wise operations and parallelization
@@ -41,15 +41,15 @@ namespace CppNet
                 for (int j = 0; j < cols; ++j) 
                 {
                     // clamp input to prevent overflow/underflow
-                    double clamped_input = std::max(-500.0, std::min(500.0, pre_activation(i, j)));
-                    output_cache_2d_(i, j) = 1.0 / (1.0 + std::exp(-clamped_input));
+                    float clamped_input = std::max(-500.0f, std::min(500.0f, pre_activation(i, j)));
+                    output_cache_2d_(i, j) = 1.0f / (1.0f + std::exp(-clamped_input));
                 }
             }
             
             return output_cache_2d_;
         }
 
-        Eigen::Tensor<double, 4> Sigmoid::forward(const Eigen::Tensor<double, 4>& pre_activation)
+        Eigen::Tensor<float, 4> Sigmoid::forward(const Eigen::Tensor<float, 4>& pre_activation)
         {
             if (pre_activation.size() == 0)
             {
@@ -63,7 +63,7 @@ namespace CppNet
             int height = pre_activation.dimension(2);
             int width = pre_activation.dimension(3);
             
-            output_cache_4d_ = Eigen::Tensor<double, 4>(batch, channels, height, width);
+            output_cache_4d_ = Eigen::Tensor<float, 4>(batch, channels, height, width);
             output_cache_4d_.setZero();
             
             // compute sigmoid using element-wise operations and parallelization
@@ -78,8 +78,8 @@ namespace CppNet
                         for (int w = 0; w < width; ++w)
                         {
                             // clamp input to prevent overflow/underflow
-                            double clamped_input = std::max(-500.0, std::min(500.0, pre_activation(b, c, h, w)));
-                            output_cache_4d_(b, c, h, w) = 1.0 / (1.0 + std::exp(-clamped_input));
+                            float clamped_input = std::max(-500.0f, std::min(500.0f, pre_activation(b, c, h, w)));
+                            output_cache_4d_(b, c, h, w) = 1.0f / (1.0f + std::exp(-clamped_input));
                         }
                     }
                 }
@@ -88,7 +88,7 @@ namespace CppNet
             return output_cache_4d_;
         }
 
-        Eigen::Tensor<double, 2> Sigmoid::backward(const Eigen::Tensor<double, 2>& grad_output)
+        Eigen::Tensor<float, 2> Sigmoid::backward(const Eigen::Tensor<float, 2>& grad_output)
         {  
             if (grad_output.dimension(0) != input_cache_2d_.dimension(0) ||
                 grad_output.dimension(1) != input_cache_2d_.dimension(1) ||
@@ -99,7 +99,7 @@ namespace CppNet
 
             int rows = grad_output.dimension(0);
             int cols = grad_output.dimension(1);
-            Eigen::Tensor<double, 2> grad_input(rows, cols);
+            Eigen::Tensor<float, 2> grad_input(rows, cols);
             grad_input.setZero();  
 
             // compute gradient using element-wise operations and parallelization
@@ -108,15 +108,15 @@ namespace CppNet
                 {
                     for (int j = 0; j < cols; ++j) 
                     {
-                        double sigmoid_val = output_cache_2d_(i, j);
-                        grad_input(i, j) = grad_output(i, j) * sigmoid_val * (1.0 - sigmoid_val);
+                        float sigmoid_val = output_cache_2d_(i, j);
+                        grad_input(i, j) = grad_output(i, j) * sigmoid_val * (1.0f - sigmoid_val);
                     }
                 }
 
             return grad_input;
         }
 
-        Eigen::Tensor<double, 4> Sigmoid::backward(const Eigen::Tensor<double, 4>& grad_output)
+        Eigen::Tensor<float, 4> Sigmoid::backward(const Eigen::Tensor<float, 4>& grad_output)
         {
             if (grad_output.dimension(0) != input_cache_4d_.dimension(0) ||
                 grad_output.dimension(1) != input_cache_4d_.dimension(1) ||
@@ -132,7 +132,7 @@ namespace CppNet
             int height = grad_output.dimension(2);
             int width = grad_output.dimension(3);
             
-            Eigen::Tensor<double, 4> grad_input(batch, channels, height, width);
+            Eigen::Tensor<float, 4> grad_input(batch, channels, height, width);
             grad_input.setZero();
             
             // compute gradient using element-wise operations and parallelization
@@ -146,8 +146,8 @@ namespace CppNet
                     {
                         for (int w = 0; w < width; ++w)
                         {
-                            double sigmoid_val = output_cache_4d_(b, c, h, w);
-                            grad_input(b, c, h, w) = grad_output(b, c, h, w) * sigmoid_val * (1.0 - sigmoid_val);
+                            float sigmoid_val = output_cache_4d_(b, c, h, w);
+                            grad_input(b, c, h, w) = grad_output(b, c, h, w) * sigmoid_val * (1.0f - sigmoid_val);
                         }
                     }
                 }
