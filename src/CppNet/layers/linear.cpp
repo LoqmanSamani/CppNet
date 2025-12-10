@@ -2,7 +2,8 @@
 #include <omp.h>
 #include <chrono> 
 #include <Eigen/Dense>
-#include "CppNet/optimizers/sgd.hpp"  
+#include "CppNet/optimizers/sgd.hpp"
+#include "CppNet/activations/activation.hpp" 
 #include "CppNet/activations/relu.hpp"
 #include "CppNet/activations/sigmoid.hpp" 
 #include "CppNet/kernels/gpu/gpu.hpp"
@@ -261,13 +262,14 @@ namespace CppNet
             const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
             int batch_size, int input_size, int output_size, bool bias_)
         {
+            #ifdef USE_CUDA
+                CppNet::Kernels::GPU::matmul_gpu(input.data(), weights_.data(), output.data(), batch_size, output_size, input_size);
             
-            CppNet::Kernels::GPU::matmul_gpu(input.data(), weights_.data(), output.data(), batch_size, output_size, input_size);
-        
-            if (bias_)
-            {
-                CppNet::Kernels::GPU::add_bias_gpu(output.data(), biases_.data(), batch_size, output_size);
-            }
+                if (bias_)
+                {
+                    CppNet::Kernels::GPU::add_bias_gpu(output.data(), biases_.data(), batch_size, output_size);
+                }
+            #endif
         }
 
         void Linear::forward_cpu(
@@ -370,14 +372,18 @@ namespace CppNet
             Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
             int batch_size, int output_size, int input_size, bool trainable_, bool bias_)
         {
-            if (trainable_)
-            {
-                CppNet::Kernels::GPU::matmul_grad_weights_gpu(in_cache_.data(), grad_output.data(), grad_weights_.data(), batch_size, input_size, output_size);
-                if (bias_)
+            #ifdef USE_CUDA
+
+                if (trainable_)
                 {
-                    CppNet::Kernels::GPU::bias_grad_gpu(grad_output.data(), grad_biases_.data(), batch_size, output_size);
+                    CppNet::Kernels::GPU::matmul_grad_weights_gpu(in_cache_.data(), grad_output.data(), grad_weights_.data(), batch_size, input_size, output_size);
+                    if (bias_)
+                    {
+                        CppNet::Kernels::GPU::bias_grad_gpu(grad_output.data(), grad_biases_.data(), batch_size, output_size);
+                    }
                 }
-            }
+                
+            #endif
 
             // use gpu kernel
             CppNet::Kernels::GPU::matmul_grad_input_gpu(grad_output.data(), weights_.data(), grad_input.data(), batch_size, input_size, output_size);

@@ -1,5 +1,5 @@
-#ifndef OPTIMIZERS_HPP
-#define OPTIMIZERS_HPP
+#ifndef SGD_HPP
+#define SGD_HPP
 
 #include <iostream>
 #include <Eigen/Dense>
@@ -37,4 +37,4 @@ namespace CppNet
     }
 }
 
-#endif // OPTIMIZERS_HPP
+#endif // SGD_HPP

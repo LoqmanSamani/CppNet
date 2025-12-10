@@ -1,5 +1,5 @@
-#ifndef LOSSES_HPP
-#define LOSSES_HPP
+#ifndef BINARY_CROSS_ENTROPY_HPP
+#define BINARY_CROSS_ENTROPY_HPP
 
 #include <iostream>
 #include <Eigen/Dense>
@@ -44,4 +44,4 @@ namespace CppNet
     }
 }
 
-#endif
+#endif // BINARY_CROSS_ENTROPY_HPP

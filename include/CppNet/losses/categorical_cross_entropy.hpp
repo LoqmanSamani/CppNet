@@ -1,5 +1,5 @@
-#ifndef LOSSES_HPP
-#define LOSSES_HPP
+#ifndef CATEGORICAL_CROSS_ENTROPY_HPP
+#define CATEGORICAL_CROSS_ENTROPY_HPP
 
 #include <iostream>
 #include <Eigen/Dense>
@@ -53,5 +53,5 @@ namespace CppNet
     }
 }
 
-#endif
+#endif // CATEGORICAL_CROSS_ENTROPY_HPP
 
