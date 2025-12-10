@@ -9,7 +9,7 @@ namespace CppNet
     {
         namespace GPU
         {
-            __global__void add_bias_kernel(float* output, const float* bias, int M, int N)
+            __global__ void add_bias_kernel(float* output, const float* bias, int M, int N)
             {
                 int row = blockIdx.y * blockDim.y + threadIdx.y;
                 int col = blockIdx.x * blockDim.x + threadIdx.x;

@@ -9,7 +9,7 @@ namespace CppNet
     {
         namespace GPU 
         {
-            __global__void matmul_kernel(const float* A, const float* B, float* C, int M, int N, int K)
+            __global__ void matmul_kernel(const float* A, const float* B, float* C, int M, int N, int K)
             {
                 // threadIdx: thread index inside a block
                 // blockIdx: block index inside the grid

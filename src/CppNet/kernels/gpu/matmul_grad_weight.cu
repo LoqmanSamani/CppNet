@@ -9,7 +9,7 @@ namespace CppNet
     {
         namespace GPU 
         {
-            __global__void grad_weights_kernel(const float* X, const float* dY, float* dW, int batch, int in_size, int out_size)
+            __global__ void grad_weights_kernel(const float* X, const float* dY, float* dW, int batch, int in_size, int out_size)
             {
                 int i = blockIdx.y * blockDim.y + threadIdx.y;  // in_size
                 int j = blockIdx.x * blockDim.x + threadIdx.x;  // out_size

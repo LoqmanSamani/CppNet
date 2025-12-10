@@ -350,6 +350,12 @@ namespace CppNet
             const int total_elements = batch_size * output_size;
             const bool should_parallelize = (total_elements > parallel_threshold_);
 
+            //std::cout << "###################################################" << std::endl;
+            //std::cout << "Layer name: " << layer_name_ << std::endl;
+            //std::cout << "Total elements: " << total_elements << std::endl;
+            //std::cout << "Should Parralelize: " << should_parallelize << std::endl;
+            //std::cout << "###################################################" << std::endl;
+
             if (should_parallelize && device_ == "cpu")
             {
                 forward_cpu(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
@@ -382,12 +388,11 @@ namespace CppNet
                         CppNet::Kernels::GPU::bias_grad_gpu(grad_output.data(), grad_biases_.data(), batch_size, output_size);
                     }
                 }
-                
-            #endif
 
-            // use gpu kernel
-            CppNet::Kernels::GPU::matmul_grad_input_gpu(grad_output.data(), weights_.data(), grad_input.data(), batch_size, input_size, output_size);
+                // use gpu kernel
+                CppNet::Kernels::GPU::matmul_grad_input_gpu(grad_output.data(), weights_.data(), grad_input.data(), batch_size, input_size, output_size);
             
+            #endif
         }
 
         void Linear::backward_cpu(
@@ -501,6 +506,12 @@ namespace CppNet
 
             const int total_elements = batch_size * output_size;
             const bool should_parallelize = (total_elements > parallel_threshold_);
+
+            //std::cout << "###################################################" << std::endl;
+            //std::cout << "Layer name: " << layer_name_ << std::endl;
+            //std::cout << "Total elements: " << total_elements << std::endl;
+            //std::cout << "Should Parralelize: " << should_parallelize << std::endl;
+            //std::cout << "###################################################" << std::endl;
             
             if (should_parallelize && device_ == "cpu")
             {

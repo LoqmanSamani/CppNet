@@ -22,7 +22,7 @@ namespace CppNet
 
             void matmul_grad_input_gpu(const float* dY, const float* W, float* dX, int batch, int in_size, int out_size);
 
-            void elementwise_kernel(float* A, float* B, float* C, int M, int N, int K);
+            void elementwise_gpu(float* A, float* B, float* C, int M, int N, int K);
 
         }
     }

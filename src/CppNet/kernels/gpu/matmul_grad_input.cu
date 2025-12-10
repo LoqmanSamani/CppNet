@@ -9,7 +9,7 @@ namespace CppNet
     {
         namespace GPU 
         {
-            __global__void grad_input_kernel(const float* dY, const float* W, float* dX, int batch, int in_size, int out_size)
+            __global__ void grad_input_kernel(const float* dY, const float* W, float* dX, int batch, int in_size, int out_size)
             {
                 int b = blockIdx.y * blockDim.y + threadIdx.y; // batch
                 int i = blockIdx.x * blockDim.x + threadIdx.x; // in_size

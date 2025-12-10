@@ -9,7 +9,7 @@ namespace CppNet
     {
         namespace GPU 
         {
-            __global__void bias_grad_kernel(const float* dY, float* db, int batch, int out)
+            __global__ void bias_grad_kernel(const float* dY, float* db, int batch, int out)
             {
                 int j = blockIdx.x * blockDim.x + threadIdx.x;
                 if (j >= out) return;
