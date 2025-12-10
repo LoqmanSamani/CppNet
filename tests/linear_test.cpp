@@ -170,17 +170,17 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
     // device = "cpu",
     // weight_init = "xavier",
     // parallel_threshold = 10000
-    CppNet::Layers::Linear layer1(30, 50, "TestLayer1", true, true, "cpu", "xavier");
+    CppNet::Layers::Linear layer1(30, 50, "TestLayer1", true, true, "gpu", "xavier", 100);
     CppNet::Activations::ReLU relu1;
-    CppNet::Layers::Linear layer2(50, 100, "TestLayer2", true, true, "cpu", "xavier");
+    CppNet::Layers::Linear layer2(50, 100, "TestLayer2", true, true, "gpu", "xavier", 100);
     CppNet::Activations::ReLU relu2;
-    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "cpu", "xavier");
+    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "gpu", "xavier", 10);
     CppNet::Activations::ReLU relu3;
-    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "cpu", "xavier");
+    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "gpu", "xavier", 10);
     CppNet::Activations::ReLU relu4;
-    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "cpu", "xavier");
+    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "gpu", "xavier", 10);
     CppNet::Activations::ReLU relu5;
-    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "cpu", "xavier");
+    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "gpu", "xavier", 10);
     CppNet::Activations::Sigmoid sigmoid;
     CppNet::Optimizers::SGD optimizer;
     CppNet::Losses::BinaryCrossEntropy loss_fn("mean", false, 1.0f);
@@ -318,7 +318,7 @@ int main() {
     std::cout << "My system has 8 CPU cores available" << std::endl;
     
     // array of thread counts to test (you can modify this)
-    std::vector<int> thread_counts = {1, 2, 4, 6, 8};
+    std::vector<int> thread_counts = {1, 2}; //, 4, 6, 8};
     
     // number of epochs to run for each test (reduced for faster testing)
     int test_epochs = 1000;

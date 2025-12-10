@@ -1,0 +1,43 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/CppNet.dir/src/CppNet/activations/relu.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/activations/relu.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/activations/sigmoid.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/activations/sigmoid.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/add_bias.cu.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/add_bias.cu.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/bias_grad.cu.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/bias_grad.cu.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/elementwise.cu.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/elementwise.cu.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/matmul.cu.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/matmul.cu.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/matmul_grad_input.cu.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/matmul_grad_input.cu.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/matmul_grad_weight.cu.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/kernels/gpu/matmul_grad_weight.cu.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/layers/linear.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/layers/linear.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/losses/binary_cross_entropy.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/losses/binary_cross_entropy.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/losses/categorical_cross_entropy.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/losses/categorical_cross_entropy.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/metrics/metrics.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/metrics/metrics.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/models/models.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/models/models.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/optimizers/sgd.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/optimizers/sgd.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/regularizations/regularizations.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/regularizations/regularizations.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/utils/utils.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/utils/utils.cpp.o.d"
+  "CMakeFiles/CppNet.dir/src/CppNet/visualizations/visualizations.cpp.o"
+  "CMakeFiles/CppNet.dir/src/CppNet/visualizations/visualizations.cpp.o.d"
+  "libCppNet.a"
+  "libCppNet.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CUDA CXX)
+  include(CMakeFiles/CppNet.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

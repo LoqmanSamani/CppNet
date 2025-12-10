@@ -1,20 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-# Check for CUDA before declaring project languages
-find_package(CUDAToolkit)
-
-if(CUDAToolkit_FOUND)
-    project(CppNet VERSION 0.1.0 LANGUAGES CXX CUDA)
-    set(USE_CUDA TRUE)
-    message(STATUS "CUDA found, GPU support enabled")
-    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-        set(CMAKE_CUDA_ARCHITECTURES "60;70;75;80;86")
-    endif()
-else()
-    project(CppNet VERSION 0.1.0 LANGUAGES CXX)
-    set(USE_CUDA FALSE)
-    message(STATUS "CUDA not found, building CPU-only version")
-endif()
+project(CppNet VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -24,14 +10,26 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Option to build tests (OFF by default for library-only builds)
+find_package(CUDAToolkit)
+
+if(CUDAToolkit_FOUND)
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(USE_CUDA TRUE)
+    message(STATUS "CUDA found, GPU support enabled")
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES "60;70;75;80;86")
+    endif()
+else()
+    set(USE_CUDA FALSE)
+    message(STATUS "CUDA not found, building CPU-only version")
+endif()
+
 option(BUILD_TESTS "Build test executables" OFF)
 
-# Find packages
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(OpenMP)
 
-# Library sources
 set(CPU_SOURCES
     src/CppNet/activations/sigmoid.cpp
     src/CppNet/activations/relu.cpp
@@ -60,23 +58,19 @@ if(USE_CUDA)
     list(APPEND CPP_NET_SOURCES ${GPU_SOURCES})
 endif()
 
-# Create CppNet library
 add_library(CppNet STATIC ${CPP_NET_SOURCES})
 
-# Set library properties
 set_target_properties(CppNet PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 0
     PUBLIC_HEADER include/CppNet/CppNet.hpp
 )
 
-# Include directories
 target_include_directories(CppNet PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 
-# Link dependencies
 target_link_libraries(CppNet PUBLIC Eigen3::Eigen)
 
 if(OpenMP_CXX_FOUND)
@@ -93,7 +87,7 @@ if(USE_CUDA)
     )
 endif()
 
-# Add tests subdirectory if BUILD_TESTS is ON
+
 if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
@@ -108,20 +102,18 @@ install(TARGETS CppNet
     PUBLIC_HEADER DESTINATION include/CppNet
 )
 
-# Install headers
+
 install(DIRECTORY include/CppNet
     DESTINATION include
     FILES_MATCHING PATTERN "*.hpp"
 )
 
-# Export targets for find_package
 install(EXPORT CppNetTargets
     FILE CppNetTargets.cmake
     NAMESPACE CppNet::
     DESTINATION lib/cmake/CppNet
 )
 
-# Create config file
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/CppNetConfigVersion.cmake"
