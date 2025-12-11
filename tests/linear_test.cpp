@@ -174,13 +174,13 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
     CppNet::Activations::ReLU relu1;
     CppNet::Layers::Linear layer2(50, 100, "TestLayer2", true, true, "gpu", "xavier", 100);
     CppNet::Activations::ReLU relu2;
-    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "gpu", "xavier", 10);
+    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "gpu", "xavier", 100);
     CppNet::Activations::ReLU relu3;
-    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "gpu", "xavier", 10);
+    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "gpu", "xavier", 100);
     CppNet::Activations::ReLU relu4;
-    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "gpu", "xavier", 10);
+    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "gpu", "xavier", 100);
     CppNet::Activations::ReLU relu5;
-    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "gpu", "xavier", 10);
+    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "gpu", "xavier", 100);
     CppNet::Activations::Sigmoid sigmoid;
     CppNet::Optimizers::SGD optimizer;
     CppNet::Losses::BinaryCrossEntropy loss_fn("mean", false, 1.0f);
@@ -194,7 +194,7 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
     layer6.set_num_threads(num_threads);
 
     // training parameters
-    float lr = 0.004f;
+    float lr = 0.001f;
     int train_batch_size = 64;
     int num_train_iters = (train_data.rows() + train_batch_size - 1) / train_batch_size;
 
@@ -242,7 +242,7 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
                 y_batch_.cols()
             );
 
-            // sorward propagation
+            // forward propagation
             Eigen::Tensor<float, 2> output1 = relu1.forward(layer1.forward(x_batch));
             Eigen::Tensor<float, 2> output2 = relu2.forward(layer2.forward(output1));
             Eigen::Tensor<float, 2> output3 = relu3.forward(layer3.forward(output2));
@@ -252,7 +252,10 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
 
             // compute loss and accuracy
             float loss = loss_fn.forward(output6, y_batch);
+            //std::cout << "step loss: " << loss << std::endl;
+            //std::cout << "epoch loss before adding loss: " << epoch_loss << std::endl;
             epoch_loss += loss;
+            //std::cout << "epoch loss after adding loss: " << epoch_loss << std::endl;
             Eigen::Map<Eigen::MatrixXf> output_map(output6.data(), output6.dimension(0), output6.dimension(1));
             Eigen::Map<Eigen::MatrixXf> y_map(y_batch.data(), y_batch.dimension(0), y_batch.dimension(1));
 
@@ -318,10 +321,10 @@ int main() {
     std::cout << "My system has 8 CPU cores available" << std::endl;
     
     // array of thread counts to test (you can modify this)
-    std::vector<int> thread_counts = {1, 2}; //, 4, 6, 8};
+    std::vector<int> thread_counts = {4}; //, 4, 6, 8};
     
     // number of epochs to run for each test (reduced for faster testing)
-    int test_epochs = 1000;
+    int test_epochs = 500;
     
     // store results for comparison
     std::vector<std::pair<int, float>> results;

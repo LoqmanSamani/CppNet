@@ -25,7 +25,7 @@ else()
     message(STATUS "CUDA not found, building CPU-only version")
 endif()
 
-option(BUILD_TESTS "Build test executables" OFF)
+option(BUILD_TESTS "Build test executables" ON)
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(OpenMP)
