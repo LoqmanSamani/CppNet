@@ -58,6 +58,23 @@ if(USE_CUDA)
     list(APPEND CPP_NET_SOURCES ${GPU_SOURCES})
 endif()
 
+
+
+
+
+if(USE_CUDA)
+    set_source_files_properties(
+        src/CppNet/layers/linear.cpp
+        PROPERTIES
+            LANGUAGE CUDA
+    )
+endif()
+
+
+
+
+
+
 add_library(CppNet STATIC ${CPP_NET_SOURCES})
 
 set_target_properties(CppNet PROPERTIES

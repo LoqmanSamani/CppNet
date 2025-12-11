@@ -11,7 +11,6 @@
 
 
 
-
 namespace CppNet
 {
     namespace Layers
@@ -32,6 +31,21 @@ namespace CppNet
           trainable_(trainable), bias_(bias), device_(device), weight_init_(weight_init),
           parallel_threshold_(parallel_threshold)
         {
+            // initialize GPU-specific members
+            #ifdef USE_CUDA
+                
+                d_weights_ = nullptr;
+                d_bias_ = nullptr;
+                d_input_cache_ = nullptr;
+                d_output_ = nullptr;
+                d_grad_weights_ = nullptr;
+                d_grad_bias_ = nullptr;
+                d_grad_input_ = nullptr;
+                gpu_initialized_ = false;
+                gpu_max_batch_size_ = 0;
+
+            #endif
+
             // check if in and out sizes are positive integers
             if (in_size <= 0 || out_size <= 0)
             {
@@ -46,6 +60,272 @@ namespace CppNet
             // initialize parameters and gradients
             init_params_and_grads();
         }
+
+        Linear::~Linear() 
+        {
+            #ifdef USE_CUDA
+
+                cleanup_gpu_buffers();
+
+            #endif
+        }
+
+        void Linear::set_max_batch_size(int max_batch_size)
+        {
+            #ifdef USE_CUDA
+
+                if (device_ == "gpu") 
+                {
+                    init_gpu_buffers(max_batch_size);
+                }
+                
+            #endif
+        }
+
+
+
+        #ifdef USE_CUDA
+        
+            // GPU buffer initialization
+            void Linear::init_gpu_buffers(int max_batch_size)
+            {
+                // clean up old buffers if they exist
+                if (gpu_initialized_) 
+                {
+                    cleanup_gpu_buffers();
+                }
+                
+                gpu_max_batch_size_ = max_batch_size;
+                
+                std::cout << "Allocating GPU buffers for layer '" << layer_name_ 
+                        << "' (max batch: " << max_batch_size << ")" << std::endl;
+                
+                // allocate persistent GPU memory
+                cudaMalloc(&d_weights_, in_size_ * out_size_ * sizeof(float));
+                if (bias_) 
+                {
+                    cudaMalloc(&d_bias_, out_size_ * sizeof(float));
+                    cudaMalloc(&d_grad_bias_, out_size_ * sizeof(float));
+                }
+                
+                // allocate buffers for largest expected batch
+                cudaMalloc(&d_input_cache_, max_batch_size * in_size_ * sizeof(float));
+                cudaMalloc(&d_output_, max_batch_size * out_size_ * sizeof(float));
+                cudaMalloc(&d_grad_weights_, in_size_ * out_size_ * sizeof(float));
+                cudaMalloc(&d_grad_input_, max_batch_size * in_size_ * sizeof(float));
+                
+                cudaError_t err = cudaGetLastError();
+                if (err != cudaSuccess) 
+                {
+                    throw std::runtime_error("CUDA allocation failed for layer '" + layer_name_ + "': " + cudaGetErrorString(err));
+                }
+                
+                // transfer weights to GPU
+                sync_weights_to_gpu();
+                
+                gpu_initialized_ = true;
+                
+                std::cout << "GPU buffers allocated successfully for layer '" << layer_name_ << "'" << std::endl;
+            }
+
+            // GPU buffer clean up
+            void Linear::cleanup_gpu_buffers()
+            {
+                if (!gpu_initialized_) 
+                {
+                    return;
+                }
+                
+                if (d_weights_) 
+                {
+                    cudaFree(d_weights_);
+                }
+            
+                if (d_bias_)
+                {
+                    cudaFree(d_bias_);
+                } 
+                if (d_input_cache_)
+                {
+                    cudaFree(d_input_cache_);
+                } 
+                if (d_output_)
+                {
+                    cudaFree(d_output_);
+                } 
+                if (d_grad_weights_)
+                {
+                    cudaFree(d_grad_weights_);
+                } 
+
+                if (d_grad_bias_) 
+                {
+                    cudaFree(d_grad_bias_);
+                }
+                if (d_grad_input_) 
+                {
+                    cudaFree(d_grad_input_);
+                }
+                
+                d_weights_ = nullptr;
+                d_bias_ = nullptr;
+                d_input_cache_ = nullptr;
+                d_output_ = nullptr;
+                d_grad_weights_ = nullptr;
+                d_grad_bias_ = nullptr;
+                d_grad_input_ = nullptr;
+                
+                gpu_initialized_ = false;
+            }
+
+            // sync weigths CPU -> GPU
+            void Linear::sync_weights_to_gpu()
+            {
+                if (!gpu_initialized_) 
+                {
+                    return;
+                }
+                
+                cudaMemcpy(d_weights_, weights_.data(), in_size_ * out_size_ * sizeof(float), cudaMemcpyHostToDevice);
+                
+                if (bias_) 
+                {
+                    cudaMemcpy(d_bias_, biases_.data(), out_size_ * sizeof(float), cudaMemcpyHostToDevice);
+                }
+            }
+
+            // sync gradients GPU -> CPU 
+            void Linear::sync_gradients_from_gpu()
+            {
+                if (!gpu_initialized_ || !trainable_) 
+                {
+                    return;
+                }
+                
+                cudaMemcpy(grad_weights_.data(), d_grad_weights_, in_size_ * out_size_ * sizeof(float), cudaMemcpyDeviceToHost);
+                
+                if (bias_) 
+                {
+                    cudaMemcpy(grad_biases_.data(), d_grad_bias_, out_size_ * sizeof(float), cudaMemcpyDeviceToHost);
+                }
+            }
+
+            void Linear::forward_gpu(
+                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_,
+                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output,
+                    int batch_size, int input_size, int output_size, bool bias_) 
+            {
+                if (!gpu_initialized_) 
+                {
+                    std::cerr << "Error: GPU buffers not initialized for layer '" 
+                            << layer_name_ << "'. Call set_max_batch_size() first.\n";
+                    return;
+                }
+
+                if (batch_size > gpu_max_batch_size_) 
+                {
+                    throw std::runtime_error(
+                        "Batch size " + std::to_string(batch_size) +
+                        " exceeds GPU buffer size " + std::to_string(gpu_max_batch_size_) +
+                        " in layer '" + layer_name_ + "'"
+                    );
+                }
+
+                cudaMemcpy(d_input_cache_, input.data(), batch_size * input_size * sizeof(float), cudaMemcpyHostToDevice);
+
+                dim3 block(32, 32);
+                dim3 grid((output_size + 31) / 32, (batch_size  + 31) / 32);
+
+                CppNet::Kernels::GPU::matmul_kernel<<<grid, block>>>(d_input_cache_, d_weights_, d_output_, batch_size, output_size, input_size);
+
+                cudaError_t err = cudaGetLastError();
+                if (err != cudaSuccess) 
+                {
+                    throw std::runtime_error("CUDA matmul kernel error: " + std::string(cudaGetErrorString(err)));
+                }
+
+                if (bias_) 
+                {
+                    dim3 bias_block(16, 16);
+                    dim3 bias_grid((output_size + 15) / 16, (batch_size  + 15) / 16);
+
+                    CppNet::Kernels::GPU::add_bias_kernel<<<bias_grid, bias_block>>>(d_output_, d_bias_, batch_size, output_size);
+
+                    err = cudaGetLastError();
+                    if (err != cudaSuccess) 
+                    {
+                        throw std::runtime_error("CUDA bias kernel error: " + std::string(cudaGetErrorString(err)));
+                    }
+                }
+
+                cudaMemcpy(output.data(), d_output_, batch_size * output_size * sizeof(float), cudaMemcpyDeviceToHost);
+            }
+
+
+            void Linear::backward_gpu(
+                const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+                const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+                Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+                int batch_size, int output_size, int input_size, bool trainable_, bool bias_)
+            {
+                if (!gpu_initialized_) 
+                {
+                    std::cerr << "Error: GPU buffers not initialized." << std::endl;
+                    return;
+                }
+                
+                float* d_grad_output;
+                cudaMalloc(&d_grad_output, batch_size * output_size * sizeof(float));
+                cudaMemcpy(d_grad_output, grad_output.data(), batch_size * output_size * sizeof(float), cudaMemcpyHostToDevice);
+                
+                if (trainable_) 
+                {
+                    cudaMemset(d_grad_weights_, 0, input_size * output_size * sizeof(float));
+                    if (bias_) 
+                    {
+                        cudaMemset(d_grad_bias_, 0, output_size * sizeof(float));
+                    }
+                    
+                    // weight gradient: dW = X^T * dY
+                    dim3 block(32, 32);
+                    dim3 grid((output_size + 31) / 32, (input_size + 31) / 32);
+                    
+                    CppNet::Kernels::GPU::matmul_grad_weights_kernel<<<grid, block>>>(d_input_cache_, d_grad_output, d_grad_weights_, batch_size, input_size, output_size);
+                    
+                    // bias gradient: sum over batch
+                    if (bias_) 
+                    {
+                        dim3 bias_block(256);
+                        dim3 bias_grid(output_size);
+                        CppNet::Kernels::GPU::bias_grad_kernel<<<bias_grid, bias_block>>>(d_grad_output, d_grad_bias_, batch_size, output_size);
+                    }
+                }
+                
+                // input gradient: dX = dY * W^T 
+                cudaMemset(d_grad_input_, 0, batch_size * input_size * sizeof(float));
+                
+                dim3 block(32, 32);
+                dim3 grid((input_size + 31) / 32, (batch_size + 31) / 32);
+                
+                CppNet::Kernels::GPU::matmul_grad_input_kernel<<<grid, block>>>(d_grad_output, d_weights_, d_grad_input_, batch_size, input_size, output_size);
+                
+                cudaError_t err = cudaGetLastError();
+                if (err != cudaSuccess) 
+                {
+                    throw std::runtime_error("CUDA kernel error in backward pass of layer '" + layer_name_ + "': " + cudaGetErrorString(err));
+                }
+                
+                cudaMemcpy(grad_input.data(), d_grad_input_, batch_size * input_size * sizeof(float), cudaMemcpyDeviceToHost);
+                
+                if (trainable_) 
+                {
+                    sync_gradients_from_gpu();
+                }
+                
+                cudaFree(d_grad_output);
+            }
+
+        #endif
 
         // initialize parameters
         void Linear::init_params_and_grads()
@@ -257,20 +537,7 @@ namespace CppNet
             optimizer.step(*this, learning_rate);
         }
 
-        void Linear::forward_gpu(
-            const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
-            const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-            int batch_size, int input_size, int output_size, bool bias_)
-        {
-            #ifdef USE_CUDA
-                CppNet::Kernels::GPU::matmul_gpu(input.data(), weights_.data(), output.data(), batch_size, output_size, input_size);
-            
-                if (bias_)
-                {
-                    CppNet::Kernels::GPU::add_bias_gpu(output.data(), biases_.data(), batch_size, output_size);
-                }
-            #endif
-        }
+        
 
         void Linear::forward_cpu(
             const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
@@ -350,12 +617,6 @@ namespace CppNet
             const int total_elements = batch_size * output_size;
             const bool should_parallelize = (total_elements > parallel_threshold_);
 
-            //std::cout << "###################################################" << std::endl;
-            //std::cout << "Layer name: " << layer_name_ << std::endl;
-            //std::cout << "Total elements: " << total_elements << std::endl;
-            //std::cout << "Should Parralelize: " << should_parallelize << std::endl;
-            //std::cout << "###################################################" << std::endl;
-
             if (should_parallelize && device_ == "cpu")
             {
                 forward_cpu(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
@@ -372,28 +633,7 @@ namespace CppNet
             return output;
         }
 
-        void Linear::backward_gpu(
-            const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
-            const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
-            Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
-            int batch_size, int output_size, int input_size, bool trainable_, bool bias_)
-        {
-            #ifdef USE_CUDA
-
-                if (trainable_)
-                {
-                    CppNet::Kernels::GPU::matmul_grad_weights_gpu(in_cache_.data(), grad_output.data(), grad_weights_.data(), batch_size, input_size, output_size);
-                    if (bias_)
-                    {
-                        CppNet::Kernels::GPU::bias_grad_gpu(grad_output.data(), grad_biases_.data(), batch_size, output_size);
-                    }
-                }
-
-                // use gpu kernel
-                CppNet::Kernels::GPU::matmul_grad_input_gpu(grad_output.data(), weights_.data(), grad_input.data(), batch_size, input_size, output_size);
-            
-            #endif
-        }
+        
 
         void Linear::backward_cpu(
             const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
@@ -506,12 +746,6 @@ namespace CppNet
 
             const int total_elements = batch_size * output_size;
             const bool should_parallelize = (total_elements > parallel_threshold_);
-
-            //std::cout << "###################################################" << std::endl;
-            //std::cout << "Layer name: " << layer_name_ << std::endl;
-            //std::cout << "Total elements: " << total_elements << std::endl;
-            //std::cout << "Should Parralelize: " << should_parallelize << std::endl;
-            //std::cout << "###################################################" << std::endl;
             
             if (should_parallelize && device_ == "cpu")
             {

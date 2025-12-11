@@ -12,17 +12,18 @@ namespace CppNet
         namespace GPU 
         {
 
-            void matmul_gpu(const float* A, const float* B, float* C, int M, int N, int K);
+            // matrix multiplication (A[M x K] * B[K x N] = C[M x N])
+            __global__ void matmul_kernel(const float* A, const float* B, float* C, int M, int N, int K);
 
-            void add_bias_gpu(float* output, const float* bias, int M, int N);
+            __global__ void add_bias_kernel(float* output, const float* bias, int M, int N);
 
-            void matmul_grad_weights_gpu(const float* X, const float* dY, float* dW, int batch, int in_size, int out_size);
+            __global__ void matmul_grad_weights_kernel(const float* X, const float* dY, float* dW, int batch, int in_size, int out_size);
 
-            void bias_grad_gpu(const float* dY, float* db, int batch, int out);
+            __global__ void bias_grad_kernel(const float* dY, float* db, int batch, int out);
 
-            void matmul_grad_input_gpu(const float* dY, const float* W, float* dX, int batch, int in_size, int out_size);
+            __global__ void matmul_grad_input_kernel(const float* dY, const float* W, float* dX, int batch, int in_size, int out_size);
 
-            void elementwise_gpu(float* A, float* B, float* C, int M, int N, int K);
+            __global__ void elementwise_kernel(float* A, float* B, float* C, int M, int N, int K);
 
         }
     }

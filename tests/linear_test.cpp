@@ -170,17 +170,17 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
     // device = "cpu",
     // weight_init = "xavier",
     // parallel_threshold = 10000
-    CppNet::Layers::Linear layer1(30, 50, "TestLayer1", true, true, "gpu", "xavier", 100);
+    CppNet::Layers::Linear layer1(30, 50, "TestLayer1", true, true, "cpu", "xavier", 100);
     CppNet::Activations::ReLU relu1;
-    CppNet::Layers::Linear layer2(50, 100, "TestLayer2", true, true, "gpu", "xavier", 100);
+    CppNet::Layers::Linear layer2(50, 100, "TestLayer2", true, true, "cpu", "xavier", 100);
     CppNet::Activations::ReLU relu2;
-    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "gpu", "xavier", 100);
+    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "cpu", "xavier", 100);
     CppNet::Activations::ReLU relu3;
-    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "gpu", "xavier", 100);
+    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "cpu", "xavier", 100);
     CppNet::Activations::ReLU relu4;
-    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "gpu", "xavier", 100);
+    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "cpu", "xavier", 100);
     CppNet::Activations::ReLU relu5;
-    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "gpu", "xavier", 100);
+    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "cpu", "xavier", 100);
     CppNet::Activations::Sigmoid sigmoid;
     CppNet::Optimizers::SGD optimizer;
     CppNet::Losses::BinaryCrossEntropy loss_fn("mean", false, 1.0f);
@@ -192,6 +192,15 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
     layer4.set_num_threads(num_threads);
     layer5.set_num_threads(num_threads);
     layer6.set_num_threads(num_threads);
+
+    // initialize GPU buffers ONCE before training
+    // set max batch size to largest you'll use
+    layer1.set_max_batch_size(128);
+    layer2.set_max_batch_size(128);
+    layer3.set_max_batch_size(128);
+    layer4.set_max_batch_size(128);
+    layer5.set_max_batch_size(128);
+    layer6.set_max_batch_size(128);
 
     // training parameters
     float lr = 0.001f;
@@ -290,6 +299,14 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
             layer5.step(optimizer, lr);
             layer6.step(optimizer, lr); 
 
+            // Sync updated weights back to GPU (once per batch)
+            layer1.sync_weights_to_gpu();
+            layer2.sync_weights_to_gpu();
+            layer3.sync_weights_to_gpu();
+            layer4.sync_weights_to_gpu();
+            layer5.sync_weights_to_gpu();
+            layer6.sync_weights_to_gpu();
+
             start = end;
             end = std::min(end + train_batch_size, static_cast<int>(train_data.rows()));
         }
@@ -321,10 +338,10 @@ int main() {
     std::cout << "My system has 8 CPU cores available" << std::endl;
     
     // array of thread counts to test (you can modify this)
-    std::vector<int> thread_counts = {4}; //, 4, 6, 8};
+    std::vector<int> thread_counts = {1, 2, 4, 6, 8};
     
     // number of epochs to run for each test (reduced for faster testing)
-    int test_epochs = 500;
+    int test_epochs = 1000;
     
     // store results for comparison
     std::vector<std::pair<int, float>> results;

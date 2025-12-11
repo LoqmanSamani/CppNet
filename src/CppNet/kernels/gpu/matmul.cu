@@ -1,5 +1,7 @@
+#include <iostream>
 #include <cuda_runtime.h>
 #include "CppNet/kernels/gpu/gpu.hpp"
+
 
 
 
@@ -9,20 +11,62 @@ namespace CppNet
     {
         namespace GPU 
         {
-            __global__ void matmul_kernel(const float* A, const float* B, float* C, int M, int N, int K)
-            {
-                // threadIdx: thread index inside a block
-                // blockIdx: block index inside the grid
-                // blockDim: size of each block
-                int row = blockIdx.y * blockDim.y + threadIdx.y; // 0..M-1
-                int col = blockIdx.x * blockDim.x + threadIdx.x; // 0..N-1
+            #define TILE_SIZE 32  // 32x32 tiles 
 
+            __global__ void matmul_kernel(
+                const float* A,  // input matrix [M x K]
+                const float* B,  // weight matrix [K x N]
+                float* C,        // output matrix [M x N]
+                int M, int N, int K)
+            {
+                // each thread computes one element of C
+                int row = blockIdx.y * TILE_SIZE + threadIdx.y;  // global row index
+                int col = blockIdx.x * TILE_SIZE + threadIdx.x;  // global col index
+                
+                // shared memory: fast on-chip memory shared by all threads in a block
+                __shared__ float tile_A[TILE_SIZE][TILE_SIZE];
+                __shared__ float tile_B[TILE_SIZE][TILE_SIZE];
+                
+                float sum = 0.0f;
+                
+                // loop over tiles: we break K dimension into TILE_SIZE chunks
+                // each iteration loads one tile from A and B, multiplies them
+                int num_tiles = (K + TILE_SIZE - 1) / TILE_SIZE;
+                
+                for (int tile = 0; tile < num_tiles; tile++) 
+                {
+                    // load one tile from A into shared memory
+                    int a_col = tile * TILE_SIZE + threadIdx.x;
+                    if (row < M && a_col < K)
+                        tile_A[threadIdx.y][threadIdx.x] = A[row * K + a_col];
+                    else
+                        tile_A[threadIdx.y][threadIdx.x] = 0.0f;  // padding for edge cases
+                    
+                    // load one tile from B into shared memory
+                    int b_row = tile * TILE_SIZE + threadIdx.y;
+                    if (b_row < K && col < N)
+                        tile_B[threadIdx.y][threadIdx.x] = B[b_row * N + col];
+                    else
+                        tile_B[threadIdx.y][threadIdx.x] = 0.0f;
+                    
+                    // wait for ALL threads in block to finish loading
+                    __syncthreads();
+                    
+                    // compute partial dot product using the loaded tiles
+                    #pragma unroll
+                    for (int k = 0; k < TILE_SIZE; k++) 
+                    {
+                        sum += tile_A[threadIdx.y][k] * tile_B[k][threadIdx.x];
+                    }
+
+                    // wait before loading next tile (prevent data race)
+                    __syncthreads();
+                }
+                
+                // write final result to global memory
                 if (row < M && col < N) 
                 {
-                    float sum = 0.0f;
-                    for (int k = 0; k < K; k++)
-                        sum += A[row*K + k] * B[k*N + col];
-                    C[row*N + col] = sum;
+                    C[row * N + col] = sum;
                 }
             }
 
@@ -30,30 +74,35 @@ namespace CppNet
             void matmul_gpu(const float* A, const float* B, float* C, int M, int N, int K)
             {
                 float *dA, *dB, *dC;
-
-                // allocate gpu memory
-                cudaMalloc(&dA, M*K * sizeof(float));
-                cudaMalloc(&dB, K*N * sizeof(float));
-                cudaMalloc(&dC, M*N * sizeof(float));
-
-                // copy A and B from cpu to gpu
-                cudaMemcpy(dA, A, M*K*sizeof(float), cudaMemcpyHostToDevice);
-                cudaMemcpy(dB, B, K*N*sizeof(float), cudaMemcpyHostToDevice);
-
-                // configure kernel launch
-                dim3 block(16, 16);
-                dim3 grid((N + 15) / 16, (M + 15) / 16);
-
+                
+                // allocate GPU memory
+                cudaMalloc(&dA, M * K * sizeof(float));
+                cudaMalloc(&dB, K * N * sizeof(float));
+                cudaMalloc(&dC, M * N * sizeof(float));
+                
+                // copy input data to GPU
+                cudaMemcpy(dA, A, M * K * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(dB, B, K * N * sizeof(float), cudaMemcpyHostToDevice);
+                
+                dim3 block(TILE_SIZE, TILE_SIZE);
+                dim3 grid((N + TILE_SIZE - 1) / TILE_SIZE, (M + TILE_SIZE - 1) / TILE_SIZE);
+                
                 // launch kernel
                 matmul_kernel<<<grid, block>>>(dA, dB, dC, M, N, K);
-
-                // wait for gpu to finish
+                
+                cudaError_t err = cudaGetLastError();
+                if (err != cudaSuccess) 
+                {
+                    printf("CUDA kernel error: %s\n", cudaGetErrorString(err));
+                }
+                
+                // wait for GPU to finish
                 cudaDeviceSynchronize();
-
-                // copy result C from gpu to cpu
-                cudaMemcpy(C, dC, M*N*sizeof(float), cudaMemcpyDeviceToHost);
-
-                // free gpu memory
+                
+                // copy result back to CPU
+                cudaMemcpy(C, dC, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+                
+                // free GPU memory
                 cudaFree(dA);
                 cudaFree(dB);
                 cudaFree(dC);

@@ -1,6 +1,12 @@
 #ifndef LINEAR_HPP
 #define LINEAR_HPP
 
+#pragma once
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
+
 #include <iostream>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
@@ -45,6 +51,7 @@ namespace CppNet
                     std::string weight_init = "xavier",
                     int parallel_threshold = 10000
                 ); 
+                ~Linear();
                 
                 Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
                 
@@ -123,6 +130,9 @@ namespace CppNet
                 // OpenMP utility method
                 static void set_num_threads(int num_threads);
 
+                // set max batch size for GPU
+                void set_max_batch_size(int max_batch_size);
+
                 
                 void print_layer_info() const 
                 {
@@ -138,6 +148,17 @@ namespace CppNet
                         std::cout << "  Bias shape: [" << biases_.dimension(0) << "]" << std::endl;
                     }
                 }
+
+                // GPU memory management
+                #ifdef USE_CUDA
+
+                    void init_gpu_buffers(int max_batch_size);
+                    void cleanup_gpu_buffers();
+                    void sync_weights_to_gpu();      // CPU -> GPU
+                    void sync_weights_from_gpu();    // GPU -> CPU
+                    void sync_gradients_from_gpu();  // GPU -> CPU
+                    
+                #endif
 
             private:
           
@@ -157,6 +178,22 @@ namespace CppNet
 
                 void reinitialize_weights(const std::string& new_init_method);
                 void init_params_and_grads();
+                 
+                // GPU related params
+                #ifdef USE_CUDA
+
+                    float* d_weights_;        // weights on GPU
+                    float* d_bias_;           // bias on GPU
+                    float* d_input_cache_;    // cached input for backward pass
+                    float* d_output_;         // output buffer
+                    float* d_grad_weights_;   // weight gradients on GPU
+                    float* d_grad_bias_;      // bias gradients on GPU
+                    float* d_grad_input_;     // input gradients on GPU
+                    
+                    bool gpu_initialized_;    // track if GPU buffers are allocated
+                    int gpu_max_batch_size_;  // maximum batch size for GPU buffers
+
+                #endif
                          
         };
     }

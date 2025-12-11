@@ -9,17 +9,40 @@ namespace CppNet
     {
         namespace GPU 
         {
-            __global__ void bias_grad_kernel(const float* dY, float* db, int batch, int out)
+            __global__ void bias_grad_kernel(
+                const float* dY,  // [batch x out_size]
+                float* db,        // [out_size]
+                int batch, int out_size)
             {
-                int j = blockIdx.x * blockDim.x + threadIdx.x;
-                if (j >= out) return;
-
-                float sum = 0.f;
-                for (int b = 0; b < batch; b++)
+                // shared memory for parallel reduction
+                __shared__ float shared_sum[256];  // max 256 threads per block
+                
+                int j = blockIdx.x; 
+                int tid = threadIdx.x;
+                
+                if (j >= out_size) return;
+                
+                float thread_sum = 0.0f;
+                for (int b = tid; b < batch; b += blockDim.x) 
                 {
-                    sum += dY[b * out + j];
+                    thread_sum += dY[b * out_size + j];
                 }
-                db[j] = sum;
+                shared_sum[tid] = thread_sum;
+                __syncthreads();
+                
+                for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) 
+                {
+                    if (tid < stride) 
+                    {
+                        shared_sum[tid] += shared_sum[tid + stride];
+                    }
+                    __syncthreads();
+                }
+                
+                if (tid == 0) 
+                {
+                    atomicAdd(&db[j], shared_sum[0]);
+                }
             }
 
             void bias_grad_gpu(const float* dY, float* db, int batch, int out)
