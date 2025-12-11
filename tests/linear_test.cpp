@@ -154,10 +154,23 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
     
     // load and prepare data
     DataProcessor dp(true);
-    Eigen::MatrixXf data = dp.load_data("../examples/breast_cancer.csv", 31, 1.0);
-    Eigen::MatrixXf train_data(500, 31);
-    Eigen::MatrixXf test_data(39, 31);
-    Eigen::MatrixXf val_data(30, 31);
+    //Eigen::MatrixXf data = dp.load_data("../examples/breast_cancer.csv", 31, 1.0);
+    //Eigen::MatrixXf train_data(500, 31);
+    //Eigen::MatrixXf test_data(39, 31);
+    //Eigen::MatrixXf val_data(30, 31);
+    //dp.split_data(data, train_data, test_data, val_data, true);
+    Eigen::MatrixXf data(10000, 5001);
+    data.leftCols(5002 - 1) = Eigen::MatrixXf::Random(10000, 5001 - 1);
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_int_distribution<int> dist(0, 1);
+
+    for (int i = 0; i < 10000; ++i)
+        data(i, 5001 - 1) = static_cast<float>(dist(gen));
+
+    Eigen::MatrixXf train_data(8000, 5001);
+    Eigen::MatrixXf test_data(1000, 5001);
+    Eigen::MatrixXf val_data(1000, 5001);
     dp.split_data(data, train_data, test_data, val_data, true);
 
     // create model layers
@@ -170,17 +183,17 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
     // device = "cpu",
     // weight_init = "xavier",
     // parallel_threshold = 10000
-    CppNet::Layers::Linear layer1(30, 50, "TestLayer1", true, true, "cpu", "xavier", 100);
+    CppNet::Layers::Linear layer1(5000, 200, "TestLayer1", true, true, "cpu", "he", 100000000);
     CppNet::Activations::ReLU relu1;
-    CppNet::Layers::Linear layer2(50, 100, "TestLayer2", true, true, "cpu", "xavier", 100);
+    CppNet::Layers::Linear layer2(200, 100, "TestLayer2", true, true, "cpu", "he", 1000000000);
     CppNet::Activations::ReLU relu2;
-    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "cpu", "xavier", 100);
+    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "cpu", "he", 100000000);
     CppNet::Activations::ReLU relu3;
-    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "cpu", "xavier", 100);
+    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "cpu", "he", 100000000);
     CppNet::Activations::ReLU relu4;
-    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "cpu", "xavier", 100);
+    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "cpu", "he", 100000000);
     CppNet::Activations::ReLU relu5;
-    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "cpu", "xavier", 100);
+    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "cpu", "he", 100000000);
     CppNet::Activations::Sigmoid sigmoid;
     CppNet::Optimizers::SGD optimizer;
     CppNet::Losses::BinaryCrossEntropy loss_fn("mean", false, 1.0f);
@@ -195,16 +208,16 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
 
     // initialize GPU buffers ONCE before training
     // set max batch size to largest you'll use
-    layer1.set_max_batch_size(128);
-    layer2.set_max_batch_size(128);
-    layer3.set_max_batch_size(128);
-    layer4.set_max_batch_size(128);
-    layer5.set_max_batch_size(128);
-    layer6.set_max_batch_size(128);
+    layer1.set_max_batch_size(1000);
+    layer2.set_max_batch_size(1000);
+    layer3.set_max_batch_size(1000);
+    layer4.set_max_batch_size(1000);
+    layer5.set_max_batch_size(1000);
+    layer6.set_max_batch_size(1000);
 
     // training parameters
     float lr = 0.001f;
-    int train_batch_size = 64;
+    int train_batch_size = 256;
     int num_train_iters = (train_data.rows() + train_batch_size - 1) / train_batch_size;
 
     // indices for shuffling
@@ -315,7 +328,7 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
         float mean_acc = epoch_acc / num_train_iters;
 
         // Print progress every 10 epochs
-        if (epoch % 100 == 0) {
+        if (epoch % 1 == 0) {
             std::cout << "Epoch: " << epoch << " | Loss: " << std::fixed << std::setprecision(4) 
                       << mean_loss << " | Acc: " << mean_acc << std::endl;
         }
@@ -341,7 +354,7 @@ int main() {
     std::vector<int> thread_counts = {1, 2, 4, 6, 8};
     
     // number of epochs to run for each test (reduced for faster testing)
-    int test_epochs = 1000;
+    int test_epochs = 10;
     
     // store results for comparison
     std::vector<std::pair<int, float>> results;
