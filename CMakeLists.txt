@@ -41,6 +41,7 @@ set(CPU_SOURCES
     src/CppNet/optimizers/sgd.cpp
     src/CppNet/regularizations/regularizations.cpp
     src/CppNet/utils/utils.cpp
+    src/CppNet/utils/init.cpp
     src/CppNet/visualizations/visualizations.cpp
 )
 

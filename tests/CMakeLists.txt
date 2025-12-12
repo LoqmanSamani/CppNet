@@ -47,6 +47,7 @@ endfunction()
 
 
 add_cppnet_test(linear_test linear_test.cpp)
+add_cppnet_test(init_test init_test.cpp)
 
 
 #if(USE_CUDA)
