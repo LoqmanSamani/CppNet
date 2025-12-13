@@ -94,6 +94,7 @@ namespace CppNet
                 int get_input_size() const { return in_size_; }
                 int get_output_size() const { return out_size_; }
                 std::string get_layer_name() const { return layer_name_; }
+                std::string get_device() { return device_; }
 
                 Eigen::Tensor<float, 2>& get_weights() { return weights_; }
                 const Eigen::Tensor<float, 2>& get_weights() const { return weights_; }
@@ -146,6 +147,13 @@ namespace CppNet
                     void sync_weights_from_gpu();    // GPU -> CPU
                     void sync_gradients_from_gpu();  // GPU -> CPU
                     
+                    float* get_d_weights() { return d_weights_; }
+                    float* get_d_bias() { return d_bias_; }
+                    float* get_d_grad_weights() { return d_grad_weights_; }
+                    float* get_d_grad_bias() { return d_grad_bias_; }
+                    
+                    bool is_gpu_initialized() const { return gpu_initialized_; }
+     
                 #endif
 
             private:

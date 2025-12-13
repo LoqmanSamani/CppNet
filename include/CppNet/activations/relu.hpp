@@ -20,7 +20,8 @@ namespace Activations
             
         private:
             Eigen::Tensor<float, 2> output_cache_2d_;
-            Eigen::Tensor<float, 4> output_cache_4d_; 
+            Eigen::Tensor<float, 4> output_cache_4d_;
+             
         };
     }
 }

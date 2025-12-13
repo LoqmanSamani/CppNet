@@ -1,4 +1,5 @@
 #include "CppNet/optimizers/sgd.hpp"
+#include "CppNet/kernels/gpu/gpu.hpp"
 
 
 
@@ -8,53 +9,83 @@ namespace CppNet
     namespace Optimizers
     {
     
-        //******************Stochastic Gradient Descent (SGD)*******************//
-        void SGD::step(CppNet::Layers::Linear& layer, double learning_rate)
+        SGD::SGD(int gpu_block_size): gpu_block_size_(gpu_block_size){}
+        
+        void SGD::step(CppNet::Layers::Linear& layer, float learning_rate)
         {
             if (!layer.is_trainable())
             {
                 return;
             }
 
-            // get references to tensors
-            auto& weights = layer.get_weights();
-            const auto& grad_weights = layer.get_grad_weights();
-            if (weights.dimensions() != grad_weights.dimensions())
+            std::string device = layer.get_device();
+            if (device == "cpu")
             {
-                throw std::runtime_error("Weight and gradient dimension mismatch in Linear layer: " + layer.get_layer_name());
-            }
+                // validate dimensions
+                const auto& weights = layer.get_weights();
+                const auto& grad_weights = layer.get_grad_weights();
+                //if (weights.dimensions() != grad_weights.dimensions())
+                //{
+                //    throw std::runtime_error("Weight and gradient dimension mismatch in Linear layer: " + layer.get_layer_name());
+                //}
 
-            const int rows = weights.dimension(0);
-            const int cols = weights.dimension(1);
+                layer.get_weights() -= learning_rate * layer.get_grad_weights();
 
-            #pragma omp parallel for collapse(2)
-            for (int i = 0; i < rows; ++i)
-            {
-                for (int j = 0; j < cols; ++j)
+                if (layer.has_bias())
                 {
-                    weights(i, j) -= learning_rate * grad_weights(i, j);
+                    auto& b = layer.get_biases();
+                    const auto& db = layer.get_grad_biases();
+                    //if (b.dimensions() != db.dimensions())
+                    //{
+                    //    throw std::runtime_error("Bias and gradient dimension mismatch in Linear layer: " + layer.get_layer_name());
+                    //}
+                    b -= learning_rate * db;
                 }
             }
+            else
+            {
+                step_gpu(layer, learning_rate);
+            }
+        }
 
-            
+        #ifdef USE_CUDA
+        void SGD::step_gpu(CppNet::Layers::Linear& layer, float learning_rate)
+        {
+            if (!layer.is_gpu_initialized())
+            {
+                throw std::runtime_error("GPU buffers not initialized for layer: " + layer.get_layer_name());
+            }
+
+            float* w = layer.get_d_weights();
+            float* dw = layer.get_d_grad_weights();
+
+            const int rows = layer.get_weights().dimension(0);
+            const int cols = layer.get_weights().dimension(1);
+
+            const int total_params = rows * cols;
+
+            const int grid_size = (total_params + gpu_block_size_ - 1) / gpu_block_size_;
+
+            CppNet::Kernels::GPU::sgd_step_kernel<<<grid_size, gpu_block_size_>>>(w, dw, learning_rate, total_params);
 
             if (layer.has_bias())
             {
-                auto& biases = layer.get_biases();
-                const auto& grad_biases = layer.get_grad_biases();
-                const int bias_size = biases.dimension(0);
-                if (biases.dimensions() != grad_biases.dimensions())
-                {
-                    throw std::runtime_error("Bias and gradient dimension mismatch in Linear layer: " + layer.get_layer_name());
-                }
-        
-                #pragma omp parallel for
-                for (int i = 0; i < bias_size; ++i)
-                {
-                    biases(i) -= learning_rate * grad_biases(i);
-                }
+                float* b = layer.get_d_bias();
+                float* db = layer.get_d_grad_bias();
+
+                const int bsize = layer.get_biases().dimension(0);
+                const int bgrid_size = (bsize + gpu_block_size_ - 1) / gpu_block_size_;
+
+                CppNet::Kernels::GPU::sgd_step_kernel<<<bgrid_size, gpu_block_size_>>>(b, db, learning_rate, bsize);
+            }
+
+            cudaError_t err = cudaGetLastError();
+            if (err != cudaSuccess)
+            {
+                throw std::runtime_error("CUDA kernel launch failed: " + std::string(cudaGetErrorString(err)));
             }
         }
+        #endif
 
         /*
 

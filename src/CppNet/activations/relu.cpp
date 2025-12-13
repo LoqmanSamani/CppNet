@@ -9,7 +9,6 @@ namespace CppNet
 {
     namespace Activations
     {
-        /************************* ReLU Activation Function **************************/
         ReLU::ReLU(){}
 
         void ReLU::set_num_threads(int num_threads) 

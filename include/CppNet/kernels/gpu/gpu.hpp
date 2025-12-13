@@ -25,6 +25,8 @@ namespace CppNet
 
             __global__ void elementwise_kernel(float* A, float* B, float* C, int M, int N, int K);
 
+            __global__ void sgd_step_kernel(float* W, float* dW, int LR, int TP);
+
         }
     }
 }
