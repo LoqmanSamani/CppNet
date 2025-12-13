@@ -35,48 +35,14 @@ namespace CppNet
                     std::string layer_name = "Linear", 
                     bool trainable = true, 
                     bool bias = true,
-                    std::string device = "cpu",
+                    std::string device = "gpu",
                     std::string weight_init = "xavier",
                     int parallel_threshold = 10000
                 ); 
                 ~Linear();
                 
                 Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
-                
-                void forward_cpu(
-                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
-                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-                    int batch_size, int input_size, int output_size, bool bias_);
-
-                void forward_gpu(
-                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
-                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-                    int batch_size, int input_size, int output_size, bool bias_);
-
-                void forward_eigen(
-                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
-                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-                    int batch_size, int input_size, int output_size, bool bias_);
-
                 Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
-
-                void backward_gpu(
-                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
-                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
-                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
-                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
-                
-                void backward_cpu(
-                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
-                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
-                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
-                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
-
-                void backward_eigen(
-                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
-                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
-                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
-                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
 
                 void reset_grads() 
                     {
@@ -174,6 +140,38 @@ namespace CppNet
 
                 void reinitialize_weights(const std::string& new_init_method);
                 void init_params_and_grads();
+                void forward_cpu(
+                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+                    int batch_size, int input_size, int output_size, bool bias_);
+
+                void forward_gpu(
+                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+                    int batch_size, int input_size, int output_size, bool bias_);
+
+                void forward_eigen(
+                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
+                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
+                    int batch_size, int input_size, int output_size, bool bias_);
+
+                void backward_gpu(
+                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
+                
+                void backward_cpu(
+                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
+
+                void backward_eigen(
+                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
+                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
+                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
+                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
                 
                 // GPU related params
                 #ifdef USE_CUDA

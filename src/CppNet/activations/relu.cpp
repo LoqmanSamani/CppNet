@@ -1,3 +1,4 @@
+#include <iostream>
 #include <cmath>
 #include <Eigen/Dense>
 #include "CppNet/activations/relu.hpp"
@@ -9,7 +10,143 @@ namespace CppNet
 {
     namespace Activations
     {
-        ReLU::ReLU(){}
+        ReLU::ReLU(int size, std::string device, bool relu_2d, int channels): size_(size), device_(device), relu_2d_(relu_2d), channels_(channels)
+        {
+            #ifdef USE_CUDA
+                d_output_cache_2d_ = nullptr;
+                d_output_cache_4d_ = nullptr;
+                gpu_max_batch_size_ = 0;
+                gpu_initialized_ = false;
+            #endif
+        }
+
+        ReLU::~ReLU() 
+        {
+            #ifdef USE_CUDA
+
+                cleanup_gpu_buffers();
+
+            #endif
+        }
+        void ReLU::set_max_batch_size(int max_batch_size)
+        {
+            #ifdef USE_CUDA
+
+                if (device_ == "gpu") 
+                {
+                    init_gpu_buffers(max_batch_size);
+                }
+                
+            #endif
+        }
+
+        #ifdef USE_CUDA
+
+            void ReLU::init_gpu_buffers(int max_batch_size)
+            {
+                // clean up old buffers if they exist
+                if (gpu_initialized_) 
+                {
+                    cleanup_gpu_buffers();
+                }
+                
+                gpu_max_batch_size_ = max_batch_size;
+                
+                std::cout << "Allocating GPU buffers" << "' (max batch: " << max_batch_size << ")" << std::endl;
+
+                if (relu_2d_)
+                {
+                    cudaMalloc(&d_output_cache_2d_, size_ * size_ * sizeof(float));
+                    cudaMalloc(&d_output_cache_2d_, max_batch_size * size_ * sizeof(float));
+                    sync_output_cache_to_gpu();
+                    gpu_initialized_ = true;   
+                }
+                else
+                {
+                    cudaMalloc(&d_output_cache_4d_, size_ * size_ * channels_ * channels_ * sizeof(float));
+                    cudaMalloc(&d_output_cache_4d_, max_batch_size * size_ * channels_ * channels_ * sizeof(float)); 
+                    sync_output_cache_to_gpu();
+                    gpu_initialized_ = true;   
+                }
+                
+                cudaError_t err = cudaGetLastError();
+                if (err != cudaSuccess) 
+                {
+                    throw std::runtime_error("CUDA allocation failed: " + cudaGetErrorString(err));
+                }
+                
+                std::cout << "GPU buffers allocated successfully for layer '" << std::endl;
+            }
+            // GPU buffer clean up
+            void ReLU::cleanup_gpu_buffers()
+            {
+                if (!gpu_initialized_) 
+                {
+                    return;
+                }
+                
+                if (d_output_cache_2d_) 
+                {
+                    cudaFree(d_output_cache_2d_);
+                }
+            
+                if (d_output_cache_4d_)
+                {
+                    cudaFree(d_output_cache_4d_);
+                } 
+                
+                d_output_cache_2d_ = nullptr;
+                d_output_cache_4d_ = nullptr;
+                
+                gpu_initialized_ = false;
+            }
+            void ReLU::sync_output_cache_to_gpu()
+            {
+                if (!gpu_initialized_) 
+                {
+                    return;
+                }
+                if (relu_2d_)
+                {
+                    cudaMemcpy(d_output_cache_2d_, output_cache_2d_.data(), size_ * size_  * sizeof(float), cudaMemcpyHostToDevice);
+                }
+                else
+                {
+                    cudaMemcpy(d_output_cache_4d_, output_cache_4d_.data(), size_ * size_ * channels_ * channels_ * sizeof(float), cudaMemcpyHostToDevice);
+                }
+            }
+            void ReLU::sync_output_cache_from_gpu()
+            {
+                if (!gpu_initialized_) 
+                {
+                    return;
+                }
+                if (relu_2d_)
+                {
+                    cudaMemcpy(output_cache_2d_.data(), d_output_cache_2d_, size_ * size_  * sizeof(float), cudaMemcpyHostToDevice);
+                }
+                else
+                {
+                    cudaMemcpy(output_cache_4d_.data(), d_output_cache_4d_, size_ * size_ * channels_ * channels_ * sizeof(float), cudaMemcpyHostToDevice);
+                }
+            }
+            void ReLU::forward_gpu(const Eigen::Tensor<float, 2>& pre_activation)
+            {
+                //
+            }
+            void ReLU::forward_gpu(const Eigen::Tensor<float, 4>& pre_activation)
+            {
+                //
+            }
+            void ReLU::backward_gpu(const Eigen::Tensor<float, 2>& grad_output)
+            {
+                //
+            }
+            void ReLU::backward_gpu(const Eigen::Tensor<float, 4>& grad_output)
+            {
+                //
+            }
+        #endif
 
         void ReLU::set_num_threads(int num_threads) 
         {
