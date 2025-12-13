@@ -17,7 +17,7 @@ namespace Activations
         {
             public:
             
-                ReLU(int size, std::string device = "gpu", bool relu_2d = true, int channels = 0);
+                ReLU(int size, std::string device = "gpu", bool relu_2d = true, int channels = 0, int gpu_block_size = 256);
                 ~ReLU();
                 Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& pre_activation) override;
                 Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output) override;
@@ -32,7 +32,7 @@ namespace Activations
 
                 // set max batch size for GPU
                 void set_max_batch_size(int max_batch_size);
-
+                
                 // GPU memory management
                 #ifdef USE_CUDA
 
@@ -49,12 +49,13 @@ namespace Activations
                     bool is_gpu_initialized() const { return gpu_initialized_; }
         
                 #endif
-                
+   
             private:
                 int size_;
                 std::string device_;
                 bool relu_2d_;
                 int channels_;
+                int gpu_block_size_;
                 Eigen::Tensor<float, 2> output_cache_2d_;
                 Eigen::Tensor<float, 4> output_cache_4d_;
 
@@ -66,17 +67,9 @@ namespace Activations
                 #endif
 
                 void forward_gpu(const Eigen::Tensor<float, 2>& pre_activation);
-                void forward_cpu(const Eigen::Tensor<float, 2>& pre_activation);
-                void forward_eigen(const Eigen::Tensor<float, 2>& pre_activation);
                 void backward_gpu(const Eigen::Tensor<float, 2>& grad_output);
-                void backward_cpu(const Eigen::Tensor<float, 2>& grad_output);
-                void backward_eigen(const Eigen::Tensor<float, 2>& grad_output);
                 void forward_gpu(const Eigen::Tensor<float, 4>& pre_activation);
-                void forward_cpu(const Eigen::Tensor<float, 4>& pre_activation);
-                void forward_eigen(const Eigen::Tensor<float, 4>& pre_activation);
                 void backward_gpu(const Eigen::Tensor<float, 4>& grad_output);
-                void backward_cpu(const Eigen::Tensor<float, 4>& grad_output);
-                void backward_eigen(const Eigen::Tensor<float, 4>& grad_output);
         };
     }
 }

@@ -53,6 +53,8 @@ set(GPU_SOURCES
     src/CppNet/kernels/gpu/matmul_grad_input.cu
     src/CppNet/kernels/gpu/matmul_grad_weight.cu
     src/CppNet/kernels/gpu/sgd_step.cu
+    src/CppNet/kernels/gpu/relu.cu
+    src/CppNet/kernels/gpu/relu_grad.cu
 )
 
 set(CPP_NET_SOURCES ${CPU_SOURCES})
@@ -68,6 +70,7 @@ if(USE_CUDA)
     set_source_files_properties(
         src/CppNet/layers/linear.cpp
         src/CppNet/optimizers/sgd.cpp
+        src/CppNet/activations/relu.cpp
         PROPERTIES
             LANGUAGE CUDA
     )
