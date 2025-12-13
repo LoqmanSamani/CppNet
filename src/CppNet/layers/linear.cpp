@@ -2,6 +2,7 @@
 #include <omp.h>
 #include <chrono> 
 #include <Eigen/Dense>
+#include "CppNet/utils/init.hpp"
 #include "CppNet/optimizers/sgd.hpp"
 #include "CppNet/activations/activation.hpp" 
 #include "CppNet/activations/relu.hpp"
@@ -58,7 +59,7 @@ namespace CppNet
             }
 
             // initialize parameters and gradients
-            init_params_and_grads();
+            init_params_and_grads();  
         }
 
         Linear::~Linear() 
@@ -81,7 +82,6 @@ namespace CppNet
                 
             #endif
         }
-
 
 
         #ifdef USE_CUDA
@@ -327,190 +327,23 @@ namespace CppNet
 
         #endif
 
-        // initialize parameters
         void Linear::init_params_and_grads()
         {
-            std::random_device rd;
-            double scale = 0.0;
-            double mean = 0.0;
-            double std_dev = 0.0;
-            bool use_normal = false;  // flag to determine distribution type
-            
-            // calculate initialization parameters based on method
-            if (weight_init_ == "xavier" || weight_init_ == "xavier_uniform")
-            {
-                // xavier/glorot uniform: U(-sqrt(6/(fan_in + fan_out)), sqrt(6/(fan_in + fan_out)))
-                scale = std::sqrt(6.0 / (in_size_ + out_size_));
-                use_normal = false;
-            }
-            else if (weight_init_ == "xavier_normal" || weight_init_ == "glorot_normal")
-            {
-                // xavier/glorot normal: N(0, sqrt(2/(fan_in + fan_out)))
-                mean = 0.0;
-                std_dev = std::sqrt(2.0 / (in_size_ + out_size_));
-                use_normal = true;
-            }
-            else if (weight_init_ == "he" || weight_init_ == "he_uniform")
-            {
-                // he uniform (for relu): U(-sqrt(6/fan_in), sqrt(6/fan_in))
-                scale = std::sqrt(6.0 / in_size_);
-                use_normal = false;
-            }
-            else if (weight_init_ == "he_normal")
-            {
-                // he normal (for relu): N(0, sqrt(2/fan_in))
-                mean = 0.0;
-                std_dev = std::sqrt(2.0 / in_size_);
-                use_normal = true;
-            }
-            else if (weight_init_ == "lecun_uniform")
-            {
-                // lecun uniform: U(-sqrt(3/fan_in), sqrt(3/fan_in))
-                scale = std::sqrt(3.0 / in_size_);
-                use_normal = false;
-            }
-            else if (weight_init_ == "lecun_normal")
-            {
-                // lecun normal: N(0, sqrt(1/fan_in))
-                mean = 0.0;
-                std_dev = std::sqrt(1.0 / in_size_);
-                use_normal = true;
-            }
-            else if (weight_init_ == "uniform")
-            {
-                // simple uniform distribution: U(-0.1, 0.1)
-                scale = 0.1;
-                use_normal = false;
-            }
-            else if (weight_init_ == "normal")
-            {
-                // simple normal distribution: N(0, 0.01)
-                mean = 0.0;
-                std_dev = 0.01;
-                use_normal = true;
-            }
-            else if (weight_init_ == "zeros")
-            {
-                // initialize with zeros (useful for some specific architectures)
-                scale = 0.0;
-                use_normal = false;
-            }
-            else if (weight_init_ == "ones")
-            {
-                // initialize with ones (rarely used, but available)
-                scale = -1.0; // special flag for ones initialization
-                use_normal = false;
-            }
-            else
-            {
-                throw std::runtime_error("Unknown weight initialization method: '" + weight_init_ + 
-                                        "' in layer: " + layer_name_ + 
-                                        "\nSupported methods: xavier, xavier_normal, he, he_normal, " +
-                                        "lecun_uniform, lecun_normal, uniform, normal, zeros, ones");
-            }
-
-            // initialize weight tensor
-            weights_ = Eigen::Tensor<float, 2>(in_size_, out_size_);
-
-            // only parallelize for larger matrices to avoid overhead
-            const int total_elements = in_size_ * out_size_;
-            const bool should_parallelize = (total_elements > parallel_threshold_);
-
-            if (weight_init_ == "zeros")
-            {
-                // special case: zero initialization
-                weights_.setZero();
-            }
-            else if (weight_init_ == "ones")
-            {
-                // special case: ones initialization
-                weights_.setConstant(1.0);
-            }
-            else if (should_parallelize)
-            {
-                // parallel initialization for large matrices
-                #pragma omp parallel
-                {
-                    // each thread gets its own random generator to avoid race conditions
-                    std::mt19937 local_gen(rd() + omp_get_thread_num() * 1000 + std::chrono::high_resolution_clock::now().time_since_epoch().count() % 1000);
-                    
-                    if (use_normal)
-                    {
-                        std::normal_distribution<float> local_dist(mean, std_dev);
-                        #pragma omp for collapse(2)
-                        for (int i = 0; i < in_size_; ++i)
-                        {
-                            for (int j = 0; j < out_size_; ++j)
-                            {
-                                weights_(i, j) = local_dist(local_gen);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        std::uniform_real_distribution<float> local_dist(-scale, scale);
-                        #pragma omp for collapse(2)
-                        for (int i = 0; i < in_size_; ++i)
-                        {
-                            for (int j = 0; j < out_size_; ++j)
-                            {
-                                weights_(i, j) = local_dist(local_gen);
-                            }
-                        }
-                    }
-                }
-            }
-            else
-            {
-                // serial initialization for small matrices
-                std::mt19937 gen(rd());
-                
-                if (use_normal)
-                {
-                    std::normal_distribution<float> dist(mean, std_dev);
-                    for (int i = 0; i < in_size_; ++i)
-                    {
-                        for (int j = 0; j < out_size_; ++j)
-                        {
-                            weights_(i, j) = dist(gen);
-                        }
-                    }
-                }
-                else
-                {
-                    std::uniform_real_distribution<float> dist(-scale, scale);
-                    for (int i = 0; i < in_size_; ++i)
-                    {
-                        for (int j = 0; j < out_size_; ++j)
-                        {
-                            weights_(i, j) = dist(gen);
-                        }
-                    }
-                }
-            }
-
-            // initialize weight gradients with zeros
-            grad_weights_ = Eigen::Tensor<float, 2>(in_size_, out_size_);
-            grad_weights_.setZero();
-
-            // initialize biases and bias gradients
+            // initialize parameters and gradients
+            CppNet::Utils::Initialization init(in_size_, out_size_);
+            init.init_params(weights_, weight_init_);
+            init.init_params(grad_weights_, "zeros");
             if (bias_)
             {
-                biases_ = Eigen::Tensor<float, 1>(out_size_);
-                grad_biases_ = Eigen::Tensor<float, 1>(out_size_);
-                
-                // biases are typically initialized to zero regardless of weight initialization
-                biases_.setZero();
-                grad_biases_.setZero();
+                init.init_params(biases_, "zeros");
+                init.init_params(grad_biases_, "zeros");
             }
             else
             {
-                // initialize empty tensors when bias is disabled
                 biases_ = Eigen::Tensor<float, 1>(0);
                 grad_biases_ = Eigen::Tensor<float, 1>(0);
             }
         }
-
         // reinitialize parameters
         void Linear::reinitialize_weights(const std::string& new_init_method)
         {
@@ -519,13 +352,12 @@ namespace CppNet
             
             try
             {
-                init_params_and_grads();
+                init_params_and_grads();  
                 std::cout << "Layer '" << layer_name_ << "' weights reinitialized from '" 
                         << old_method << "' to '" << new_init_method << "'" << std::endl;
             }
             catch (const std::exception& e)
             {
-                // restore old method if new one fails
                 weight_init_ = old_method;
                 throw std::runtime_error("Failed to reinitialize with method '" + new_init_method + "': " + e.what());
             }

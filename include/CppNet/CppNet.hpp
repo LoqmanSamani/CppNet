@@ -38,6 +38,7 @@
 
 // Layers
 #include "CppNet/layers/linear.hpp"
+#include "CppNet/layers/layer.hpp"
 
 // Losses
 #include "CppNet/losses/binary_cross_entropy.hpp"

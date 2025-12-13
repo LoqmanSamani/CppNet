@@ -120,15 +120,15 @@ namespace CppNet
             {
                 return get_he_normal_config(in_size_);
             }
-            else if (method == "he_uniform")
+            else if (method == "he")
             {
                 return get_he_uniform_config(in_size_);
             }
-            else if (method == "lecun")
+            else if (method == "lecun_normal")
             {
                 return get_lecun_normal_config(in_size_);
             }
-            else if (method == "lecun_uniform")
+            else if (method == "lecun")
             {
                 return get_lecun_uniform_config(in_size_);
             }
@@ -144,7 +144,7 @@ namespace CppNet
             {
                 throw std::runtime_error("Unknown weight initialization method: '" + method + 
                                         "'\nSupported methods: xavier, xavier_normal, he, he_normal, " +
-                                        "he_uniform, lecun, lecun_uniform, uniform, normal, zeros, ones");
+                                        "lecun, lecun_normal, uniform, normal, zeros, ones");
             }
         }
 

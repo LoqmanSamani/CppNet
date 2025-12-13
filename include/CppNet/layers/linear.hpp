@@ -15,26 +15,14 @@
 #include <tuple>
 #include <vector>
 #include <omp.h>
+#include "CppNet/layers/layer.hpp"
 
 
 
 namespace CppNet
 {
-    namespace Optimizers
-    {
-        class Optimizer;
-    }
-    
     namespace Layers
     {
-        
-        class Layer 
-        {
-            public:
-                virtual bool is_trainable() const = 0;
-                virtual void step(Optimizers::Optimizer& optimizer, float learning_rate) = 0;
-                virtual ~Layer() = default;
-        };
 
         //********************* Linear (Fully Connected: Dense) Layer *********************//
         class Linear : public Layer
@@ -178,7 +166,7 @@ namespace CppNet
 
                 void reinitialize_weights(const std::string& new_init_method);
                 void init_params_and_grads();
-                 
+                
                 // GPU related params
                 #ifdef USE_CUDA
 
