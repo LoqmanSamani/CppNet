@@ -1,4 +1,3 @@
-#pragma once
 #include <cuda_runtime.h>
 #include <iostream>
 #include "CppNet/kernels/gpu/gpu.hpp"

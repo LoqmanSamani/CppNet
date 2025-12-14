@@ -25,10 +25,10 @@ namespace Activations
                 Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 4>& grad_output) override;
                 static void set_num_threads(int num_threads);
                 std::string get_device() { return device_; }
-                const Eigen::Tensor<float, 2>& get_output_cache_2d() { output_cache_2d_; }
-                const Eigen::Tensor<float, 4>& get_output_cache_4d() { output_cache_4d_; }
-                Eigen::Tensor<float, 2>& get_output_cache_2d() const { output_cache_2d_; }
-                Eigen::Tensor<float, 4>& get_output_cache_4d() const { output_cache_4d_; }
+                const Eigen::Tensor<float, 2>& get_output_cache_2d() const { return output_cache_2d_; }
+                const Eigen::Tensor<float, 4>& get_output_cache_4d() const { return output_cache_4d_; }
+                Eigen::Tensor<float, 2>& get_output_cache_2d() { return output_cache_2d_; }
+                Eigen::Tensor<float, 4>& get_output_cache_4d() { return output_cache_4d_; }
 
                 // set max batch size for GPU
                 void set_max_batch_size(int max_batch_size);
@@ -44,7 +44,7 @@ namespace Activations
                     //void sync_output_cache_4d_from_gpu();    // GPU -> CPU
                     
                     float* get_d_output_cache_2d_() { return d_output_cache_2d_; }
-                    float* get_d_output_cache_2d_() { return d_output_cache_4d_; }
+                    float* get_d_output_cache_4d_() { return d_output_cache_4d_; }
                     
                     bool is_gpu_initialized() const { return gpu_initialized_; }
         
