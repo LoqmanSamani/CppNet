@@ -24,7 +24,7 @@ class DataProcessor {
     public:
         DataProcessor(bool has_header = true) : header(has_header) {}
 
-        Eigen::MatrixXf load_data(const std::string& path, int num_feats, double proportion = 1.0) {
+        Eigen::MatrixXf load_data(const std::string& path, int num_feats, float proportion = 1.0f) {
             std::ifstream data(path);
             if (!data.is_open()) {
                 throw std::runtime_error("Could not open the data!");
@@ -148,57 +148,45 @@ void standardize(Eigen::MatrixXf& data) {
     }
 }
 
-// function to run training with specific number of threads and return timing results
-float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
-    std::cout << "\n=== Testing with " << num_threads << " threads ===" << std::endl;
-    
-    // load and prepare data
+float run_training_with_threads(
+    int num_threads,
+    int epochs_to_test,
+    const std::string& device)
+{
+    std::cout << "\n=== Testing with " << num_threads
+              << " threads (" << device << ") ===\n";
+
     DataProcessor dp(true);
     Eigen::MatrixXf data = dp.load_data("../examples/breast_cancer.csv", 31, 1.0);
+
     Eigen::MatrixXf train_data(500, 31);
     Eigen::MatrixXf test_data(39, 31);
     Eigen::MatrixXf val_data(30, 31);
     dp.split_data(data, train_data, test_data, val_data, true);
-    //Eigen::MatrixXf data(10000, 5001);
-    //data.leftCols(5002 - 1) = Eigen::MatrixXf::Random(10000, 5001 - 1);
-    //static std::random_device rd;
-    //static std::mt19937 gen(rd());
-    //static std::uniform_int_distribution<int> dist(0, 1);
 
-    //for (int i = 0; i < 10000; ++i)
-    //    data(i, 5001 - 1) = static_cast<float>(dist(gen));
+    // ---------------- Layers ----------------
+    CppNet::Layers::Linear layer1(30, 50, "TestLayer1", true, true, device, "he");
+    CppNet::Activations::ReLU relu1(device);
 
-    //Eigen::MatrixXf train_data(8000, 5001);
-    //Eigen::MatrixXf test_data(1000, 5001);
-    //Eigen::MatrixXf val_data(1000, 5001);
-    //dp.split_data(data, train_data, test_data, val_data, true);
+    CppNet::Layers::Linear layer2(50, 100, "TestLayer2", true, true, device, "he");
+    CppNet::Activations::ReLU relu2(device);
 
-    // create model layers
-    // linear layer arguments and their defaluts:
-    // in_size (must be defined), 
-    // out_size (must be defined), 
-    // layer_name = "Linear", 
-    // trainable = true, 
-    // bias = true,
-    // device = "cpu",
-    // weight_init = "xavier",
-    // parallel_threshold = 10000
-    CppNet::Layers::Linear layer1(30, 50, "TestLayer1", true, true, "cpu", "he", 100);
-    CppNet::Activations::ReLU relu1;
-    CppNet::Layers::Linear layer2(50, 100, "TestLayer2", true, true, "cpu", "he", 100);
-    CppNet::Activations::ReLU relu2;
-    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, "cpu", "he", 100);
-    CppNet::Activations::ReLU relu3;
-    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, "cpu", "he", 100);
-    CppNet::Activations::ReLU relu4;
-    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, "cpu", "he", 100);
-    CppNet::Activations::ReLU relu5;
-    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, "cpu", "he", 100);
+    CppNet::Layers::Linear layer3(100, 100, "TestLayer3", true, true, device, "he");
+    CppNet::Activations::ReLU relu3(device);
+
+    CppNet::Layers::Linear layer4(100, 50, "TestLayer4", true, true, device, "he");
+    CppNet::Activations::ReLU relu4(device);
+
+    CppNet::Layers::Linear layer5(50, 30, "TestLayer5", true, true, device, "he");
+    CppNet::Activations::ReLU relu5(device);
+
+    CppNet::Layers::Linear layer6(30, 1, "TestLayer6", true, true, device, "he");
     CppNet::Activations::Sigmoid sigmoid;
+
     CppNet::Optimizers::SGD optimizer;
     CppNet::Losses::BinaryCrossEntropy loss_fn("mean", false, 1.0f);
 
-    // set number of threads for all layers
+    // ---------------- Threads ----------------
     layer1.set_num_threads(num_threads);
     layer2.set_num_threads(num_threads);
     layer3.set_num_threads(num_threads);
@@ -206,86 +194,67 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
     layer5.set_num_threads(num_threads);
     layer6.set_num_threads(num_threads);
 
-    // initialize GPU buffers ONCE before training
-    // set max batch size to largest you'll use
-    layer1.set_max_batch_size(128);
-    layer2.set_max_batch_size(128);
-    layer3.set_max_batch_size(128);
-    layer4.set_max_batch_size(128);
-    layer5.set_max_batch_size(128);
-    layer6.set_max_batch_size(128);
+    // ---------------- GPU INIT (ONLY IF GPU) ----------------
+    if (device == "gpu") {
+        constexpr int MAX_BATCH = 128;
+        layer1.set_max_batch_size(MAX_BATCH);
+        layer2.set_max_batch_size(MAX_BATCH);
+        layer3.set_max_batch_size(MAX_BATCH);
+        layer4.set_max_batch_size(MAX_BATCH);
+        layer5.set_max_batch_size(MAX_BATCH);
+        layer6.set_max_batch_size(MAX_BATCH);
+    }
 
-    // training parameters
-    float lr = 0.00003f;
-    int train_batch_size = 64;
-    int num_train_iters = (train_data.rows() + train_batch_size - 1) / train_batch_size;
+    // ---------------- Training Loop ----------------
+    const int batch_size = 64;
+    const int iters =
+        (train_data.rows() + batch_size - 1) / batch_size;
 
-    // indices for shuffling
-    std::vector<int> train_indices(train_data.rows());
-    std::iota(train_indices.begin(), train_indices.end(), 0);
-    std::mt19937 g(3);
+    std::vector<int> indices(train_data.rows());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::mt19937 rng(3);
 
-    // start timing the training loop
-    auto start_time = std::chrono::high_resolution_clock::now();
+    auto t0 = std::chrono::high_resolution_clock::now();
 
-    // training loop (reduced epochs for speed testing)
-    for (int epoch = 0; epoch < epochs_to_test; epoch++) {
+    for (int epoch = 0; epoch < epochs_to_test; ++epoch) {
+        std::shuffle(indices.begin(), indices.end(), rng);
+
         float epoch_loss = 0.0f;
         float epoch_acc = 0.0f;
 
-        // shuffle training indices
-        std::shuffle(train_indices.begin(), train_indices.end(), g);
+        for (int it = 0; it < iters; ++it) {
+            int start = it * batch_size;
+            int end = std::min(start + batch_size,
+                               static_cast<int>(train_data.rows()));
+            int bs = end - start;
 
-        int start = 0;
-        int end = std::min(train_batch_size, static_cast<int>(train_data.rows()));
-        
-        for (int iter = 0; iter < num_train_iters; iter++) {
-            int batch_size = end - start;
-            Eigen::MatrixXf x_batch_(batch_size, train_data.cols()-1);
-            Eigen::MatrixXf y_batch_(batch_size, 1);
+            Eigen::MatrixXf x(bs, train_data.cols() - 1);
+            Eigen::MatrixXf y(bs, 1);
 
-            // slice indices
-            auto first = train_indices.begin() + start;
-            auto last = train_indices.begin() + end;
-            std::vector<int> indices_(first, last);
-            
-            dp.prepare_batch(train_data, x_batch_, y_batch_, indices_);
-            standardize(x_batch_);
+            std::vector<int> batch_idx(indices.begin() + start,
+                                       indices.begin() + end);
 
-            Eigen::TensorMap<Eigen::Tensor<float, 2>> x_batch(
-                x_batch_.data(),
-                x_batch_.rows(),
-                x_batch_.cols()
-            );
+            dp.prepare_batch(train_data, x, y, batch_idx);
+            standardize(x);
 
-            Eigen::TensorMap<Eigen::Tensor<float, 2>> y_batch(
-                y_batch_.data(), 
-                y_batch_.rows(), 
-                y_batch_.cols()
-            );
+            Eigen::TensorMap<Eigen::Tensor<float,2>> xt(x.data(), x.rows(), x.cols());
+            Eigen::TensorMap<Eigen::Tensor<float,2>> yt(y.data(), y.rows(), y.cols());
 
-            // forward propagation
-            Eigen::Tensor<float, 2> output1 = relu1.forward(layer1.forward(x_batch));
-            Eigen::Tensor<float, 2> output2 = relu2.forward(layer2.forward(output1));
-            Eigen::Tensor<float, 2> output3 = relu3.forward(layer3.forward(output2));
-            Eigen::Tensor<float, 2> output4 = relu4.forward(layer4.forward(output3));
-            Eigen::Tensor<float, 2> output5 = relu5.forward(layer5.forward(output4));
-            Eigen::Tensor<float, 2> output6 = sigmoid.forward(layer6.forward(output5));
+            auto o1 = relu1.forward(layer1.forward(xt));
+            auto o2 = relu2.forward(layer2.forward(o1));
+            auto o3 = relu3.forward(layer3.forward(o2));
+            auto o4 = relu4.forward(layer4.forward(o3));
+            auto o5 = relu5.forward(layer5.forward(o4));
+            auto out = sigmoid.forward(layer6.forward(o5));
 
-            // compute loss and accuracy
-            float loss = loss_fn.forward(output6, y_batch);
-            //std::cout << "step loss: " << loss << std::endl;
-            //std::cout << "epoch loss before adding loss: " << epoch_loss << std::endl;
+            float loss = loss_fn.forward(out, yt);
             epoch_loss += loss;
-            //std::cout << "epoch loss after adding loss: " << epoch_loss << std::endl;
-            Eigen::Map<Eigen::MatrixXf> output_map(output6.data(), output6.dimension(0), output6.dimension(1));
-            Eigen::Map<Eigen::MatrixXf> y_map(y_batch.data(), y_batch.dimension(0), y_batch.dimension(1));
 
-            Eigen::MatrixXf pred_matrix = (output_map.array() > 0.5).cast<float>();
-            float acc = (pred_matrix.array() == y_map.array()).cast<float>().mean();
-            epoch_acc += acc;
+            Eigen::Map<Eigen::MatrixXf> pm(out.data(), out.dimension(0), 1);
+            Eigen::Map<Eigen::MatrixXf> ym(yt.data(), yt.dimension(0), 1);
+            epoch_acc += (pm.array() > 0.5).cast<float>()
+                         .cwiseEqual(ym.array()).mean();
 
-            // Reset gradients
             layer1.reset_grads();
             layer2.reset_grads();
             layer3.reset_grads();
@@ -293,107 +262,85 @@ float run_training_with_threads(int num_threads, int epochs_to_test = 50) {
             layer5.reset_grads();
             layer6.reset_grads();
 
+            auto g = loss_fn.backward(out, yt);
+            g = layer6.backward(sigmoid.backward(g));
+            g = layer5.backward(relu5.backward(g));
+            g = layer4.backward(relu4.backward(g));
+            g = layer3.backward(relu3.backward(g));
+            g = layer2.backward(relu2.backward(g));
+            layer1.backward(relu1.backward(g));
 
-            // backward propagation
-            Eigen::Tensor<float, 2> grad_out = loss_fn.backward(output6, y_batch);
-            Eigen::Tensor<float, 2> grad_in6 = layer6.backward(sigmoid.backward(grad_out));
-            Eigen::Tensor<float, 2> grad_in5 = layer5.backward(relu5.backward(grad_in6));
-            Eigen::Tensor<float, 2> grad_in4 = layer4.backward(relu4.backward(grad_in5));  
-            Eigen::Tensor<float, 2> grad_in3 = layer3.backward(relu3.backward(grad_in4));
-            Eigen::Tensor<float, 2> grad_in2 = layer2.backward(relu2.backward(grad_in3));
-            Eigen::Tensor<float, 2> grad_in1 = layer1.backward(relu1.backward(grad_in2));  
-            
-            // update parameters using SGD
-            // note: using the step function defined in the Linear layer to update weights
-            layer1.step(optimizer, lr);
-            layer2.step(optimizer, lr);
-            layer3.step(optimizer, lr);
-            layer4.step(optimizer, lr);
-            layer5.step(optimizer, lr);
-            layer6.step(optimizer, lr); 
+            layer1.step(optimizer, 0.001f);
+            layer2.step(optimizer, 0.001f);
+            layer3.step(optimizer, 0.001f);
+            layer4.step(optimizer, 0.001f);
+            layer5.step(optimizer, 0.001f);
+            layer6.step(optimizer, 0.001f);
 
-            // Sync updated weights back to GPU (once per batch)
-            layer1.sync_weights_to_gpu();
-            layer2.sync_weights_to_gpu();
-            layer3.sync_weights_to_gpu();
-            layer4.sync_weights_to_gpu();
-            layer5.sync_weights_to_gpu();
-            layer6.sync_weights_to_gpu();
-
-            start = end;
-            end = std::min(end + train_batch_size, static_cast<int>(train_data.rows()));
+            if (device == "gpu") {
+                layer1.sync_weights_to_gpu();
+                layer2.sync_weights_to_gpu();
+                layer3.sync_weights_to_gpu();
+                layer4.sync_weights_to_gpu();
+                layer5.sync_weights_to_gpu();
+                layer6.sync_weights_to_gpu();
+            }
         }
 
-        float mean_loss = epoch_loss / num_train_iters;
-        float mean_acc = epoch_acc / num_train_iters;
-
-        // Print progress every 10 epochs
         if (epoch % 100 == 0) {
-            std::cout << "Epoch: " << epoch << " | Loss: " << std::fixed << std::setprecision(4) 
-                      << mean_loss << " | Acc: " << mean_acc << std::endl;
+            std::cout << "Epoch " << epoch
+                      << " | Loss " << epoch_loss / iters
+                      << " | Acc " << epoch_acc / iters << "\n";
         }
     }
 
-    // Stop timing and calculate duration
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    float time_seconds = duration.count() / 1000.0;
-    
-    std::cout << "Training completed in: " << std::fixed << std::setprecision(2) 
-              << time_seconds << " seconds" << std::endl;
-    
-    return time_seconds;
+    auto t1 = std::chrono::high_resolution_clock::now();
+    float sec = std::chrono::duration<float>(t1 - t0).count();
+
+    std::cout << "Training completed in " << sec << " seconds\n";
+    return sec;
 }
 
 int main() {
-    std::cout << "=== Deep Learning Library Performance Test ===" << std::endl;
-    std::cout << "Testing with different numbers of CPU threads" << std::endl;
-    std::cout << "My system has 8 CPU cores available" << std::endl;
-    
-    // array of thread counts to test (you can modify this)
+    std::cout << "=== Deep Learning Library Performance Test ===\n";
+    std::cout << "Testing with different numbers of CPU threads\n";
+    std::cout << "My system has 8 CPU cores available\n";
+
     std::vector<int> thread_counts = {4};
-    
-    // number of epochs to run for each test (reduced for faster testing)
     int test_epochs = 1000;
-    
-    // store results for comparison
-    std::vector<std::pair<int, float>> results;
-    
-    // test each thread count
-    for (int threads : thread_counts) {
-        float time_taken = run_training_with_threads(threads, test_epochs);
-        results.push_back({threads, time_taken});
-        
-        // small delay between tests
-        std::cout << "Waiting 2 seconds before next test...\n" << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+
+    std::vector<std::string> devices = {"cpu-eigen", "cpu", "gpu"};
+
+    for (size_t i = 0; i < devices.size(); ++i) {
+        std::vector<std::pair<int, float>> results;
+        std::cout << "\n=== DEVICE: " << devices[i] << " ===\n";
+
+        for (int threads : thread_counts) {
+            float time_taken =
+                run_training_with_threads(threads, test_epochs, devices[i]);
+
+            results.push_back({threads, time_taken});
+
+            std::cout << "Waiting 2 seconds before next test...\n\n";
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+        }
+
+        std::cout << "\n=== PERFORMANCE COMPARISON RESULTS ===\n";
+        std::cout << "Threads | Time (s) | Speedup | Efficiency\n";
+        std::cout << "--------|----------|---------|-----------\n";
+
+        float baseline_time = results[0].second;
+
+        for (const auto& r : results) {
+            float speedup = baseline_time / r.second;
+            float efficiency = (speedup / r.first) * 100.0f;
+
+            std::cout << r.first << "\t | "
+                      << std::fixed << std::setprecision(2) << r.second
+                      << "\t | " << speedup
+                      << "x\t | " << efficiency << "%\n";
+        }
     }
-    
-    // print performance comparison results
-    std::cout << "\n=== PERFORMANCE COMPARISON RESULTS ===" << std::endl;
-    std::cout << "Threads\t| Time (s)\t| Speedup\t| Efficiency" << std::endl;
-    std::cout << "--------|---------------|---------------|----------" << std::endl;
-    
-    float baseline_time = results[0].second; // single thread time as baseline
-    
-    for (const auto& result : results) {
-        int threads = result.first;
-        float time = result.second;
-        float speedup = baseline_time / time;
-        float efficiency = speedup / threads * 100; // percentage efficiency
-        
-        std::cout << threads << "\t| " << std::fixed << std::setprecision(2) << time 
-                  << "\t\t| " << speedup << "x\t\t| " << efficiency << "%" << std::endl;
-    }
-    
-    // find the best performing configuration
-    auto best_result = *std::min_element(results.begin(), results.end(), 
-                                       [](const auto& a, const auto& b) {
-                                           return a.second < b.second;
-                                       });
-    
-    std::cout << "\nBest performance: " << best_result.first << " threads with " 
-              << std::fixed << std::setprecision(2) << best_result.second << " seconds" << std::endl;
-    
+
     return 0;
 }

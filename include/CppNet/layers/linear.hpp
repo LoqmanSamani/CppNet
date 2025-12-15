@@ -6,7 +6,6 @@
 #include <cuda_runtime.h>
 #endif
 
-
 #include <iostream>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
@@ -17,18 +16,13 @@
 #include <omp.h>
 #include "CppNet/layers/layer.hpp"
 
-
-
 namespace CppNet
 {
     namespace Layers
     {
-
-        //********************* Linear (Fully Connected: Dense) Layer *********************//
         class Linear : public Layer
         {
             public:
-
                 Linear(
                     int in_size, 
                     int out_size, 
@@ -36,26 +30,22 @@ namespace CppNet
                     bool trainable = true, 
                     bool bias = true,
                     std::string device = "gpu",
-                    std::string weight_init = "xavier",
-                    int parallel_threshold = 10000
+                    std::string weight_init = "xavier"
                 ); 
                 ~Linear();
                 
-                Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
-                Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
+                const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
+                const Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
 
                 void reset_grads() 
+                {
+                    if (trainable_) 
                     {
-
-                        if (trainable_) 
-                        {
-                            grad_weights_.setZero();
-                            if (bias_ && grad_biases_.size() > 0) 
-                            { 
-                                grad_biases_.setZero();
-                            }
-                        } 
-                    }
+                        grad_weights_.setZero();
+                        if (bias_ && grad_biases_.size() > 0) 
+                            grad_biases_.setZero();    
+                    } 
+                }
 
                 int get_input_size() const { return in_size_; }
                 int get_output_size() const { return out_size_; }
@@ -75,19 +65,15 @@ namespace CppNet
 
                 bool is_trainable() const override { return trainable_; }
 
-                void freeze(){ trainable_ = false; } // freeze the parameters of the layer.
-                void unfreeze() { trainable_ = true; } // unfreeze the parameters of the layer.
+                void freeze(){ trainable_ = false; }
+                void unfreeze() { trainable_ = true; }
 
                 bool has_bias() const { return bias_; }
 
                 void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
 
-                // OpenMP utility method
                 static void set_num_threads(int num_threads);
-
-                // set max batch size for GPU
                 void set_max_batch_size(int max_batch_size);
-
                 
                 void print_layer_info() const 
                 {
@@ -104,14 +90,12 @@ namespace CppNet
                     }
                 }
 
-                // GPU memory management
                 #ifdef USE_CUDA
-
                     void init_gpu_buffers(int max_batch_size);
                     void cleanup_gpu_buffers();
-                    void sync_weights_to_gpu();      // CPU -> GPU
-                    void sync_weights_from_gpu();    // GPU -> CPU
-                    void sync_gradients_from_gpu();  // GPU -> CPU
+                    void sync_weights_to_gpu();
+                    void sync_weights_from_gpu();
+                    void sync_gradients_from_gpu();
                     
                     float* get_d_weights() { return d_weights_; }
                     float* get_d_bias() { return d_bias_; }
@@ -119,24 +103,25 @@ namespace CppNet
                     float* get_d_grad_bias() { return d_grad_bias_; }
                     
                     bool is_gpu_initialized() const { return gpu_initialized_; }
-     
                 #endif
 
             private:
-          
                 int in_size_;
                 int out_size_;
                 std::string layer_name_;
-                bool trainable_; // if gradient should be calculated. if false: layer is frozen.
+                bool trainable_;
                 bool bias_;
                 std::string device_;
-                std::string weight_init_;
-                int parallel_threshold_; // threshold for input size to enable parallelization    
+                std::string weight_init_;   
                 Eigen::Tensor<float, 2> weights_;
                 Eigen::Tensor<float, 1> biases_;
                 Eigen::Tensor<float, 2> in_cache_;
                 Eigen::Tensor<float, 2> grad_weights_;
                 Eigen::Tensor<float, 1> grad_biases_;
+
+                // GPU output caches (CPU-side storage for return values)
+                Eigen::Tensor<float, 2> gpu_output_cache_;
+                Eigen::Tensor<float, 2> gpu_grad_input_cache_;
 
                 void reinitialize_weights(const std::string& new_init_method);
                 void init_params_and_grads();
@@ -155,11 +140,7 @@ namespace CppNet
                     const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
                     int batch_size, int input_size, int output_size, bool bias_);
 
-                void backward_gpu(
-                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
-                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
-                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
-                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
+                void backward_gpu(int batch_size, int output_size, int input_size);
                 
                 void backward_cpu(
                     const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
@@ -173,25 +154,21 @@ namespace CppNet
                     Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
                     int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
                 
-                // GPU related params
                 #ifdef USE_CUDA
-
-                    float* d_weights_;        // weights on GPU
-                    float* d_bias_;           // bias on GPU
-                    float* d_input_cache_;    // cached input for backward pass
-                    float* d_output_;         // output buffer
-                    float* d_grad_weights_;   // weight gradients on GPU
-                    float* d_grad_bias_;      // bias gradients on GPU
-                    float* d_grad_input_;     // input gradients on GPU
+                    float* d_weights_;      
+                    float* d_bias_;          
+                    float* d_input_cache_;
+                    float* d_output_;         
+                    float* d_grad_weights_;   
+                    float* d_grad_bias_;      
+                    float* d_grad_input_;
+                    float* d_grad_output_;
                     
-                    bool gpu_initialized_;    // track if GPU buffers are allocated
-                    int gpu_max_batch_size_;  // maximum batch size for GPU buffers
-
-                #endif
-                         
+                    bool gpu_initialized_;    
+                    int gpu_max_batch_size_;
+                #endif                  
         };
     }
 }
-
 
 #endif // LINEAR_HPP

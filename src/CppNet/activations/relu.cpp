@@ -1,397 +1,127 @@
 #include <iostream>
-#include <cmath>
+#include <stdexcept>
+#include <algorithm>
 #include <omp.h>
+
 #include <Eigen/Dense>
 #include "CppNet/activations/relu.hpp"
 #include "CppNet/kernels/gpu/gpu.hpp"
-
-
-
 
 namespace CppNet
 {
     namespace Activations
     {
-        ReLU::ReLU(int size, std::string device, bool relu_2d, int channels, int gpu_block_size): 
-        size_(size), device_(device), relu_2d_(relu_2d), channels_(channels), gpu_block_size_(gpu_block_size)
+
+        ReLU::ReLU(const std::string& device): device_(device)
         {
             #ifdef USE_CUDA
+
                 d_output_cache_2d_ = nullptr;
                 d_output_cache_4d_ = nullptr;
-                gpu_max_batch_size_ = 0;
+                gpu_buffer_size_2d_ = 0;
+                gpu_buffer_size_4d_ = 0;
                 gpu_initialized_ = false;
-            #endif
-        }
-
-        ReLU::~ReLU() 
-        {
-            #ifdef USE_CUDA
-
-                cleanup_gpu_buffers();
 
             #endif
         }
-        void ReLU::set_max_batch_size(int max_batch_size)
+
+        ReLU::~ReLU()
         {
             #ifdef USE_CUDA
 
-                if (device_ == "gpu") 
-                {
-                    init_gpu_buffers(max_batch_size);
-                }
-                
+                release_gpu_buffers();
+
             #endif
+        }
+
+        void ReLU::set_num_threads(int num_threads)
+        {
+            if (num_threads > 0)
+                omp_set_num_threads(num_threads);
         }
 
         #ifdef USE_CUDA
 
-            void ReLU::init_gpu_buffers(int max_batch_size)
+            void ReLU::ensure_gpu_buffer_2d(std::size_t num_elements)
             {
-                if (gpu_initialized_) 
-                {
-                    cleanup_gpu_buffers();
-                }
-                
-                gpu_max_batch_size_ = max_batch_size;
-                
-                std::cout << "Allocating GPU buffers (max batch: " << max_batch_size << ")" << std::endl;
-
-                cudaError_t err;
-                
-                if (relu_2d_)
-                {
-                    size_t buffer_size = max_batch_size * size_ * sizeof(float);
-                    err = cudaMalloc(&d_output_cache_2d_, buffer_size);
-                    if (err != cudaSuccess)
-                    {
-                        throw std::runtime_error("CUDA allocation failed: " + std::string(cudaGetErrorString(err)));
-                    }
-                }
-                else
-                {
-                    size_t buffer_size = max_batch_size * channels_ * size_ * size_ * sizeof(float);
-                    err = cudaMalloc(&d_output_cache_4d_, buffer_size);
-                    if (err != cudaSuccess)
-                    {
-                        throw std::runtime_error("CUDA allocation failed: " + std::string(cudaGetErrorString(err)));
-                    }
-                }
-                
-                gpu_initialized_ = true;
-                std::cout << "GPU buffers allocated successfully." << std::endl;
-            }
-
-            void ReLU::cleanup_gpu_buffers()
-            {
-                if (!gpu_initialized_) 
-                {
+                if (gpu_buffer_size_2d_ >= num_elements)
                     return;
-                }
-                
-                if (d_output_cache_2d_) 
-                {
+
+                if (d_output_cache_2d_)
                     cudaFree(d_output_cache_2d_);
-                }
-            
-                if (d_output_cache_4d_)
-                {
-                    cudaFree(d_output_cache_4d_);
-                } 
-                
-                d_output_cache_2d_ = nullptr;
-                d_output_cache_4d_ = nullptr;
-                
-                gpu_initialized_ = false;
-            }
-            void ReLU::sync_output_cache_to_gpu()
-            {
-                if (!gpu_initialized_) 
-                {
-                    return;
-                }
-                if (relu_2d_)
-                {
-                    cudaMemcpy(d_output_cache_2d_, output_cache_2d_.data(), size_ * size_  * sizeof(float), cudaMemcpyHostToDevice);
-                }
-                else
-                {
-                    cudaMemcpy(d_output_cache_4d_, output_cache_4d_.data(), size_ * size_ * channels_ * channels_ * sizeof(float), cudaMemcpyHostToDevice);
-                }
-            }
-            
-            void ReLU::sync_output_cache_from_gpu()
-            {
-                if (!gpu_initialized_) 
-                {
-                    return;
-                }
-                
-                cudaError_t err;
-                
-                if (relu_2d_)
-                {
-                    err = cudaMemcpy(output_cache_2d_.data(), d_output_cache_2d_, output_cache_2d_.size() * sizeof(float), cudaMemcpyDeviceToHost);
-                }
-                else
-                {
-                    err = cudaMemcpy(output_cache_4d_.data(), d_output_cache_4d_, output_cache_4d_.size() * sizeof(float), cudaMemcpyDeviceToHost);
-                }
+
+                cudaError_t err = cudaMalloc(&d_output_cache_2d_, num_elements * sizeof(float));
                 
                 if (err != cudaSuccess)
-                {
-                    throw std::runtime_error("cudaMemcpy D2H failed: " + std::string(cudaGetErrorString(err)));
-                }
+                    throw std::runtime_error(cudaGetErrorString(err));
+
+                gpu_buffer_size_2d_ = num_elements;
+                gpu_initialized_ = true;
             }
 
-            void ReLU::forward_gpu(const Eigen::Tensor<float, 2>& pre_activation)
-            {
-                if (!gpu_initialized_)
-                {
-                    throw std::runtime_error("GPU buffers not initialized. Call set_max_batch_size() first.");
-                }
-
-                const int rows = pre_activation.dimension(0);
-                const int cols = pre_activation.dimension(1);
-                const int total = rows * cols;
-                const size_t bytes = total * sizeof(float);
-
-                // Check buffer capacity
-                if (total > gpu_max_batch_size_ * size_)
-                {
-                    throw std::runtime_error("Input exceeds allocated GPU buffer size.");
-                }
-
-                float* d_pre_activation = nullptr;
-                cudaError_t err = cudaMalloc(&d_pre_activation, bytes);
-                if (err != cudaSuccess)
-                {
-                    throw std::runtime_error("cudaMalloc failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                err = cudaMemcpy(d_pre_activation, pre_activation.data(), bytes, cudaMemcpyHostToDevice);
-                if (err != cudaSuccess)
-                {
-                    cudaFree(d_pre_activation);
-                    throw std::runtime_error("cudaMemcpy H2D failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                const int block = gpu_block_size_;
-                const int grid = (total + block - 1) / block;
-
-                CppNet::Kernels::GPU::relu_kernel<<<grid, block>>>(d_pre_activation, d_output_cache_2d_, total);
-
-                err = cudaGetLastError();
-                if (err != cudaSuccess)
-                {
-                    cudaFree(d_pre_activation);
-                    throw std::runtime_error("ReLU kernel launch failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                cudaDeviceSynchronize();
-                cudaFree(d_pre_activation);
-            }
-
-            void ReLU::forward_gpu(const Eigen::Tensor<float, 4>& pre_activation)
-            {
-                if (!gpu_initialized_)
-                {
-                    throw std::runtime_error("GPU buffers not initialized. Call set_max_batch_size() first.");
-                }
-                
-                int batch = pre_activation.dimension(0);
-                int channels = pre_activation.dimension(1);
-                int height = pre_activation.dimension(2);
-                int width = pre_activation.dimension(3);
-
-                const int total = batch * channels * height * width;
-                const size_t bytes = total * sizeof(float);
-                
-                if (total > gpu_max_batch_size_ * channels_ * size_ * size_)
-                {
-                    throw std::runtime_error("Input exceeds allocated GPU buffer size.");
-                }
-
-                float* d_pre_activation = nullptr;
-                cudaError_t err = cudaMalloc(&d_pre_activation, bytes);
-                if (err != cudaSuccess)
-                {
-                    throw std::runtime_error("cudaMalloc failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                err = cudaMemcpy(d_pre_activation, pre_activation.data(), bytes, cudaMemcpyHostToDevice);
-                if (err != cudaSuccess)
-                {
-                    cudaFree(d_pre_activation);
-                    throw std::runtime_error("cudaMemcpy H2D failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                const int block = gpu_block_size_; 
-                const int grid = (total + block - 1) / block;
-
-                CppNet::Kernels::GPU::relu_kernel<<<grid, block>>>(d_pre_activation, d_output_cache_4d_, total);
-
-                err = cudaGetLastError();
-                if (err != cudaSuccess) 
-                {
-                    cudaFree(d_pre_activation);
-                    throw std::runtime_error("ReLU kernel launch failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                cudaDeviceSynchronize();
-                cudaFree(d_pre_activation);
-            }
-
-            void ReLU::backward_gpu(const Eigen::Tensor<float, 2>& grad_output)
-            {
-                if (!gpu_initialized_)
-                {
-                    throw std::runtime_error("GPU buffers not initialized. Call set_max_batch_size() first.");
-                }
-
-                const int rows = grad_output.dimension(0);
-                const int cols = grad_output.dimension(1);
-                const int total = rows * cols;
-                const size_t bytes = total * sizeof(float);
-
-                float* d_grad_input = nullptr;
-                float* d_grad_output = nullptr;
-                
-                cudaError_t err = cudaMalloc(&d_grad_input, bytes);
-                if (err != cudaSuccess)
-                {
-                    throw std::runtime_error("cudaMalloc grad_input failed: " + std::string(cudaGetErrorString(err)));
-                }
-                
-                err = cudaMalloc(&d_grad_output, bytes);
-                if (err != cudaSuccess)
-                {
-                    cudaFree(d_grad_input);
-                    throw std::runtime_error("cudaMalloc grad_output failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                if (total > gpu_max_batch_size_ * size_)
-                {
-                    cudaFree(d_grad_input);
-                    cudaFree(d_grad_output);
-                    throw std::runtime_error("Gradient exceeds allocated GPU buffer size.");
-                }
-
-                err = cudaMemcpy(d_grad_output, grad_output.data(), bytes, cudaMemcpyHostToDevice);
-                if (err != cudaSuccess)
-                {
-                    cudaFree(d_grad_input);
-                    cudaFree(d_grad_output);
-                    throw std::runtime_error("cudaMemcpy grad_output failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                const int block = gpu_block_size_;
-                const int grid = (total + block - 1) / block;
-
-                CppNet::Kernels::GPU::relu_grad_kernel<<<grid, block>>>(d_grad_output, d_output_cache_2d_, d_grad_input, total);
-
-                err = cudaGetLastError();
-                if (err != cudaSuccess)
-                {
-                    cudaFree(d_grad_input);
-                    cudaFree(d_grad_output);
-                    throw std::runtime_error("ReLU backward kernel failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                cudaDeviceSynchronize();
-                cudaFree(d_grad_input);
-                cudaFree(d_grad_output);
-            }
-
-            void ReLU::backward_gpu(const Eigen::Tensor<float, 4>& grad_output)
-            {
-                if (!gpu_initialized_)
-                {
-                    throw std::runtime_error("GPU buffers not initialized. Call set_max_batch_size() first.");
-                }
-
-                int batch = grad_output.dimension(0);
-                int channels = grad_output.dimension(1);
-                int height = grad_output.dimension(2);
-                int width = grad_output.dimension(3);
-
-                const int total = batch * channels * height * width;
-                const size_t bytes = total * sizeof(float);
-
-                float* d_grad_input = nullptr;
-                cudaMalloc(&d_grad_input,  batch * channels * height * width * sizeof(float));
-
-                float* d_grad_output = nullptr;
-                cudaMalloc(&d_grad_output,  batch * channels * height * width * sizeof(float));
-
-                if (total > gpu_max_batch_size_)
-                {
-                    cudaFree(d_grad_input);
-                    cudaFree(d_grad_output);
-                    throw std::runtime_error("Gradient exceeds allocated GPU buffer size.");
-                }
-
-                cudaError_t err = cudaMemcpy(d_grad_output, grad_output.data(), bytes, cudaMemcpyHostToDevice);
-                if (err != cudaSuccess)
-                {
-                    throw std::runtime_error("cudaMemcpy dA failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                const int block = gpu_block_size_;
-                const int grid = (total + block - 1) / block;
-
-                CppNet::Kernels::GPU::relu_grad_kernel<<<grid, block>>>(d_grad_output, d_output_cache_4d_, d_grad_input, total);
-
-                err = cudaGetLastError();
-                if (err != cudaSuccess)
-                {
-                    throw std::runtime_error("ReLU backward kernel failed: " + std::string(cudaGetErrorString(err)));
-                }
-
-                cudaDeviceSynchronize();
-                cudaFree(d_grad_input);
-                cudaFree(d_grad_output);
-            }
-        #endif
-
-        void ReLU::set_num_threads(int num_threads) 
+        void ReLU::ensure_gpu_buffer_4d(std::size_t num_elements)
         {
-            if (num_threads > 0) 
-            {
-                omp_set_num_threads(num_threads);
-            }
+            if (gpu_buffer_size_4d_ >= num_elements)
+                return;
+
+            if (d_output_cache_4d_)
+                cudaFree(d_output_cache_4d_);
+
+            cudaError_t err = cudaMalloc(&d_output_cache_4d_, num_elements * sizeof(float));
+            
+            if (err != cudaSuccess)
+                throw std::runtime_error(cudaGetErrorString(err));
+
+            gpu_buffer_size_4d_ = num_elements;
+            gpu_initialized_ = true;
         }
 
-        Eigen::Tensor<float, 2> ReLU::forward(const Eigen::Tensor<float, 2>& pre_activation) 
+            void ReLU::release_gpu_buffers()
+            {
+                if (d_output_cache_2d_)
+                    cudaFree(d_output_cache_2d_);
+                    
+                if (d_output_cache_4d_)
+                    cudaFree(d_output_cache_4d_);
+
+                d_output_cache_2d_ = nullptr;
+                d_output_cache_4d_ = nullptr;
+                gpu_buffer_size_2d_ = 0;
+                gpu_buffer_size_4d_ = 0;
+                gpu_initialized_ = false;
+            }
+
+        #endif
+
+        Eigen::Tensor<float, 2>ReLU::forward(const Eigen::Tensor<float, 2>& pre_activation)
         {
             if (pre_activation.size() == 0)
-            {
-                throw std::runtime_error("ReLU: Empty input tensor in 2D forward");
-            }
-            int rows = pre_activation.dimension(0);
-            int cols = pre_activation.dimension(1);
+                throw std::runtime_error("ReLU: empty 2D input");
+
+            const int rows = pre_activation.dimension(0);
+            const int cols = pre_activation.dimension(1);
+
             output_cache_2d_ = Eigen::Tensor<float, 2>(rows, cols);
-            output_cache_2d_.setZero();
 
             if (device_ == "cpu")
             {
-                #pragma omp parallel for collapse(2) schedule(static)
+                #pragma omp parallel for collapse(2)
                 for (int i = 0; i < rows; ++i)
-                {
-                    for (int j = 0; j < cols; ++j) 
-                    {
+                    for (int j = 0; j < cols; ++j)
                         output_cache_2d_(i, j) = std::max(0.0f, pre_activation(i, j));
-                    }
-                }
             }
             else if (device_ == "cpu-eigen")
             {
-                Eigen::Tensor<float, 2> mask = (pre_activation > 0.0).template cast<float>();
-                output_cache_2d_ = pre_activation * mask;
+                output_cache_2d_ = pre_activation.cwiseMax(0.0f);
+                //Eigen::Tensor<float, 2> mask = (pre_activation > 0.0).template cast<float>();
+                //output_cache_2d_ = pre_activation * mask;
             }
-            else if (device_ == "gpu")
-            {
-                forward_gpu(pre_activation);
-            }
+            #ifdef USE_CUDA
+                else if (device_ == "gpu")
+                {
+                    forward_gpu(pre_activation);
+                }
+            #endif
 
             return output_cache_2d_;
         }
@@ -399,128 +129,179 @@ namespace CppNet
         Eigen::Tensor<float, 4> ReLU::forward(const Eigen::Tensor<float, 4>& pre_activation)
         {
             if (pre_activation.size() == 0)
-            {
-                throw std::runtime_error("ReLU: Empty input tensor in 4D forward");
-            }
-            
-            int batch = pre_activation.dimension(0);
-            int channels = pre_activation.dimension(1);
-            int height = pre_activation.dimension(2);
-            int width = pre_activation.dimension(3);
-            
-            output_cache_4d_ = Eigen::Tensor<float, 4>(batch, channels, height, width);
-            output_cache_4d_.setZero();
-            
+                throw std::runtime_error("ReLU: empty 4D input");
+
+            const int b = pre_activation.dimension(0);
+            const int c = pre_activation.dimension(1);
+            const int h = pre_activation.dimension(2);
+            const int w = pre_activation.dimension(3);
+
+            output_cache_4d_ = Eigen::Tensor<float, 4>(b, c, h, w);
+
             if (device_ == "cpu")
             {
-                #pragma omp parallel for collapse(4) schedule(static)
-                for (int b = 0; b < batch; ++b)
-                {
-                    for (int c = 0; c < channels; ++c)
-                    {
-                        for (int h = 0; h < height; ++h)
-                        {
-                            for (int w = 0; w < width; ++w)
-                            {
-                                output_cache_4d_(b, c, h, w) = std::max(0.0f, pre_activation(b, c, h, w));
-                            }
-                        }
-                    }
-                }
+                #pragma omp parallel for collapse(4)
+                    for (int n = 0; n < b; ++n)
+                        for (int ch = 0; ch < c; ++ch)
+                            for (int i = 0; i < h; ++i)
+                                for (int j = 0; j < w; ++j)
+                                    output_cache_4d_(n, ch, i, j) = std::max(0.0f, pre_activation(n, ch, i, j));
             }
             else if (device_ == "cpu-eigen")
             {
                 output_cache_4d_ = pre_activation.cwiseMax(0.0f);
             }
-            else if (device_ == "gpu")
-            {
-                forward_gpu(pre_activation);
-            }
-              
+            #ifdef USE_CUDA
+                else if (device_ == "gpu")
+                {
+                    forward_gpu(pre_activation);
+                }
+            #endif
+
             return output_cache_4d_;
         }
 
-        Eigen::Tensor<float, 2> ReLU::backward(const Eigen::Tensor<float, 2>& grad_output) 
+        Eigen::Tensor<float, 2> ReLU::backward(const Eigen::Tensor<float, 2>& grad_output)
         {
-            if (grad_output.dimension(0) != output_cache_2d_.dimension(0) ||
-                grad_output.dimension(1) != output_cache_2d_.dimension(1) ||
-                grad_output.size() == 0)
-            {
-                throw std::runtime_error("ReLU: Shape mismatch or empty input in 2D backward");
-            }
+            if (grad_output.size() == 0)
+                throw std::runtime_error("ReLU: empty 2D grad");
 
-            int rows = grad_output.dimension(0);
-            int cols = grad_output.dimension(1);
-            Eigen::Tensor<float, 2> grad_input(rows, cols);
-            grad_input.setZero();
+            Eigen::Tensor<float, 2> grad_input = Eigen::Tensor<float, 2>(grad_output.dimensions());
 
             if (device_ == "cpu")
             {
-                #pragma omp parallel for collapse(2) schedule(static)
-                for (int i = 0; i < rows; ++i)
-                {
-                    for (int j = 0; j < cols; ++j) 
-                    {
-                        grad_input(i, j) = grad_output(i, j) * (output_cache_2d_(i, j) > 0.0f ? 1.0f : 0.0f);
-                    }
-                }
+                #pragma omp parallel for collapse(2)
+                    for (int i = 0; i < grad_output.dimension(0); ++i)
+                        for (int j = 0; j < grad_output.dimension(1); ++j)
+                            grad_input(i, j) = grad_output(i, j) * (output_cache_2d_(i, j) > 0.0f);
             }
             else if (device_ == "cpu-eigen")
             {
-                Eigen::Tensor<float, 2> mask = (output_cache_2d_ > 0.0f).template cast<float>();
-                grad_input = grad_output * mask;
+                //grad_input = grad_output * (output_cache_2d_ > 0.0f).template cast<float>();
+                grad_input = grad_output * output_cache_2d_.cwiseMax(0.0f);
             }
-            else if (device_ == "gpu")
-            {
-                backward_gpu(grad_output);
-            }
+            #ifdef USE_CUDA
+                else if (device_ == "gpu")
+                {
+                    backward_gpu(grad_output);
+                }
+            #endif
 
             return grad_input;
         }
 
         Eigen::Tensor<float, 4> ReLU::backward(const Eigen::Tensor<float, 4>& grad_output)
         {
-            if (grad_output.dimension(0) != output_cache_4d_.dimension(0) ||
-                grad_output.dimension(1) != output_cache_4d_.dimension(1) ||
-                grad_output.dimension(2) != output_cache_4d_.dimension(2) ||
-                grad_output.dimension(3) != output_cache_4d_.dimension(3) ||
-                grad_output.size() == 0)
-            {
-                throw std::runtime_error("ReLU: Shape mismatch or empty input in 4D backward");
-            }
-            
-            int batch = grad_output.dimension(0);
-            int channels = grad_output.dimension(1);
-            int height = grad_output.dimension(2);
-            int width = grad_output.dimension(3);
-            
-            Eigen::Tensor<float, 4> grad_input(batch, channels, height, width);
-            grad_input.setZero();
-            
+            if (grad_output.size() == 0)
+                throw std::runtime_error("ReLU: empty 4D grad");
+
+            Eigen::Tensor<float, 4> grad_input = Eigen::Tensor<float, 4>(grad_output.dimensions());
+
             if (device_ == "cpu")
             {
-                #pragma omp parallel for collapse(4) schedule(static)
-                for (int b = 0; b < batch; ++b)
-                {
-                    for (int c = 0; c < channels; ++c)
-                    {
-                        for (int h = 0; h < height; ++h)
-                        {
-                            for (int w = 0; w < width; ++w)
-                            {
-                                grad_input(b, c, h, w) = grad_output(b, c, h, w) * (output_cache_4d_(b, c, h, w) > 0.0 ? 1.0 : 0.0);
-                            }
-                        }
-                    }
-                }
+                #pragma omp parallel for collapse(4)
+                    for (int n = 0; n < grad_output.dimension(0); ++n)
+                        for (int c = 0; c < grad_output.dimension(1); ++c)
+                            for (int i = 0; i < grad_output.dimension(2); ++i)
+                                for (int j = 0; j < grad_output.dimension(3); ++j)
+                                    grad_input(n, c, i, j) = grad_output(n, c, i, j) * (output_cache_4d_(n, c, i, j) > 0.0f);
             }
             else if (device_ == "cpu-eigen")
             {
-                Eigen::Tensor<float, 4> mask = (output_cache_4d_ > 0.0f).template cast<float>();
-                grad_input = grad_output * mask;
+                //grad_input = grad_output * (output_cache_4d_ > 0.0f).template cast<float>();
+                grad_input = grad_output * output_cache_4d_.cwiseMax(0.0f);
             }
-            
+            #ifdef USE_CUDA
+                else if (device_ == "gpu")
+                {
+                    backward_gpu(grad_output);
+                }
+            #endif
+
             return grad_input;
         }
+
+        #ifdef USE_CUDA
+    
+            void ReLU::forward_gpu(const Eigen::Tensor<float, 2>& pre)
+            {
+                const std::size_t n = pre.size();
+                ensure_gpu_buffer_2d(n);
+
+                float* d_in;
+                cudaMalloc(&d_in, n * sizeof(float));
+                cudaMemcpy(d_in, pre.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+
+                const int block = 256;
+                const int grid = (n + block - 1) / block;
+
+                Kernels::GPU::relu_kernel<<<grid, block>>>(d_in, d_output_cache_2d_, n);
+
+                cudaMemcpy(output_cache_2d_.data(), d_output_cache_2d_, n * sizeof(float), cudaMemcpyDeviceToHost);
+
+                cudaFree(d_in);
+            }
+
+            void ReLU::forward_gpu(const Eigen::Tensor<float, 4>& pre)
+            {
+                const std::size_t n = pre.size();
+                ensure_gpu_buffer_4d(n);
+
+                float* d_in;
+                cudaMalloc(&d_in, n * sizeof(float));
+                cudaMemcpy(d_in, pre.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+
+                const int block = 256;
+                const int grid = (n + block - 1) / block;
+
+                Kernels::GPU::relu_kernel<<<grid, block>>>(d_in, d_output_cache_4d_, n);
+
+                cudaMemcpy(output_cache_4d_.data(), d_output_cache_4d_, n * sizeof(float), cudaMemcpyDeviceToHost);
+
+                cudaFree(d_in);
+            }
+
+            void ReLU::backward_gpu(const Eigen::Tensor<float, 2>& grad)
+            {
+                const std::size_t n = grad.size();
+
+                float* d_grad;
+                float* d_out;
+                cudaMalloc(&d_grad, n * sizeof(float));
+                cudaMalloc(&d_out, n * sizeof(float));
+
+                cudaMemcpy(d_grad, grad.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+
+                const int block = 256;
+                const int grid = (n + block - 1) / block;
+
+                Kernels::GPU::relu_grad_kernel<<<grid, block>>>(d_grad, d_output_cache_2d_, d_out, n);
+
+                cudaFree(d_grad);
+                cudaFree(d_out);
+            }
+
+            void ReLU::backward_gpu(const Eigen::Tensor<float, 4>& grad)
+            {
+                const std::size_t n = grad.size();
+
+                float* d_grad;
+                float* d_out;
+                cudaMalloc(&d_grad, n * sizeof(float));
+                cudaMalloc(&d_out, n * sizeof(float));
+
+                cudaMemcpy(d_grad, grad.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+
+                const int block = 256;
+                const int grid = (n + block - 1) / block;
+
+                Kernels::GPU::relu_grad_kernel<<<grid, block>>>(d_grad, d_output_cache_4d_, d_out, n);
+
+                cudaFree(d_grad);
+                cudaFree(d_out);
+            }
+
+        #endif
+
     }
 }
