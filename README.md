@@ -107,9 +107,9 @@ A minimal binary classification example:
 
 int main() {
     // Define layers
-    CppNet::Layers::Linear layer1(30, 64, "fc1", true, true, "cpu", "xavier");
-    CppNet::Layers::Linear layer2(64, 1,  "fc2", true, true, "cpu", "xavier");
-    CppNet::Activations::ReLU relu;
+    CppNet::Layers::Linear layer1(30, 64, "fc1", true, true, "cpu-eigen", "xavier");
+    CppNet::Layers::Linear layer2(64, 1,  "fc2", true, true, "cpu-eigen", "xavier");
+    CppNet::Activations::ReLU relu("cpu-eigen");
     CppNet::Activations::Sigmoid sigmoid;
 
     // Loss & optimizer
@@ -264,24 +264,35 @@ logger.export_csv("training_history.csv");
 
 ## Examples
 
-The `examples/` directory contains complete, runnable programs:
+The `examples/` directory contains complete, self-contained deep learning programs that train on **synthetic data** — no downloads required. Each example generates its own dataset, trains a model, and reports final metrics.
 
-| Example | Description |
-|:--------|:------------|
-| `linear_test.cpp` | Multi-layer fully connected network for breast cancer classification |
-| `cnn_test.cpp` | Conv2D + MaxPool + Linear pipeline on synthetic image data |
-| `attention_test.cpp` | Multi-head attention forward and backward pass |
-| `matmul_test.cpp` | Matrix multiplication benchmark (CPU vs. GPU) |
-| `openmp_test.cpp` | OpenMP parallelism demonstration |
+| Example | Architecture | Dataset | Result |
+|:--------|:------------|:--------|:-------|
+| [`mlp_classification.cpp`](examples/mlp_classification.cpp) | Linear→ReLU→Linear→ReLU→Linear | 3-class spiral (600 samples, 2D) | **~71% accuracy** |
+| [`cnn_image_classification.cpp`](examples/cnn_image_classification.cpp) | Conv2D→ReLU→MaxPool2D→Flatten→Linear | 8×8 stripe images (400 samples) | **100% accuracy** |
+| [`rnn_sequence_prediction.cpp`](examples/rnn_sequence_prediction.cpp) | LSTM(1,16)→Linear(16,1) | Sine-wave sequences (400 samples) | **MSE ≈ 0.00001** |
+| [`transformer_classifier.cpp`](examples/transformer_classifier.cpp) | Embedding→Self-Attention+skip→ReLU→Linear | Token sequences (400 samples) | **100% accuracy** |
+| [`resnet_classifier.cpp`](examples/resnet_classifier.cpp) | Linear→ReLU→ResBlock(32)→Linear→Sigmoid | Concentric circles (600 samples) | **~99% accuracy** |
 
-Build and run an example:
+Build and run:
 
 ```bash
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
 make -j$(nproc)
-./examples/linear_test   # or any other example
+./examples/mlp_classification
+./examples/cnn_image_classification
+./examples/rnn_sequence_prediction
+./examples/transformer_classifier
+./examples/resnet_classifier
 ```
+
+Each example demonstrates key patterns:
+- **MLP**: Multi-class classification with softmax, manual forward/backward loop
+- **CNN**: Image feature extraction, Conv2D + pooling pipeline
+- **RNN/LSTM**: Time-series regression, sequence processing with hidden states
+- **Transformer**: Token embedding + self-attention, skip connections, mean-pooling
+- **ResNet**: Residual (skip) connections, gradient clipping, He initialization
 
 ---
 
@@ -323,7 +334,7 @@ Measured on the included examples (single machine):
 
 ## Testing
 
-CppNet uses [CTest](https://cmake.org/cmake/help/latest/manual/ctest.1.html) for its test suite. Tests mirror the module structure:
+CppNet uses [CTest](https://cmake.org/cmake/help/latest/manual/ctest.1.html) with **40 unit tests** covering every module:
 
 ```bash
 cd build
@@ -332,7 +343,16 @@ make -j$(nproc)
 ctest --output-on-failure
 ```
 
-Test coverage spans layers, activations, losses, optimizers, and GPU kernels (when CUDA is available).
+| Category | Tests |
+|:---------|:------|
+| **Layers** (13) | Linear, Conv2D, Flatten, MaxPool2D, RNN, Attention, BatchNorm, Dropout, Embedding, GlobalPool, GRU, LSTM, Residual |
+| **Activations** (5) | ReLU, Sigmoid, Softmax, Tanh, LeakyReLU |
+| **Losses** (6) | BinaryCrossEntropy, CategoricalCrossEntropy, MSE, MAE, Huber, SoftmaxCrossEntropy |
+| **Optimizers** (5) | SGD, Adam, Momentum, Adagrad, RMSProp |
+| **Utilities** (7) | Metrics, Regularizations, Callbacks, DataLoader, ElapsedTime, GradientClip, Init |
+| **Other** (4) | Schedulers, Utils, Models, Visualizations |
+
+Each test validates forward pass, backward pass (gradient shapes & values), and parameter updates where applicable.
 
 ---
 
@@ -355,8 +375,8 @@ CppNet/
 │   ├── utils/                  # DataLoader, Init, Schedulers, Serialization, ...
 │   └── visualizations/         # TrainingLogger
 ├── src/CppNet/                 # Implementation files (.cpp / .cu)
-├── tests/                      # CTest-based unit tests
-├── examples/                   # Runnable example programs
+├── tests/                      # 40 CTest unit tests (layers, activations, losses, ...)
+├── examples/                   # 5 deep learning examples (MLP, CNN, RNN, Transformer, ResNet)
 └── docs/                       # Additional documentation
 ```
 
@@ -372,6 +392,8 @@ CppNet/
 - [x] Model serialization (save/load)
 - [x] CUDA GPU kernels for core operations
 - [x] OpenMP CPU parallelism
+- [x] Comprehensive test suite (40 unit tests)
+- [x] Deep learning examples (MLP, CNN, RNN/LSTM, Transformer, ResNet)
 - [ ] Expand GPU backend to cover all layers and operations
 - [ ] Add Trainer abstraction with built-in training loop
 - [ ] Additional examples (GANs, Reinforcement Learning, NLP pipelines)
