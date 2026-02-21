@@ -19,7 +19,7 @@ namespace CppNet
             }
 
             std::string device = layer.get_device();
-            if (device == "cpu")
+            if (device == "cpu" || device == "cpu-eigen")
             {
                 // validate dimensions
                 const auto& weights = layer.get_weights();
@@ -44,7 +44,11 @@ namespace CppNet
             }
             else
             {
+                #ifdef USE_CUDA
                 step_gpu(layer, learning_rate);
+                #else
+                throw std::runtime_error("GPU not available. Rebuild with CUDA support or use device=\"cpu\" / \"cpu-eigen\".");
+                #endif
             }
         }
 

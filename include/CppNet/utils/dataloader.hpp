@@ -6,7 +6,7 @@
  * an iterator interface that yields shuffled mini-batches.
  *
  * @example
- *   DataLoader loader(X, Y, /*batch_size=*/ 32, /*shuffle=*/ true);
+ *   DataLoader loader(X, Y, 32, true);  // batch_size=32, shuffle=true
  *   for (auto& [xb, yb] : loader) {
  *       auto out = model.forward(xb);
  *       ...

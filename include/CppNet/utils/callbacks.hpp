@@ -23,7 +23,7 @@ namespace CppNet
          * @brief Stop training when a monitored metric has stopped improving
          *
          * @example
-         *   EarlyStopping es(/* patience */ 5, /* min_delta */ 1e-4f);
+         *   EarlyStopping es(5, 1e-4f);  // patience=5, min_delta=1e-4
          *   for (int epoch = 0; epoch < max_epochs; ++epoch) {
          *       float val_loss = train_one_epoch(...);
          *       if (es.step(val_loss)) {

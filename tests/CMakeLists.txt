@@ -33,6 +33,13 @@ cppnet_add_test(test_flatten layers/test_flatten.cpp)
 cppnet_add_test(test_max_pool2d layers/test_max_pool2d.cpp)
 cppnet_add_test(test_rnn layers/test_rnn.cpp)
 cppnet_add_test(test_attention layers/test_attention.cpp)
+cppnet_add_test(test_batch_norm layers/test_batch_norm.cpp)
+cppnet_add_test(test_dropout layers/test_dropout.cpp)
+cppnet_add_test(test_embedding layers/test_embedding.cpp)
+cppnet_add_test(test_global_pool layers/test_global_pool.cpp)
+cppnet_add_test(test_gru layers/test_gru.cpp)
+cppnet_add_test(test_lstm layers/test_lstm.cpp)
+cppnet_add_test(test_residual layers/test_residual.cpp)
 
 # ---------------------------------------------------------
 # Activation Tests
@@ -51,6 +58,7 @@ cppnet_add_test(test_categorical_cross_entropy losses/test_categorical_cross_ent
 cppnet_add_test(test_mse losses/test_mse.cpp)
 cppnet_add_test(test_mae losses/test_mae.cpp)
 cppnet_add_test(test_huber losses/test_huber.cpp)
+cppnet_add_test(test_softmax_cross_entropy losses/test_softmax_cross_entropy.cpp)
 
 # ---------------------------------------------------------
 # Optimizer Tests
@@ -60,6 +68,37 @@ cppnet_add_test(test_adam optimizers/test_adam.cpp)
 cppnet_add_test(test_momentum optimizers/test_momentum.cpp)
 cppnet_add_test(test_adagrad optimizers/test_adagrad.cpp)
 cppnet_add_test(test_mrs_prop optimizers/test_mrs_prop.cpp)
+
+# ---------------------------------------------------------
+# Metric Tests
+# ---------------------------------------------------------
+cppnet_add_test(test_metrics metrics/test_metrics.cpp)
+
+# ---------------------------------------------------------
+# Regularization Tests
+# ---------------------------------------------------------
+cppnet_add_test(test_regularizations regularizations/test_regularizations.cpp)
+
+# ---------------------------------------------------------
+# Utility Tests
+# ---------------------------------------------------------
+cppnet_add_test(test_callbacks utils/test_callbacks.cpp)
+cppnet_add_test(test_dataloader utils/test_dataloader.cpp)
+cppnet_add_test(test_elapsed_time utils/test_elapsed_time.cpp)
+cppnet_add_test(test_gradient_clip utils/test_gradient_clip.cpp)
+cppnet_add_test(test_init utils/test_init.cpp)
+cppnet_add_test(test_schedulers utils/test_schedulers.cpp)
+cppnet_add_test(test_utils utils/test_utils.cpp)
+
+# ---------------------------------------------------------
+# Model Tests
+# ---------------------------------------------------------
+cppnet_add_test(test_models models/test_models.cpp)
+
+# ---------------------------------------------------------
+# Visualization Tests
+# ---------------------------------------------------------
+cppnet_add_test(test_visualizations visualizations/test_visualizations.cpp)
 
 # ---------------------------------------------------------
 # GPU Kernel Tests (only if CUDA is available)

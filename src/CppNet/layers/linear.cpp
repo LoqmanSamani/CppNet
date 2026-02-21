@@ -288,13 +288,14 @@ namespace CppNet
 
         void Linear::init_params_and_grads()
         {
-            CppNet::Utils::Initialization init(in_size_, out_size_);
-            init.init_params(weights_, weight_init_);
-            init.init_params(grad_weights_, "zeros");
+            weights_ = CppNet::Utils::init_weights(in_size_, out_size_, weight_init_);
+            grad_weights_ = CppNet::Utils::constant_init(in_size_, out_size_, 0.0f);
             if (bias_)
             {
-                init.init_params(biases_, "zeros");
-                init.init_params(grad_biases_, "zeros");
+                biases_ = Eigen::Tensor<float, 1>(out_size_);
+                biases_.setZero();
+                grad_biases_ = Eigen::Tensor<float, 1>(out_size_);
+                grad_biases_.setZero();
             }
             else
             {
