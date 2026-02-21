@@ -22,7 +22,7 @@ namespace CppNet
         {
             public:
         
-                explicit ReLU(const std::string& device = "gpu");
+                explicit ReLU(const std::string& device = "cpu-eigen");
 
                 ~ReLU();
 

@@ -531,6 +531,7 @@ namespace CppNet
             if (device_ == "cpu")
             {
                 Eigen::Tensor<float, 2> grad_input(batch_size, input_size);
+                grad_input.setZero();
                 backward_cpu(grad_output, in_cache_, weights_, grad_weights_, grad_biases_, grad_input,
                      batch_size, output_size, input_size, trainable_, bias_);
                 return grad_input;
@@ -563,6 +564,7 @@ namespace CppNet
             else if (device_ == "cpu-eigen")
             {
                 Eigen::Tensor<float, 2> grad_input(batch_size, input_size);
+                grad_input.setZero();
                 backward_eigen(grad_output, in_cache_, weights_, grad_weights_, grad_biases_, grad_input,
                      batch_size, output_size, input_size, trainable_, bias_);
                 return grad_input;

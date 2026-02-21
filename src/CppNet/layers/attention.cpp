@@ -174,9 +174,47 @@ namespace CppNet
             return grad_input;
         }
 
-        void MultiHeadAttention::step(Optimizers::Optimizer& /*optimizer*/, float /*learning_rate*/)
+        void MultiHeadAttention::step(Optimizers::Optimizer& /*optimizer*/, float learning_rate)
         {
-            // TODO: Integrate with optimizer once it supports MultiHeadAttention
+            if (!trainable_) return;
+
+            const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
+
+            if (!adam_initialized_) {
+                m_q_.resize(W_q_.dimensions()); m_q_.setZero();
+                v_q_.resize(W_q_.dimensions()); v_q_.setZero();
+                m_k_.resize(W_k_.dimensions()); m_k_.setZero();
+                v_k_.resize(W_k_.dimensions()); v_k_.setZero();
+                m_v_.resize(W_v_.dimensions()); m_v_.setZero();
+                v_v_.resize(W_v_.dimensions()); v_v_.setZero();
+                m_o_.resize(W_o_.dimensions()); m_o_.setZero();
+                v_o_.resize(W_o_.dimensions()); v_o_.setZero();
+                adam_initialized_ = true;
+            }
+
+            ++adam_t_;
+            float bc1 = 1.0f - std::pow(beta1, adam_t_);
+            float bc2 = 1.0f - std::pow(beta2, adam_t_);
+
+            auto adam_update = [&](float* w, float* g, float* m, float* v, int n) {
+                for (int i = 0; i < n; ++i) {
+                    m[i] = beta1 * m[i] + (1.0f - beta1) * g[i];
+                    v[i] = beta2 * v[i] + (1.0f - beta2) * g[i] * g[i];
+                    float mh = m[i] / bc1, vh = v[i] / bc2;
+                    w[i] -= learning_rate * mh / (std::sqrt(vh) + eps);
+                }
+            };
+
+            int sz = W_q_.size();
+            adam_update(W_q_.data(), grad_W_q_.data(), m_q_.data(), v_q_.data(), sz);
+            adam_update(W_k_.data(), grad_W_k_.data(), m_k_.data(), v_k_.data(), sz);
+            adam_update(W_v_.data(), grad_W_v_.data(), m_v_.data(), v_v_.data(), sz);
+            adam_update(W_o_.data(), grad_W_o_.data(), m_o_.data(), v_o_.data(), sz);
+
+            grad_W_q_.setZero();
+            grad_W_k_.setZero();
+            grad_W_v_.setZero();
+            grad_W_o_.setZero();
         }
     }
 }

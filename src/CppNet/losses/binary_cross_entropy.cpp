@@ -80,8 +80,9 @@ namespace CppNet
             {
                 for (int j = 0; j < cols; ++j)
                 {
-                    // clip values to [1e-15, 1 - 1e-15] to avoid log(0) and division by 0
-                    float pred_clipped = std::max(1e-15f, std::min(predictions(i, j), 1.0f - 1e-15f));
+                    // clip values to [1e-7, 1 - 1e-7] to avoid log(0) and division by 0
+                    // NOTE: 1e-15f is too small — 1.0f - 1e-15f == 1.0f in float32
+                    float pred_clipped = std::max(1e-7f, std::min(predictions(i, j), 1.0f - 1e-7f));
                     float target_val = targets(i, j);
                     
                     // binary cross-entropy: -[y * log(y_hat) + (1-y) * log(1-y_hat)]
@@ -123,8 +124,8 @@ namespace CppNet
             {
                 for (int j = 0; j < cols; ++j)
                 {
-                    // clip values to [1e-15, 1 - 1e-15] to avoid log(0) and division by 0
-                    float pred_clipped = std::max(1e-15f, std::min(predictions(i, j), 1.0f - 1e-15f));
+                    // clip values to [eps, 1-eps] to avoid log(0) and division by 0
+                    float pred_clipped = std::max(1e-7f, std::min(predictions(i, j), 1.0f - 1e-7f));
                     float target_val = targets(i, j);
                     
                     // gradient: (y_hat - y) / (y_hat * (1 - y_hat))

@@ -85,6 +85,12 @@ namespace CppNet
             std::vector<TimeCache> caches_;
             Eigen::Tensor<float, 3> input_cache_;
             Eigen::Tensor<float, 2> h0_;
+
+            // Adam optimizer state
+            Eigen::Tensor<float, 2> m_ih_, v_ih_, m_hh_, v_hh_;
+            Eigen::Tensor<float, 1> m_b_, v_b_;
+            int adam_t_ = 0;
+            bool adam_initialized_ = false;
         };
     }
 }

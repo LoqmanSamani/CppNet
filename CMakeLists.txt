@@ -146,6 +146,11 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+option(BUILD_EXAMPLES "Build example executables" ON)
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
 # Install library
 install(TARGETS CppNet
     EXPORT CppNetTargets

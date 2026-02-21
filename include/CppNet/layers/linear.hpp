@@ -32,7 +32,7 @@ namespace CppNet
                     std::string layer_name = "Linear", 
                     bool trainable = true, 
                     bool bias = true,
-                    std::string device = "gpu",
+                    std::string device = "cpu-eigen",
                     std::string weight_init = "xavier"
                 ); 
                 ~Linear();
@@ -62,6 +62,8 @@ namespace CppNet
 
                 const Eigen::Tensor<float, 2>& get_grad_weights() const { return grad_weights_; }
                 const Eigen::Tensor<float, 1>& get_grad_biases() const { return grad_biases_; }
+                Eigen::Tensor<float, 2>& get_grad_weights() { return grad_weights_; }
+                Eigen::Tensor<float, 1>& get_grad_biases() { return grad_biases_; }
 
                 void set_weights(const Eigen::Tensor<float, 2>& weights) { weights_ = weights; }
                 void set_biases(const Eigen::Tensor<float, 1>& biases) { biases_ = biases; }

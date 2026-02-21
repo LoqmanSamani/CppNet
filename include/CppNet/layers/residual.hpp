@@ -57,6 +57,9 @@ namespace CppNet
             bool is_trainable() const override { return true; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
 
+            /// Zero all internal layer gradients
+            void reset_grads();
+
             std::size_t num_block_layers() const { return block_.size(); }
             bool has_projection() const { return projection_ != nullptr; }
 

@@ -119,5 +119,17 @@ namespace CppNet
             if (projection_)
                 projection_->step(optimizer, learning_rate);
         }
+
+        void Residual::reset_grads()
+        {
+            for (auto& layer : block_)
+            {
+                auto* lin = dynamic_cast<Linear*>(layer.get());
+                if (lin)
+                    lin->reset_grads();
+            }
+            if (projection_)
+                projection_->reset_grads();
+        }
     }
 }

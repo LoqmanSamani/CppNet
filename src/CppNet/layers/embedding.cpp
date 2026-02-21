@@ -86,12 +86,28 @@ namespace CppNet
 
         void Embedding::step(Optimizers::Optimizer& /*optimizer*/, float learning_rate)
         {
-            // Simple SGD update for the embedding table
             if (!trainable_) return;
 
-            for (int v = 0; v < vocab_size_; ++v)
-                for (int d = 0; d < embed_dim_; ++d)
-                    weight_(v, d) -= learning_rate * grad_weight_(v, d);
+            const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
+
+            if (!adam_initialized_) {
+                m_w_.resize(weight_.dimensions()); m_w_.setZero();
+                v_w_.resize(weight_.dimensions()); v_w_.setZero();
+                adam_initialized_ = true;
+            }
+
+            ++adam_t_;
+            float bc1 = 1.0f - std::pow(beta1, adam_t_);
+            float bc2 = 1.0f - std::pow(beta2, adam_t_);
+
+            int n = weight_.size();
+            for (int i = 0; i < n; ++i) {
+                float g = grad_weight_.data()[i];
+                m_w_.data()[i] = beta1 * m_w_.data()[i] + (1.0f - beta1) * g;
+                v_w_.data()[i] = beta2 * v_w_.data()[i] + (1.0f - beta2) * g * g;
+                float mh = m_w_.data()[i] / bc1, vh = v_w_.data()[i] / bc2;
+                weight_.data()[i] -= learning_rate * mh / (std::sqrt(vh) + eps);
+            }
 
             grad_weight_.setZero();
         }
