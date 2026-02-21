@@ -1,167 +1,149 @@
+/**
+ * @file metrics.cpp
+ * @brief Implementation of evaluation metrics
+ */
+
+#include "CppNet/metrics/metrics.hpp"
 #include <cmath>
 #include <algorithm>
-#include "CppNet/metrics/metrics.hpp"
+#include <stdexcept>
 
-
-
+#ifdef USE_OPENMP
+#include <omp.h>
+#endif
 
 namespace CppNet
 {
     namespace Metrics
     {
-        /************************************** Accuracy *************************************/
-        Accuracy::Accuracy() : correct(0), total(0) {}
-
-        float Accuracy::compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets)
+        float accuracy(const Eigen::Tensor<float, 2>& predictions,
+                       const Eigen::Tensor<float, 2>& targets)
         {
-            // TODO: Implement: argmax(predictions) == targets
-            return 0.0f;
+            int batch_size = predictions.dimension(0);
+            int num_classes = predictions.dimension(1);
+
+            if (batch_size != targets.dimension(0) || num_classes != targets.dimension(1))
+            {
+                throw std::invalid_argument("Predictions and targets shape mismatch");
+            }
+
+            int correct = 0;
+
+            #ifdef USE_OPENMP
+            #pragma omp parallel for reduction(+:correct)
+            #endif
+            for (int i = 0; i < batch_size; ++i)
+            {
+                int pred_class = 0;
+                int target_class = 0;
+                float pred_max = predictions(i, 0);
+                float target_max = targets(i, 0);
+
+                for (int j = 1; j < num_classes; ++j)
+                {
+                    if (predictions(i, j) > pred_max)
+                    {
+                        pred_max = predictions(i, j);
+                        pred_class = j;
+                    }
+                    if (targets(i, j) > target_max)
+                    {
+                        target_max = targets(i, j);
+                        target_class = j;
+                    }
+                }
+
+                if (pred_class == target_class)
+                    ++correct;
+            }
+
+            return static_cast<float>(correct) / static_cast<float>(batch_size);
         }
 
-        void Accuracy::reset()
+        float binary_accuracy(const Eigen::Tensor<float, 2>& predictions,
+                              const Eigen::Tensor<float, 2>& targets,
+                              float threshold)
         {
-            correct = 0;
-            total = 0;
+            int batch_size = predictions.dimension(0);
+            int correct = 0;
+
+            #ifdef USE_OPENMP
+            #pragma omp parallel for reduction(+:correct)
+            #endif
+            for (int i = 0; i < batch_size; ++i)
+            {
+                int pred_label = (predictions(i, 0) >= threshold) ? 1 : 0;
+                int target_label = (targets(i, 0) >= 0.5f) ? 1 : 0;
+                if (pred_label == target_label)
+                    ++correct;
+            }
+
+            return static_cast<float>(correct) / static_cast<float>(batch_size);
         }
 
-        void Accuracy::accumulate(float value, int n)
+        float precision(const Eigen::Tensor<float, 2>& predictions,
+                        const Eigen::Tensor<float, 2>& targets,
+                        float threshold)
         {
-            correct += static_cast<int>(value * n);
-            total += n;
+            int batch_size = predictions.dimension(0);
+            int true_positive = 0;
+            int false_positive = 0;
+
+            for (int i = 0; i < batch_size; ++i)
+            {
+                int pred_label = (predictions(i, 0) >= threshold) ? 1 : 0;
+                int target_label = (targets(i, 0) >= 0.5f) ? 1 : 0;
+
+                if (pred_label == 1 && target_label == 1)
+                    ++true_positive;
+                else if (pred_label == 1 && target_label == 0)
+                    ++false_positive;
+            }
+
+            int denominator = true_positive + false_positive;
+            if (denominator == 0)
+                return 0.0f;
+
+            return static_cast<float>(true_positive) / static_cast<float>(denominator);
         }
 
-        float Accuracy::result() const
+        float recall(const Eigen::Tensor<float, 2>& predictions,
+                     const Eigen::Tensor<float, 2>& targets,
+                     float threshold)
         {
-            return (total == 0) ? 0.0f : static_cast<float>(correct) / total;
+            int batch_size = predictions.dimension(0);
+            int true_positive = 0;
+            int false_negative = 0;
+
+            for (int i = 0; i < batch_size; ++i)
+            {
+                int pred_label = (predictions(i, 0) >= threshold) ? 1 : 0;
+                int target_label = (targets(i, 0) >= 0.5f) ? 1 : 0;
+
+                if (pred_label == 1 && target_label == 1)
+                    ++true_positive;
+                else if (pred_label == 0 && target_label == 1)
+                    ++false_negative;
+            }
+
+            int denominator = true_positive + false_negative;
+            if (denominator == 0)
+                return 0.0f;
+
+            return static_cast<float>(true_positive) / static_cast<float>(denominator);
         }
 
-        /************************************** Top-K Accuracy *************************************/
-        TopKAccuracy::TopKAccuracy(int k) : k(k), correct(0), total(0) {}
-
-        float TopKAccuracy::compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets)
+        float f1_score(const Eigen::Tensor<float, 2>& predictions,
+                       const Eigen::Tensor<float, 2>& targets,
+                       float threshold)
         {
-            // TODO: Implement: check if target is in top-k predictions
-            return 0.0f;
-        }
+            float p = precision(predictions, targets, threshold);
+            float r = recall(predictions, targets, threshold);
 
-        void TopKAccuracy::reset()
-        {
-            correct = 0;
-            total = 0;
-        }
+            if (p + r == 0.0f)
+                return 0.0f;
 
-        void TopKAccuracy::accumulate(float value, int n)
-        {
-            correct += static_cast<int>(value * n);
-            total += n;
-        }
-
-        float TopKAccuracy::result() const
-        {
-            return (total == 0) ? 0.0f : static_cast<float>(correct) / total;
-        }
-
-        /************************************** Precision *************************************/
-        Precision::Precision() : true_positive(0), false_positive(0) {}
-
-        float Precision::compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets)
-        {
-            // TODO: Implement: TP / (TP + FP)
-            return 0.0f;
-        }
-
-        void Precision::reset()
-        {
-            true_positive = 0;
-            false_positive = 0;
-        }
-
-        void Precision::accumulate(float value, int n)
-        {
-            // Not batch-averaged here, will need true counts
-        }
-
-        float Precision::result() const
-        {
-            int denom = true_positive + false_positive;
-            return (denom == 0) ? 0.0f : static_cast<float>(true_positive) / denom;
-        }
-
-        /************************************** Recall *************************************/
-        Recall::Recall() : true_positive(0), false_negative(0) {}
-
-        float Recall::compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets)
-        {
-            // TODO: Implement: TP / (TP + FN)
-            return 0.0f;
-        }
-
-        void Recall::reset()
-        {
-            true_positive = 0;
-            false_negative = 0;
-        }
-
-        void Recall::accumulate(float value, int n)
-        {
-            // Not batch-averaged here, will need true counts
-        }
-
-        float Recall::result() const
-        {
-            int denom = true_positive + false_negative;
-            return (denom == 0) ? 0.0f : static_cast<float>(true_positive) / denom;
-        }
-
-        /************************************** F1 Score *************************************/
-        F1Score::F1Score() : precision(), recall() {}
-
-        float F1Score::compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets)
-        {
-            // TODO: Implement: 2 * (P * R) / (P + R)
-            return 0.0f;
-        }
-
-        /************************************** MAE *************************************/
-        MAE::MAE() {}
-
-        float MAE::compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets)
-        {
-            // TODO: Implement MAE metric
-            return 0.0f;
-        }
-
-        float MAE::compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
-        {
-            return 0.0f;
-        }
-
-        /************************************** MSE *************************************/
-        MSE::MSE() {}
-
-        float MSE::compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets)
-        {
-            // TODO: Implement MSE metric
-            return 0.0f;
-        }
-
-        float MSE::compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
-        {
-            return 0.0f;
-        }
-
-        /************************************** R² Score *************************************/
-        R2Score::R2Score() {}
-
-        float R2Score::compute(const Eigen::Tensor<float, 1>& predictions, const Eigen::Tensor<float, 1>& targets)
-        {
-            // TODO: Implement R² = 1 - SS_res / SS_tot
-            return 0.0f;
-        }
-
-        float R2Score::compute(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
-        {
-            return 0.0f;
+            return 2.0f * (p * r) / (p + r);
         }
     }
 }

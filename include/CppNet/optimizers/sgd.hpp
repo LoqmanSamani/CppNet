@@ -17,7 +17,7 @@
 #include "CppNet/optimizers/optimizer.hpp"
 
 
-
+// header file for SGD optimizer implementation
 
 namespace CppNet
 {

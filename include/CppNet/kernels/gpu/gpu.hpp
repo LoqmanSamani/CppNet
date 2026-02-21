@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 
-
+// all GPU kernel declarations for CppNet layers will go here.
 
 namespace CppNet 
 {
@@ -22,9 +22,9 @@ namespace CppNet
 
             __global__ void matmul_grad_input_kernel(const float* dY, const float* W, float* dX, int batch, int in_size, int out_size);
 
-            __global__ void elementwise_kernel(float* A, float* B, float* C, int M, int N, int K);
+            __global__ void elementwise_kernel(float* A, float* B, float* C, int N, int op, int unused);
 
-            __global__ void sgd_step_kernel(float* W, const float* dW, int LR, int TP);
+            __global__ void sgd_step_kernel(float* W, const float* dW, float LR, int TP);
 
            __global__ void relu_kernel(const float* __restrict__ input, float* __restrict__ output, int total_elements);
 

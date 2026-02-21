@@ -16,6 +16,9 @@
 #include <omp.h>
 #include "CppNet/layers/layer.hpp"
 
+
+// header file for Linear (Fully Connected: Dense) Layer implementation
+
 namespace CppNet
 {
     namespace Layers

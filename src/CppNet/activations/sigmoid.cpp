@@ -3,7 +3,7 @@
 #include "CppNet/activations/sigmoid.hpp"
 
 
-
+// Sigmoid activation function implementation with OpenMP parallelization and gpu suppoet 
 
 namespace CppNet
 {

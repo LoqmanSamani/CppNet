@@ -7,6 +7,8 @@
 #include "CppNet/activations/relu.hpp"
 #include "CppNet/kernels/gpu/gpu.hpp"
 
+// ReLU activation implementation with CPU and optional GPU support
+
 namespace CppNet
 {
     namespace Activations

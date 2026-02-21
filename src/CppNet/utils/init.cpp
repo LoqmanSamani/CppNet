@@ -1,243 +1,136 @@
+/**
+ * @file init.cpp
+ * @brief Implementation of weight initialization strategies
+ */
+
 #include "CppNet/utils/init.hpp"
-
-
+#include <random>
+#include <cmath>
+#include <stdexcept>
 
 namespace CppNet
 {
     namespace Utils
     {
-        Initialization::Initialization(
-            int in_size,
-            int out_size,
-            int channels_zero,
-            int channels_one
-        ):
-        in_size_(in_size), 
-        out_size_(out_size), 
-        channels_zero_(channels_zero), 
-        channels_one_(channels_one)
-        {}
-
-        Initialization::InitConfig Initialization::get_xavier_uniform_config(int fan_in, int fan_out)
+        static std::mt19937& get_rng()
         {
-            // Xavier/Glorot uniform: U(-sqrt(6/(fan_in + fan_out)), sqrt(6/(fan_in + fan_out)))
-            InitConfig config;
-            config.scale = std::sqrt(6.0f / (fan_in + fan_out));
-            config.mean = 0.0f;
-            config.std_dev = 0.0f;
-            config.use_normal = false;
-            return config;
+            static std::mt19937 rng(std::random_device{}());
+            return rng;
         }
 
-        Initialization::InitConfig Initialization::get_xavier_normal_config(int fan_in, int fan_out)
+        Eigen::Tensor<float, 2> xavier_uniform(int rows, int cols)
         {
-            // Xavier/Glorot normal: N(0, sqrt(2/(fan_in + fan_out)))
-            InitConfig config;
-            config.scale = 0.0f;
-            config.mean = 0.0f;
-            config.std_dev = std::sqrt(2.0f / (fan_in + fan_out));
-            config.use_normal = true;
-            return config;
+            // Glorot uniform: U[-limit, limit] where limit = sqrt(6 / (fan_in + fan_out))
+            float limit = std::sqrt(6.0f / static_cast<float>(rows + cols));
+            std::uniform_real_distribution<float> dist(-limit, limit);
+
+            Eigen::Tensor<float, 2> weights(rows, cols);
+            auto& rng = get_rng();
+            for (int i = 0; i < rows; ++i)
+                for (int j = 0; j < cols; ++j)
+                    weights(i, j) = dist(rng);
+
+            return weights;
         }
 
-        Initialization::InitConfig Initialization::get_he_uniform_config(int fan_in)
+        Eigen::Tensor<float, 2> xavier_normal(int rows, int cols)
         {
-            // He uniform (for ReLU): U(-sqrt(6/fan_in), sqrt(6/fan_in))
-            InitConfig config;
-            config.scale = std::sqrt(6.0f / fan_in);
-            config.mean = 0.0f;
-            config.std_dev = 0.0f;
-            config.use_normal = false;
-            return config;
+            // Glorot normal: N(0, sqrt(2 / (fan_in + fan_out)))
+            float stddev = std::sqrt(2.0f / static_cast<float>(rows + cols));
+            std::normal_distribution<float> dist(0.0f, stddev);
+
+            Eigen::Tensor<float, 2> weights(rows, cols);
+            auto& rng = get_rng();
+            for (int i = 0; i < rows; ++i)
+                for (int j = 0; j < cols; ++j)
+                    weights(i, j) = dist(rng);
+
+            return weights;
         }
 
-        Initialization::InitConfig Initialization::get_he_normal_config(int fan_in)
+        Eigen::Tensor<float, 2> he_uniform(int rows, int cols)
         {
-            // He normal (for ReLU): N(0, sqrt(2/fan_in))
-            InitConfig config;
-            config.scale = 0.0f;
-            config.mean = 0.0f;
-            config.std_dev = std::sqrt(2.0f / fan_in);
-            config.use_normal = true;
-            return config;
+            // Kaiming uniform: U[-limit, limit] where limit = sqrt(6 / fan_in)
+            float limit = std::sqrt(6.0f / static_cast<float>(rows));
+            std::uniform_real_distribution<float> dist(-limit, limit);
+
+            Eigen::Tensor<float, 2> weights(rows, cols);
+            auto& rng = get_rng();
+            for (int i = 0; i < rows; ++i)
+                for (int j = 0; j < cols; ++j)
+                    weights(i, j) = dist(rng);
+
+            return weights;
         }
 
-        Initialization::InitConfig Initialization::get_lecun_uniform_config(int fan_in)
+        Eigen::Tensor<float, 2> he_normal(int rows, int cols)
         {
-            // LeCun uniform: U(-sqrt(3/fan_in), sqrt(3/fan_in))
-            InitConfig config;
-            config.scale = std::sqrt(3.0f / fan_in);
-            config.mean = 0.0f;
-            config.std_dev = 0.0f;
-            config.use_normal = false;
-            return config;
+            // Kaiming normal: N(0, sqrt(2 / fan_in))
+            float stddev = std::sqrt(2.0f / static_cast<float>(rows));
+            std::normal_distribution<float> dist(0.0f, stddev);
+
+            Eigen::Tensor<float, 2> weights(rows, cols);
+            auto& rng = get_rng();
+            for (int i = 0; i < rows; ++i)
+                for (int j = 0; j < cols; ++j)
+                    weights(i, j) = dist(rng);
+
+            return weights;
         }
 
-        Initialization::InitConfig Initialization::get_lecun_normal_config(int fan_in)
+        Eigen::Tensor<float, 2> uniform_init(int rows, int cols, float low, float high)
         {
-            // LeCun normal: N(0, sqrt(1/fan_in))
-            InitConfig config;
-            config.scale = 0.0f;
-            config.mean = 0.0f;
-            config.std_dev = std::sqrt(1.0f / fan_in);
-            config.use_normal = true;
-            return config;
+            std::uniform_real_distribution<float> dist(low, high);
+
+            Eigen::Tensor<float, 2> weights(rows, cols);
+            auto& rng = get_rng();
+            for (int i = 0; i < rows; ++i)
+                for (int j = 0; j < cols; ++j)
+                    weights(i, j) = dist(rng);
+
+            return weights;
         }
 
-        Initialization::InitConfig Initialization::get_uniform_config()
+        Eigen::Tensor<float, 2> normal_init(int rows, int cols, float mean, float stddev)
         {
-            // simple uniform distribution: U(-0.1, 0.1)
-            InitConfig config;
-            config.scale = 0.1f;
-            config.mean = 0.0f;
-            config.std_dev = 0.0f;
-            config.use_normal = false;
-            return config;
+            std::normal_distribution<float> dist(mean, stddev);
+
+            Eigen::Tensor<float, 2> weights(rows, cols);
+            auto& rng = get_rng();
+            for (int i = 0; i < rows; ++i)
+                for (int j = 0; j < cols; ++j)
+                    weights(i, j) = dist(rng);
+
+            return weights;
         }
 
-        Initialization::InitConfig Initialization::get_normal_config()
+        Eigen::Tensor<float, 2> constant_init(int rows, int cols, float value)
         {
-            // simple normal distribution: N(0, 0.01)
-            InitConfig config;
-            config.scale = 0.0f;
-            config.mean = 0.0f;
-            config.std_dev = 0.01f;
-            config.use_normal = true;
-            return config;
+            Eigen::Tensor<float, 2> weights(rows, cols);
+            weights.setConstant(value);
+            return weights;
         }
 
-        Initialization::InitConfig Initialization::get_config_for_method(const std::string& method) const
+        Eigen::Tensor<float, 2> init_weights(int rows, int cols, const std::string& method)
         {
-            if (method == "xavier")
-            {
-                return get_xavier_uniform_config(in_size_, out_size_);
-            }
-            else if (method == "xavier_normal")
-            {
-                return get_xavier_normal_config(in_size_, out_size_);
-            }
-            else if (method == "he_normal")
-            {
-                return get_he_normal_config(in_size_);
-            }
-            else if (method == "he")
-            {
-                return get_he_uniform_config(in_size_);
-            }
-            else if (method == "lecun_normal")
-            {
-                return get_lecun_normal_config(in_size_);
-            }
-            else if (method == "lecun")
-            {
-                return get_lecun_uniform_config(in_size_);
-            }
+            if (method == "xavier" || method == "glorot")
+                return xavier_uniform(rows, cols);
+            else if (method == "xavier_normal" || method == "glorot_normal")
+                return xavier_normal(rows, cols);
+            else if (method == "he" || method == "kaiming")
+                return he_uniform(rows, cols);
+            else if (method == "he_normal" || method == "kaiming_normal")
+                return he_normal(rows, cols);
             else if (method == "uniform")
-            {
-                return get_uniform_config();
-            }
+                return uniform_init(rows, cols);
             else if (method == "normal")
-            {
-                return get_normal_config();
-            }
+                return normal_init(rows, cols);
+            else if (method == "zeros")
+                return constant_init(rows, cols, 0.0f);
+            else if (method == "ones")
+                return constant_init(rows, cols, 1.0f);
             else
-            {
-                throw std::runtime_error("Unknown weight initialization method: '" + method + 
-                                        "'\nSupported methods: xavier, xavier_normal, he, he_normal, " +
-                                        "lecun, lecun_normal, uniform, normal, zeros, ones");
-            }
-        }
-
-        template<int Rank>
-        void Initialization::apply_initialization(Eigen::Tensor<float, Rank>& params, const InitConfig& config)
-        {
-            auto now = std::chrono::high_resolution_clock::now();
-            auto base_seed = static_cast<unsigned>(now.time_since_epoch().count());
-
-            #pragma omp parallel
-            {
-                // create thread-local random number generator with unique seed
-                unsigned thread_seed = base_seed + static_cast<unsigned>(omp_get_thread_num()) * 1000000;
-                std::mt19937 local_gen(thread_seed);
-
-                if (config.use_normal)
-                {
-                    std::normal_distribution<float> local_dist(config.mean, config.std_dev);
-
-                    #pragma omp for
-                    for (int idx = 0; idx < params.size(); ++idx)
-                    {
-                        params.data()[idx] = local_dist(local_gen);
-                    }
-                }
-                else
-                {
-                    std::uniform_real_distribution<float> local_dist(-config.scale, config.scale);
-
-                    #pragma omp for
-                    for (int idx = 0; idx < params.size(); ++idx)
-                    {
-                        params.data()[idx] = local_dist(local_gen);
-                    }
-                }
-            }
-        }
-
-        void Initialization::init_params(Eigen::Tensor<float, 1>& params, const std::string& method)
-        {
-            params = Eigen::Tensor<float, 1>(out_size_);
-
-            if (method == "zeros")
-            {
-                params.setZero();
-                return;
-            }
-            else if (method == "ones")
-            {
-                params.setConstant(1.0f);
-                return;
-            }
-
-            InitConfig config = get_config_for_method(method);
-            apply_initialization(params, config);
-        }
-
-        void Initialization::init_params(Eigen::Tensor<float, 2>& params, const std::string& method)
-        {
-            params = Eigen::Tensor<float, 2>(in_size_, out_size_);
-
-            if (method == "zeros")
-            {
-                params.setZero();
-                return;
-            }
-            else if (method == "ones")
-            {
-                params.setConstant(1.0f);
-                return;
-            }
-
-            InitConfig config = get_config_for_method(method);
-            apply_initialization(params, config);
-        }
-
-        void Initialization::init_params(Eigen::Tensor<float, 4>& params, const std::string& method)
-        {
-            params = Eigen::Tensor<float, 4>(out_size_, in_size_, channels_zero_, channels_one_);
-
-            if (method == "zeros")
-            {
-                params.setZero();
-                return;
-            }
-            else if (method == "ones")
-            {
-                params.setConstant(1.0f);
-                return;
-            }
-
-            InitConfig config = get_config_for_method(method);
-            apply_initialization(params, config);
+                throw std::invalid_argument("Unknown weight initialization method: " + method);
         }
     }
 }

@@ -7,23 +7,15 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "CppNet/losses/loss.hpp"
 
 
-
+// header for Categorical Cross Entropy Loss
 
 namespace CppNet
 {
     namespace Losses
     {
-        // base class for all losses
-        class Loss
-        {
-            public:
-                virtual ~Loss() = default;
-                virtual float forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets) = 0;
-                virtual Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets) = 0;
-        };
-       
         class CategoricalCrossEntropy : public Loss
         {
             

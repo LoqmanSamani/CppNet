@@ -11,7 +11,7 @@
 #include "CppNet/layers/linear.hpp"
 
 
-
+// linear layer implementation with cpu and gpu support.  
 
 namespace CppNet
 {

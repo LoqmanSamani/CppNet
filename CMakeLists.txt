@@ -33,15 +33,31 @@ find_package(OpenMP)
 set(CPU_SOURCES
     src/CppNet/activations/sigmoid.cpp
     src/CppNet/activations/relu.cpp
+    src/CppNet/activations/softmax.cpp
+    src/CppNet/activations/tanh.cpp
+    src/CppNet/activations/leacky_relu.cpp
     src/CppNet/layers/linear.cpp
+    src/CppNet/layers/conv2d.cpp
+    src/CppNet/layers/flatten.cpp
+    src/CppNet/layers/max_pool2d.cpp
+    src/CppNet/layers/rnn.cpp
+    src/CppNet/layers/attention.cpp
     src/CppNet/losses/binary_cross_entropy.cpp
     src/CppNet/losses/categorical_cross_entropy.cpp
+    src/CppNet/losses/mse.cpp
+    src/CppNet/losses/mae.cpp
+    src/CppNet/losses/huber.cpp
     src/CppNet/metrics/metrics.cpp
     src/CppNet/models/models.cpp
     src/CppNet/optimizers/sgd.cpp
+    src/CppNet/optimizers/adam.cpp
+    src/CppNet/optimizers/adagrad.cpp
+    src/CppNet/optimizers/momentum.cpp
+    src/CppNet/optimizers/mrs_prop.cpp
     src/CppNet/regularizations/regularizations.cpp
     src/CppNet/utils/utils.cpp
     src/CppNet/utils/init.cpp
+    src/CppNet/utils/elapsed_time.cpp
     src/CppNet/visualizations/visualizations.cpp
 )
 

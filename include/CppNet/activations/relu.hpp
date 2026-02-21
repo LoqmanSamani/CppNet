@@ -11,7 +11,7 @@
 #include <cuda_runtime.h>
 #endif
 
-
+// header file for ReLU activation function implementation
 
 namespace CppNet
 {

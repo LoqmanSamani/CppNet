@@ -3,6 +3,8 @@
 
 
 
+// Base Layer class definition
+
 namespace CppNet
 {
     namespace Optimizers

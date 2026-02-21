@@ -1,66 +1,91 @@
+/**
+ * @file init.hpp
+ * @brief Weight initialization strategies for CppNet
+ *
+ * Provides Xavier, He, uniform, normal, and constant weight
+ * initialization functions.
+ */
+
 #ifndef INIT_HPP
 #define INIT_HPP
 
-#include <iostream>
-#include <random>
-#include <cmath>
-#include <chrono>
-#include <omp.h>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
+#include <string>
 
 namespace CppNet
 {
     namespace Utils
     {
-        class Initialization
-        {
-        public:
+        /**
+         * @brief Xavier (Glorot) uniform initialization
+         * @param rows Number of input features (fan_in)
+         * @param cols Number of output features (fan_out)
+         * @return Initialized weight tensor [rows, cols]
+         */
+        Eigen::Tensor<float, 2> xavier_uniform(int rows, int cols);
 
-            Initialization(
-                int in_size,
-                int out_size,
-                int channels_zero = 0,
-                int channels_one = 0
-            );
+        /**
+         * @brief Xavier (Glorot) normal initialization
+         * @param rows Number of input features (fan_in)
+         * @param cols Number of output features (fan_out)
+         * @return Initialized weight tensor [rows, cols]
+         */
+        Eigen::Tensor<float, 2> xavier_normal(int rows, int cols);
 
-            // main initialization methods
-            void init_params(Eigen::Tensor<float, 1>& params, const std::string& method);
-            void init_params(Eigen::Tensor<float, 2>& params, const std::string& method);
-            void init_params(Eigen::Tensor<float, 4>& params, const std::string& method);
+        /**
+         * @brief He (Kaiming) uniform initialization
+         * @param rows Number of input features (fan_in)
+         * @param cols Number of output features (fan_out)
+         * @return Initialized weight tensor [rows, cols]
+         */
+        Eigen::Tensor<float, 2> he_uniform(int rows, int cols);
 
-            // internal structure to hold initialization configuration
-            struct InitConfig
-            {
-                float scale;
-                float mean;
-                float std_dev;
-                bool use_normal;
-            };
+        /**
+         * @brief He (Kaiming) normal initialization
+         * @param rows Number of input features (fan_in)
+         * @param cols Number of output features (fan_out)
+         * @return Initialized weight tensor [rows, cols]
+         */
+        Eigen::Tensor<float, 2> he_normal(int rows, int cols);
 
-            // static methods to compute initialization parameters
-            static InitConfig get_xavier_uniform_config(int fan_in, int fan_out);
-            static InitConfig get_xavier_normal_config(int fan_in, int fan_out);
-            static InitConfig get_he_uniform_config(int fan_in);
-            static InitConfig get_he_normal_config(int fan_in);
-            static InitConfig get_lecun_uniform_config(int fan_in);
-            static InitConfig get_lecun_normal_config(int fan_in);
-            static InitConfig get_uniform_config();
-            static InitConfig get_normal_config();
+        /**
+         * @brief Uniform random initialization in [low, high)
+         * @param rows Number of rows
+         * @param cols Number of columns
+         * @param low Lower bound (inclusive)
+         * @param high Upper bound (exclusive)
+         * @return Initialized weight tensor [rows, cols]
+         */
+        Eigen::Tensor<float, 2> uniform_init(int rows, int cols, float low = -1.0f, float high = 1.0f);
 
-            // helper method to get config based on method name
-            InitConfig get_config_for_method(const std::string& method) const;
+        /**
+         * @brief Normal (Gaussian) random initialization
+         * @param rows Number of rows
+         * @param cols Number of columns
+         * @param mean Mean of the distribution
+         * @param stddev Standard deviation
+         * @return Initialized weight tensor [rows, cols]
+         */
+        Eigen::Tensor<float, 2> normal_init(int rows, int cols, float mean = 0.0f, float stddev = 0.01f);
 
-            // helper method to apply initialization
-            template<int Rank>
-            void apply_initialization(Eigen::Tensor<float, Rank>& params, const InitConfig& config);
+        /**
+         * @brief Initialize all weights to a constant value
+         * @param rows Number of rows
+         * @param cols Number of columns
+         * @param value Constant value
+         * @return Initialized weight tensor [rows, cols]
+         */
+        Eigen::Tensor<float, 2> constant_init(int rows, int cols, float value = 0.0f);
 
-            private:
-                int in_size_;
-                int out_size_;
-                int channels_zero_;
-                int channels_one_;
-        };
+        /**
+         * @brief Initialize weights using a named strategy
+         * @param rows Number of rows
+         * @param cols Number of columns
+         * @param method Initialization method name ("xavier", "he", "uniform", "normal", "zeros")
+         * @return Initialized weight tensor [rows, cols]
+         */
+        Eigen::Tensor<float, 2> init_weights(int rows, int cols, const std::string& method = "xavier");
     }
 }
 

@@ -3,6 +3,8 @@
 
 #include "CppNet/layers/linear.hpp"
 
+// header base optimizer class, all optimizers will inherit from this class and implement the step function for each layer type
+
 namespace CppNet
 {
     namespace Optimizers

@@ -9,10 +9,9 @@ namespace CppNet
     {
         namespace GPU
         {
-            __global__ void sgd_step_kernel(float* W, const float* dW, int LR, int TP)
+            __global__ void sgd_step_kernel(float* W, const float* dW, float LR, int TP)
             {
-               
-                int idx = blockIdx.x * blockIdx.x + threadIdx.x;
+                int idx = blockIdx.x * blockDim.x + threadIdx.x;
                 if (idx < TP)
                 {
                     W[idx] -= LR * dW[idx];

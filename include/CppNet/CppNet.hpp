@@ -35,17 +35,34 @@
 #include "CppNet/activations/activation.hpp"
 #include "CppNet/activations/relu.hpp"
 #include "CppNet/activations/sigmoid.hpp"
+#include "CppNet/activations/softmax.hpp"
+#include "CppNet/activations/tanh.hpp"
+#include "CppNet/activations/leacky_relu.hpp"
 
 // Layers
-#include "CppNet/layers/linear.hpp"
 #include "CppNet/layers/layer.hpp"
+#include "CppNet/layers/linear.hpp"
+#include "CppNet/layers/conv2d.hpp"
+#include "CppNet/layers/flatten.hpp"
+#include "CppNet/layers/max_pool2d.hpp"
+#include "CppNet/layers/rnn.hpp"
+#include "CppNet/layers/attention.hpp"
 
 // Losses
+#include "CppNet/losses/loss.hpp"
 #include "CppNet/losses/binary_cross_entropy.hpp"
 #include "CppNet/losses/categorical_cross_entropy.hpp"
+#include "CppNet/losses/mse.hpp"
+#include "CppNet/losses/mae.hpp"
+#include "CppNet/losses/huber.hpp"
 
 // Optimizers
+#include "CppNet/optimizers/optimizer.hpp"
 #include "CppNet/optimizers/sgd.hpp"
+#include "CppNet/optimizers/adam.hpp"
+#include "CppNet/optimizers/adagrad.hpp"
+#include "CppNet/optimizers/momentum.hpp"
+#include "CppNet/optimizers/mrs_prop.hpp"
 
 // Models
 #include "CppNet/models/models.hpp"
@@ -58,6 +75,8 @@
 
 // Utils
 #include "CppNet/utils/utils.hpp"
+#include "CppNet/utils/init.hpp"
+#include "CppNet/utils/elapsed_time.hpp"
 
 // Visualizations
 #include "CppNet/visualizations/visualizations.hpp"

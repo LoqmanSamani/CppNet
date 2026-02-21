@@ -1,77 +1,70 @@
+/**
+ * @file regularizations.hpp
+ * @brief Regularization techniques for CppNet
+ *
+ * Provides L1, L2, and Elastic Net regularization penalties
+ * that can be applied to layer weights during training.
+ */
+
 #ifndef REGULARIZATIONS_HPP
 #define REGULARIZATIONS_HPP
 
-#include <iostream>
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
-#include <memory>
-#include <string>
-#include <vector>
 
 namespace CppNet
 {
     namespace Regularizations
     {
-        class Regularizer
-        {
-        public:
-            virtual ~Regularizer() = default;
+        /**
+         * @brief Compute L1 regularization penalty
+         * @param weights Weight tensor [in_size, out_size]
+         * @param lambda Regularization strength
+         * @return Scalar penalty value (lambda * sum(|W|))
+         */
+        float l1_penalty(const Eigen::Tensor<float, 2>& weights, float lambda);
 
-            // Apply regularization update to parameters (stub)
-            virtual void apply(Eigen::Tensor<float, 2>& params) = 0;
+        /**
+         * @brief Compute L1 regularization gradient
+         * @param weights Weight tensor [in_size, out_size]
+         * @param lambda Regularization strength
+         * @return Gradient tensor (lambda * sign(W))
+         */
+        Eigen::Tensor<float, 2> l1_gradient(const Eigen::Tensor<float, 2>& weights, float lambda);
 
-            // Return penalty term for loss
-            virtual float penalty(const Eigen::Tensor<float, 2>& params) = 0;
-        };
+        /**
+         * @brief Compute L2 regularization penalty
+         * @param weights Weight tensor [in_size, out_size]
+         * @param lambda Regularization strength
+         * @return Scalar penalty value (0.5 * lambda * sum(W^2))
+         */
+        float l2_penalty(const Eigen::Tensor<float, 2>& weights, float lambda);
 
-        /************************************** L1 Regularization *************************************/
-        class L1 : public Regularizer
-        {
-        private:
-            float lambda;
+        /**
+         * @brief Compute L2 regularization gradient
+         * @param weights Weight tensor [in_size, out_size]
+         * @param lambda Regularization strength
+         * @return Gradient tensor (lambda * W)
+         */
+        Eigen::Tensor<float, 2> l2_gradient(const Eigen::Tensor<float, 2>& weights, float lambda);
 
-        public:
-            L1(float lambda = 0.01f);
-            void apply(Eigen::Tensor<float, 2>& params) override;
-            float penalty(const Eigen::Tensor<float, 2>& params) override;
-        };
+        /**
+         * @brief Compute Elastic Net penalty (L1 + L2 combined)
+         * @param weights Weight tensor
+         * @param lambda Total regularization strength
+         * @param l1_ratio Fraction allocated to L1 (0 = all L2, 1 = all L1)
+         * @return Scalar penalty value
+         */
+        float elastic_net_penalty(const Eigen::Tensor<float, 2>& weights, float lambda, float l1_ratio = 0.5f);
 
-        /************************************** L2 Regularization *************************************/
-        class L2 : public Regularizer
-        {
-        private:
-            float lambda;
-
-        public:
-            L2(float lambda = 0.01);
-            void apply(Eigen::Tensor<float, 2>& params) override;
-            float penalty(const Eigen::Tensor<float, 2>& params) override;
-        };
-
-        /************************************** ElasticNet (L1 + L2) *************************************/
-        class ElasticNet : public Regularizer
-        {
-        private:
-            float l1;
-            float l2;
-
-        public:
-            ElasticNet(float l1 = 0.01, float l2 = 0.01);
-            void apply(Eigen::Tensor<float, 2>& params) override;
-            float penalty(const Eigen::Tensor<float, 2>& params) override;
-        };
-
-        /************************************** Dropout *************************************/
-        class Dropout : public Regularizer
-        {
-        private:
-            float rate;
-
-        public:
-            Dropout(float rate = 0.5);
-            void apply(Eigen::Tensor<float, 2>& params) override;
-            float penalty(const Eigen::Tensor<float, 2>& params) override;
-        };
+        /**
+         * @brief Compute Elastic Net gradient
+         * @param weights Weight tensor
+         * @param lambda Total regularization strength
+         * @param l1_ratio Fraction allocated to L1
+         * @return Gradient tensor
+         */
+        Eigen::Tensor<float, 2> elastic_net_gradient(const Eigen::Tensor<float, 2>& weights, float lambda, float l1_ratio = 0.5f);
     }
 }
 
