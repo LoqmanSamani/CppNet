@@ -5,210 +5,395 @@
 </div>
 
 <p align="center">
-  <b>CppNet</b> is a high-performance C++ deep learning library for building and training neural networks.  
-  It uses <a href="https://eigen.tuxfamily.org">Eigen</a> for fast tensor operations,  
-  <a href="https://www.openmp.org/">OpenMP</a> for CPU parallelism,  
-  and <a href="https://developer.nvidia.com/cuda-zone">CUDA</a> for GPU acceleration.  
+  <b>CppNet</b> is a high-performance C++17 deep learning library for building and training neural networks from scratch.<br/>
+  Built on <a href="https://eigen.tuxfamily.org">Eigen</a> for fast tensor operations,
+  <a href="https://www.openmp.org/">OpenMP</a> for CPU parallelism,
+  and <a href="https://developer.nvidia.com/cuda-zone">CUDA</a> for GPU acceleration.
+</p>
+
+<p align="center">
+  <a href="#installation"><img src="https://img.shields.io/badge/C%2B%2B-17-blue.svg" alt="C++17"/></a>
+  <a href="#installation"><img src="https://img.shields.io/badge/CMake-%E2%89%A53.18-blue.svg" alt="CMake"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"/></a>
+  <a href="#gpu-acceleration"><img src="https://img.shields.io/badge/CUDA-optional-yellowgreen.svg" alt="CUDA"/></a>
 </p>
 
 ---
 
-## ✨ Features
+## Table of Contents
 
-- 🚀 **High Performance**: Vectorized operations via Eigen and multi-threading with OpenMP.  
-- 🔧 **GPU Acceleration**: CUDA support for heavy computations.  
-- 🧩 **Modular API**: Clear separation of layers, losses, optimizers, metrics, and regularizations.  
-- 📦 **Extensible**: Easy to add custom layers, losses, or optimizers.  
-- 📊 **Visualization**: Tools for plotting training curves and inspecting models.  
-- 🧪 **Examples Included**: CNN, Linear, Transformer, and more.  
-
----
-
-## 📂 Full Project Directory Tree
-
-```bash
-CppNet/
-│
-├── CMakeLists.txt
-├── LICENSE
-├── README.md
-├── imgs
-├── build
-├── templates
-├── include/
-│   └── CppNet/
-│       ├── activations/
-│       │   ├── relu.hpp
-│       │   ├── sigmoid.hpp
-│       │   └── tanh.hpp
-│       │
-│       ├── layers/
-│       │   ├── dense.hpp
-│       │   ├── conv2d.hpp
-│       │   └── dropout.hpp
-│       │
-│       ├── losses/
-│       │   ├── mse.hpp
-│       │   └── cross_entropy.hpp
-│       │
-│       ├── kernels/
-│       │   ├── cpu/
-│       │   │   ├── matmul_cpu.hpp
-│       │   │   ├── conv_cpu.hpp
-│       │   │   └── common_cpu.hpp 
-│       │   │
-│       │   └── gpu/
-│       │       ├── matmul_gpu.hpp
-│       │       ├── conv_gpu.hpp
-│       │       └── common_gpu.hpp
-│       │
-│       ├── models/
-│       │   ├── sequential.hpp
-│       │   └── model_loader.hpp
-│       │
-│       ├── optimizers/
-│       │   ├── sgd.hpp
-│       │   └── adam.hpp
-│       │
-│       ├── regularizations/
-│       │   ├── l1.hpp
-│       │   └── l2.hpp
-│       │
-│       ├── utils/
-│       │   ├── tensor.hpp
-│       │   ├── initializer.hpp
-│       │   └── random.hpp
-│       │
-│       └── CppNet.hpp   
-│
-│
-├── src/
-│   ├── activations/
-│   │   ├── relu.cpp
-│   │   ├── sigmoid.cpp
-│   │   └── tanh.cpp
-│   │
-│   ├── layers/
-│   │   ├── dense.cpp
-│   │   ├── conv2d.cpp
-│   │   └── dropout.cpp
-│   │
-│   ├── losses/
-│   │   ├── mse.cpp
-│   │   └── cross_entropy.cpp
-│   │
-│   ├── kernels/
-│   │   ├── cpu/
-│   │   │   ├── matmul_cpu.cpp
-│   │   │   ├── conv_cpu.cpp
-│   │   │   └── common_cpu.cpp
-│   │   │
-│   │   └── gpu/
-│   │       ├── matmul_gpu.cu
-│   │       ├── conv_gpu.cu
-│   │       └── common_gpu.cu
-│   │
-│   ├── models/
-│   │   ├── sequential.cpp
-│   │   └── model_loader.cpp
-│   │
-│   ├── optimizers/
-│   │   ├── sgd.cpp
-│   │   └── adam.cpp
-│   │
-│   ├── regularizations/
-│   │   ├── l1.cpp
-│   │   └── l2.cpp
-│   │
-│   └── utils/
-│       ├── tensor.cpp
-│       ├── initializer.cpp
-│       └── random.cpp
-│
-│
-├── tests/
-│   ├── CMakeLists.txt
-│   ├── kernels/
-│   │   ├── cpu/
-│   │   │   ├── test_matmul_cpu.cpp
-│   │   │   └── test_conv_cpu.cpp
-│   │   └── gpu/
-│   │       ├── test_matmul_gpu.cu
-│   │       └── test_conv_gpu.cu
-│   │
-│   ├── layers/
-│   │   ├── test_dense.cpp
-│   │   └── test_conv2d.cpp
-│   │
-│   ├── activations/
-│   │   ├── test_relu.cpp
-│   │   └── test_sigmoid.cpp
-│   │
-│   ├── utils/
-│   │   ├── test_tensor.cpp
-│   │   └── test_random.cpp
-│   │
-│   └── models/
-│       └── test_sequential.cpp
-│
-│
-├── docs/
-│   ├── architecture.md
-│   ├── api_reference.md
-│   └── design_notes.md
-│
-└── examples/
-    ├── xor/
-    │   ├── xor_train.cpp
-    │   └── xor_predict.cpp
-    ├── mnist/
-    │   ├── mnist_train.cpp
-    │   └── mnist_infer.cpp
-    └── simple_dense.cpp
-```
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [API Overview](#api-overview)
+  - [Layers](#layers)
+  - [Activations](#activations)
+  - [Losses](#losses)
+  - [Optimizers](#optimizers)
+  - [Metrics](#metrics)
+  - [Regularizations](#regularizations)
+  - [Utilities](#utilities)
+  - [Visualization](#visualization)
+- [Examples](#examples)
+- [GPU Acceleration](#gpu-acceleration)
+- [Benchmarks](#benchmarks)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## ⚡ Installation
+## Features
+
+- **High Performance** — Vectorized tensor operations via Eigen, multi-threaded with OpenMP, optional CUDA GPU kernels.
+- **Rich Layer Library** — Linear, Conv2D, MaxPool2D, RNN, LSTM, GRU, Multi-Head Attention, Dropout, BatchNorm, Embedding, Residual, GlobalPool, Flatten.
+- **Multiple Backends** — Per-layer compute backend selection: `"cpu-eigen"` (Eigen contractions), `"cpu"` (OpenMP loops), `"gpu"` (CUDA kernels).
+- **Modular Architecture** — Clean separation of layers, activations, losses, optimizers, metrics, regularizations, and utilities.
+- **Training Utilities** — DataLoader with batching & shuffling, learning rate schedulers, early stopping callbacks, gradient clipping, model serialization.
+- **Visualization** — Built-in `TrainingLogger` for tracking metrics and exporting training history to CSV.
+- **Extensible** — Abstract base classes for layers, losses, and optimizers make it straightforward to add custom components.
+- **Single-Header Access** — `#include <CppNet/CppNet.hpp>` brings in the entire library.
+
+---
+
+## Installation
 
 ### Prerequisites
-- **C++17 or newer**
-- [Eigen](https://eigen.tuxfamily.org) (header-only, auto-detected if installed)
-- [CMake](https://cmake.org) ≥ 3.14
-- (Optional) CUDA Toolkit for GPU acceleration
-- (Optional) OpenMP for CPU parallelism
 
-### Build Instructions
+| Dependency | Version | Required |
+|:-----------|:--------|:---------|
+| C++ compiler (GCC, Clang, MSVC) | C++17 support | Yes |
+| [CMake](https://cmake.org) | &ge; 3.18 | Yes |
+| [Eigen3](https://eigen.tuxfamily.org) | &ge; 3.3 | Yes |
+| [OpenMP](https://www.openmp.org/) | any | Optional (CPU parallelism) |
+| [CUDA Toolkit](https://developer.nvidia.com/cuda-zone) | any | Optional (GPU acceleration) |
+
+### Build from Source
+
 ```bash
 git clone https://github.com/LoqmanSamani/CppNet.git
 cd CppNet
 mkdir build && cd build
-cmake ..
+cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
 ```
 
-This will build the library and all example programs inside `examples/`.
+### Install System-Wide
+
+```bash
+sudo make install
+```
+
+This installs headers to `/usr/local/include/CppNet/` and the static library to `/usr/local/lib/`.
+
+### Use in Your CMake Project
+
+```cmake
+find_package(CppNet REQUIRED)
+target_link_libraries(your_target PRIVATE CppNet::CppNet)
+```
 
 ---
 
+## Quick Start
 
-## 📚 Roadmap
+A minimal binary classification example:
 
-- [ ] Implement complete set of layers (CNN, RNN, Transformer, etc.)  
-- [ ] Add GPU backend (CUDA kernels for layers and ops)  
-- [ ] Add training utilities (Trainer, Callbacks, Checkpoints)  
-- [ ] Add more examples (GANs, Reinforcement Learning, NLP models)  
+```cpp
+#include <CppNet/CppNet.hpp>
+#include <iostream>
+
+int main() {
+    // Define layers
+    CppNet::Layers::Linear layer1(30, 64, "fc1", true, true, "cpu", "xavier");
+    CppNet::Layers::Linear layer2(64, 1,  "fc2", true, true, "cpu", "xavier");
+    CppNet::Activations::ReLU relu;
+    CppNet::Activations::Sigmoid sigmoid;
+
+    // Loss & optimizer
+    CppNet::Losses::BinaryCrossEntropy loss_fn("mean");
+    CppNet::Optimizers::Adam optimizer;
+    float lr = 0.001;
+
+    // Training loop
+    for (int epoch = 0; epoch < 100; ++epoch) {
+        auto h = relu.forward(layer1.forward(X_train));
+        auto pred = sigmoid.forward(layer2.forward(h));
+
+        float loss = loss_fn.forward(pred, Y_train);
+        auto grad = loss_fn.backward(pred, Y_train);
+
+        grad = layer2.backward(sigmoid.backward(grad));
+        layer1.backward(relu.backward(grad));
+
+        layer2.step(optimizer, lr);
+        layer1.step(optimizer, lr);
+
+        std::cout << "Epoch " << epoch << " — Loss: " << loss << std::endl;
+    }
+    return 0;
+}
+```
 
 ---
 
-## 🛠 Contributing
+## API Overview
 
-Contributions are welcome!  
+### Layers
 
-Please follow consistent coding style (headers in `include/`, implementations in `src/`).
+All layers inherit from `CppNet::Layers::Layer` and implement `forward()`, `backward()`, `step()`, `freeze()`, `unfreeze()`, and `print_layer_info()`.
+
+| Layer | Description | Key Parameters |
+|:------|:------------|:---------------|
+| `Linear` | Fully connected layer | `in_size`, `out_size`, `bias`, `device`, `weight_init` |
+| `Conv2D` | 2D convolution | `in_channels`, `out_channels`, `kernel_size`, `stride`, `padding` |
+| `MaxPool2D` | 2D max pooling | `kernel_size`, `stride` |
+| `Flatten` | Reshape to 2D | — |
+| `RNN` | Vanilla recurrent layer | `input_size`, `hidden_size` |
+| `LSTM` | Long Short-Term Memory | `input_size`, `hidden_size` |
+| `GRU` | Gated Recurrent Unit | `input_size`, `hidden_size` |
+| `MultiHeadAttention` | Scaled dot-product multi-head attention | `embed_dim`, `num_heads` |
+| `Dropout` | Dropout regularization | `drop_rate` |
+| `BatchNorm` | Batch normalization | `num_features` |
+| `Embedding` | Embedding lookup table | `vocab_size`, `embed_dim` |
+| `Residual` | Residual (skip) connection wrapper | — |
+| `GlobalPool` | Global average/max pooling | — |
+
+### Activations
+
+| Activation | Function |
+|:-----------|:---------|
+| `ReLU` | $\max(0, x)$ |
+| `LeakyReLU` | $\max(\alpha x, x)$ |
+| `Sigmoid` | $\sigma(x) = \frac{1}{1 + e^{-x}}$ |
+| `Tanh` | $\tanh(x)$ |
+| `Softmax` | $\frac{e^{x_i}}{\sum_j e^{x_j}}$ |
+
+All activations support both 2D (`MatrixXd`) and 4D (`Tensor<double,4>`) inputs.
+
+### Losses
+
+| Loss | Typical Use |
+|:-----|:------------|
+| `MSE` | Regression |
+| `MAE` | Regression |
+| `Huber` | Robust regression |
+| `BinaryCrossEntropy` | Binary classification |
+| `CategoricalCrossEntropy` | Multi-class classification |
+| `SoftmaxCrossEntropy` | Multi-class (fused softmax + CE) |
+
+All support configurable reduction modes (`"mean"`, `"sum"`).
+
+### Optimizers
+
+| Optimizer | Description |
+|:----------|:------------|
+| `SGD` | Stochastic Gradient Descent |
+| `Adam` | Adaptive Moment Estimation (default: $\beta_1=0.9$, $\beta_2=0.999$, $\epsilon=10^{-8}$) |
+| `Adagrad` | Adaptive gradient accumulation |
+| `Momentum` | SGD with momentum |
+| `RMSProp` | Root Mean Square Propagation |
+
+### Metrics
+
+```cpp
+CppNet::Metrics::accuracy(predictions, targets);
+CppNet::Metrics::binary_accuracy(predictions, targets, 0.5);
+CppNet::Metrics::precision(predictions, targets, 0.5);
+CppNet::Metrics::recall(predictions, targets, 0.5);
+CppNet::Metrics::f1_score(predictions, targets, 0.5);
+```
+
+### Regularizations
+
+```cpp
+CppNet::Regularizations::l1_penalty(weights, lambda);
+CppNet::Regularizations::l2_penalty(weights, lambda);
+CppNet::Regularizations::elastic_net_penalty(weights, lambda, l1_ratio);
+// Corresponding gradient functions: l1_gradient, l2_gradient, elastic_net_gradient
+```
+
+### Utilities
+
+| Utility | Description |
+|:--------|:------------|
+| **DataLoader** | Batched iteration with shuffling. Supports range-based `for` loops. |
+| **Weight Init** | Xavier (uniform/normal), He (uniform/normal), constant, custom. |
+| **Gradient Clipping** | `clip_by_value()` and `clip_by_norm()`. |
+| **Serialization** | `save_model()` / `load_model()` for full model persistence; tensor-level binary I/O. |
+| **LR Schedulers** | `StepLR`, `ExponentialLR`, `CosineAnnealingLR`. |
+| **Callbacks** | `EarlyStopping` with configurable patience, delta, and mode. |
+| **Elapsed Time** | Training duration measurement. |
+
+**DataLoader example:**
+
+```cpp
+CppNet::Utils::DataLoader loader(X, Y, /*batch_size=*/32, /*shuffle=*/true);
+for (auto& [x_batch, y_batch] : loader) {
+    // forward / backward / step
+}
+loader.reset(); // re-shuffle for next epoch
+```
+
+**Learning rate scheduler example:**
+
+```cpp
+CppNet::Schedulers::CosineAnnealingLR scheduler(/*initial_lr=*/0.01, /*T_max=*/100);
+for (int epoch = 0; epoch < 100; ++epoch) {
+    float lr = scheduler.step();
+    // ... train with lr
+}
+```
+
+### Visualization
+
+```cpp
+CppNet::Visualizations::TrainingLogger logger;
+// Inside training loop:
+logger.log("train_loss", loss);
+logger.log("val_accuracy", val_acc);
+logger.next_epoch();
+// After training:
+logger.print_epoch_summary();
+logger.export_csv("training_history.csv");
+```
 
 ---
 
-## 📜 License
+## Examples
 
-CppNet is released under the [MIT License](LICENSE).  
+The `examples/` directory contains complete, runnable programs:
+
+| Example | Description |
+|:--------|:------------|
+| `linear_test.cpp` | Multi-layer fully connected network for breast cancer classification |
+| `cnn_test.cpp` | Conv2D + MaxPool + Linear pipeline on synthetic image data |
+| `attention_test.cpp` | Multi-head attention forward and backward pass |
+| `matmul_test.cpp` | Matrix multiplication benchmark (CPU vs. GPU) |
+| `openmp_test.cpp` | OpenMP parallelism demonstration |
+
+Build and run an example:
+
+```bash
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+./examples/linear_test   # or any other example
+```
+
+---
+
+## GPU Acceleration
+
+CppNet automatically detects CUDA at build time. When available, layers can target the GPU backend:
+
+```cpp
+CppNet::Layers::Linear layer(784, 256, "fc1", true, true, "gpu", "xavier");
+```
+
+Available CUDA kernels:
+- Matrix multiplication (`matmul`, `matmul_grad_input`, `matmul_grad_weight`)
+- Bias operations (`add_bias`, `bias_grad`)
+- Elementwise operations
+- ReLU forward & backward
+- SGD update step
+
+To force a CPU-only build even when CUDA is present:
+
+```bash
+cmake .. -DCUDAToolkit_ROOT=/nonexistent
+```
+
+---
+
+## Benchmarks
+
+Measured on the included examples (single machine):
+
+| Task | Threads | Time | Speedup |
+|:-----|:--------|:-----|:--------|
+| Linear (breast cancer, 1000 epochs) | 1 | 53.9 s | 1.00x |
+| Linear (breast cancer, 1000 epochs) | 8 | 19.2 s | **2.81x** |
+| CNN (synthetic 64x64, 15 epochs) | 1 | 42.9 s | 1.00x |
+| CNN (synthetic 64x64, 15 epochs) | 8 | 15.0 s | **2.87x** |
+
+---
+
+## Testing
+
+CppNet uses [CTest](https://cmake.org/cmake/help/latest/manual/ctest.1.html) for its test suite. Tests mirror the module structure:
+
+```bash
+cd build
+cmake .. -DBUILD_TESTS=ON
+make -j$(nproc)
+ctest --output-on-failure
+```
+
+Test coverage spans layers, activations, losses, optimizers, and GPU kernels (when CUDA is available).
+
+---
+
+## Project Structure
+
+```
+CppNet/
+├── CMakeLists.txt              # Top-level build configuration
+├── cmake/                      # CMake package config templates
+├── include/CppNet/             # Public headers
+│   ├── CppNet.hpp              # Single-include entry point
+│   ├── activations/            # ReLU, Sigmoid, Softmax, Tanh, LeakyReLU
+│   ├── layers/                 # Linear, Conv2D, RNN, LSTM, GRU, Attention, ...
+│   ├── losses/                 # MSE, MAE, Huber, BCE, CCE, SoftmaxCE
+│   ├── optimizers/             # SGD, Adam, Adagrad, Momentum, RMSProp
+│   ├── models/                 # SequentialModel
+│   ├── metrics/                # Accuracy, Precision, Recall, F1
+│   ├── regularizations/        # L1, L2, Elastic Net
+│   ├── kernels/gpu/            # CUDA kernels
+│   ├── utils/                  # DataLoader, Init, Schedulers, Serialization, ...
+│   └── visualizations/         # TrainingLogger
+├── src/CppNet/                 # Implementation files (.cpp / .cu)
+├── tests/                      # CTest-based unit tests
+├── examples/                   # Runnable example programs
+└── docs/                       # Additional documentation
+```
+
+---
+
+## Roadmap
+
+- [x] Core layer library (Linear, Conv2D, Pooling, RNN, LSTM, GRU, Attention)
+- [x] Activation functions (ReLU, Sigmoid, Tanh, Softmax, LeakyReLU)
+- [x] Loss functions (MSE, MAE, Huber, BCE, CCE, SoftmaxCE)
+- [x] Optimizers (SGD, Adam, Adagrad, Momentum, RMSProp)
+- [x] DataLoader, LR schedulers, early stopping, gradient clipping
+- [x] Model serialization (save/load)
+- [x] CUDA GPU kernels for core operations
+- [x] OpenMP CPU parallelism
+- [ ] Expand GPU backend to cover all layers and operations
+- [ ] Add Trainer abstraction with built-in training loop
+- [ ] Additional examples (GANs, Reinforcement Learning, NLP pipelines)
+- [ ] Python bindings (pybind11)
+- [ ] Comprehensive API reference documentation
+
+---
+
+## Contributing
+
+Contributions are welcome! To get started:
+
+1. Fork the repository and create a feature branch.
+2. Follow the existing coding style — headers in `include/CppNet/`, implementations in `src/CppNet/`.
+3. Add tests for new functionality in `tests/`.
+4. Make sure all tests pass: `cd build && ctest --output-on-failure`.
+5. Open a pull request with a clear description of your changes.
+
+---
+
+## License
+
+CppNet is released under the [MIT License](LICENSE).
+
+Copyright &copy; 2025 Loghman Samani  

@@ -47,11 +47,14 @@ set(CPU_SOURCES
     src/CppNet/layers/dropout.cpp
     src/CppNet/layers/batch_norm.cpp
     src/CppNet/layers/embedding.cpp
+    src/CppNet/layers/residual.cpp
+    src/CppNet/layers/global_pool.cpp
     src/CppNet/losses/binary_cross_entropy.cpp
     src/CppNet/losses/categorical_cross_entropy.cpp
     src/CppNet/losses/mse.cpp
     src/CppNet/losses/mae.cpp
     src/CppNet/losses/huber.cpp
+    src/CppNet/losses/softmax_cross_entropy.cpp
     src/CppNet/metrics/metrics.cpp
     src/CppNet/models/models.cpp
     src/CppNet/optimizers/sgd.cpp
@@ -63,6 +66,12 @@ set(CPU_SOURCES
     src/CppNet/utils/utils.cpp
     src/CppNet/utils/init.cpp
     src/CppNet/utils/elapsed_time.cpp
+    src/CppNet/utils/schedulers.cpp
+    src/CppNet/utils/gradient_clip.cpp
+    src/CppNet/utils/serialization.cpp
+    src/CppNet/utils/callbacks.cpp
+    src/CppNet/utils/dataloader.cpp
+    src/CppNet/utils/tensor_io.cpp
     src/CppNet/visualizations/visualizations.cpp
 )
 

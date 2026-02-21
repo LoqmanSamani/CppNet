@@ -68,6 +68,9 @@ namespace CppNet
             const Eigen::Tensor<float, 1>& get_running_mean() const { return running_mean_; }
             const Eigen::Tensor<float, 1>& get_running_var() const { return running_var_; }
 
+            void set_running_mean(const Eigen::Tensor<float, 1>& m) { running_mean_ = m; }
+            void set_running_var(const Eigen::Tensor<float, 1>& v) { running_var_ = v; }
+
         private:
             int num_features_;
             float momentum_;

@@ -52,6 +52,8 @@
 #include "CppNet/layers/dropout.hpp"
 #include "CppNet/layers/batch_norm.hpp"
 #include "CppNet/layers/embedding.hpp"
+#include "CppNet/layers/residual.hpp"
+#include "CppNet/layers/global_pool.hpp"
 
 // Losses
 #include "CppNet/losses/loss.hpp"
@@ -60,6 +62,7 @@
 #include "CppNet/losses/mse.hpp"
 #include "CppNet/losses/mae.hpp"
 #include "CppNet/losses/huber.hpp"
+#include "CppNet/losses/softmax_cross_entropy.hpp"
 
 // Optimizers
 #include "CppNet/optimizers/optimizer.hpp"
@@ -82,6 +85,12 @@
 #include "CppNet/utils/utils.hpp"
 #include "CppNet/utils/init.hpp"
 #include "CppNet/utils/elapsed_time.hpp"
+#include "CppNet/utils/schedulers.hpp"
+#include "CppNet/utils/gradient_clip.hpp"
+#include "CppNet/utils/serialization.hpp"
+#include "CppNet/utils/callbacks.hpp"
+#include "CppNet/utils/dataloader.hpp"
+#include "CppNet/utils/tensor_io.hpp"
 
 // Visualizations
 #include "CppNet/visualizations/visualizations.hpp"
