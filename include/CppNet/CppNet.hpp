@@ -46,7 +46,12 @@
 #include "CppNet/layers/flatten.hpp"
 #include "CppNet/layers/max_pool2d.hpp"
 #include "CppNet/layers/rnn.hpp"
+#include "CppNet/layers/lstm.hpp"
+#include "CppNet/layers/gru.hpp"
 #include "CppNet/layers/attention.hpp"
+#include "CppNet/layers/dropout.hpp"
+#include "CppNet/layers/batch_norm.hpp"
+#include "CppNet/layers/embedding.hpp"
 
 // Losses
 #include "CppNet/losses/loss.hpp"

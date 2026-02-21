@@ -41,7 +41,12 @@ set(CPU_SOURCES
     src/CppNet/layers/flatten.cpp
     src/CppNet/layers/max_pool2d.cpp
     src/CppNet/layers/rnn.cpp
+    src/CppNet/layers/lstm.cpp
+    src/CppNet/layers/gru.cpp
     src/CppNet/layers/attention.cpp
+    src/CppNet/layers/dropout.cpp
+    src/CppNet/layers/batch_norm.cpp
+    src/CppNet/layers/embedding.cpp
     src/CppNet/losses/binary_cross_entropy.cpp
     src/CppNet/losses/categorical_cross_entropy.cpp
     src/CppNet/losses/mse.cpp
