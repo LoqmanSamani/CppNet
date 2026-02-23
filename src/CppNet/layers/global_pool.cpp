@@ -13,10 +13,6 @@ namespace CppNet
 {
     namespace Layers
     {
-        // =============================================================
-        //  GlobalAvgPool2D
-        // =============================================================
-
         const Eigen::Tensor<float, 2> GlobalAvgPool2D::forward(
             const Eigen::Tensor<float, 4>& input)
         {
@@ -67,10 +63,6 @@ namespace CppNet
         }
 
         void GlobalAvgPool2D::step(Optimizers::Optimizer&, float) {}
-
-        // =============================================================
-        //  GlobalMaxPool2D
-        // =============================================================
 
         const Eigen::Tensor<float, 2> GlobalMaxPool2D::forward(
             const Eigen::Tensor<float, 4>& input)

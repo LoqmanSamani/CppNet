@@ -43,10 +43,6 @@ namespace CppNet
         {
             input_cache_ = input;
 
-            // --- Main path: run through the block ---
-            // We dynamic_cast to Linear to call the typed forward().
-            // A more generic approach would use a variant / type-erased forward,
-            // but for the current CppNet architecture this is the practical path.
             Eigen::Tensor<float, 2> out = input;
             for (auto& layer : block_)
             {
@@ -56,18 +52,14 @@ namespace CppNet
                     out = lin->forward(out);
                     continue;
                 }
-                // If it's not a Linear, we skip (activations should be
-                // applied inline by the user or via a thin wrapper).
             }
 
-            // --- Shortcut path ---
             Eigen::Tensor<float, 2> shortcut;
             if (projection_)
                 shortcut = projection_->forward(input);
             else
                 shortcut = input;
 
-            // --- Element-wise addition ---
             int rows = out.dimension(0);
             int cols = out.dimension(1);
             Eigen::Tensor<float, 2> result(rows, cols);
@@ -81,9 +73,7 @@ namespace CppNet
         const Eigen::Tensor<float, 2> Residual::backward(
             const Eigen::Tensor<float, 2>& grad_output)
         {
-            // Gradient flows identically to both the block and the shortcut.
-
-            // --- Block backward (reverse order) ---
+        
             Eigen::Tensor<float, 2> grad_block = grad_output;
             for (int i = static_cast<int>(block_.size()) - 1; i >= 0; --i)
             {
@@ -92,7 +82,6 @@ namespace CppNet
                     grad_block = lin->backward(grad_block);
             }
 
-            // --- Shortcut backward ---
             Eigen::Tensor<float, 2> grad_shortcut;
             if (projection_)
                 grad_shortcut = projection_->backward(grad_output);

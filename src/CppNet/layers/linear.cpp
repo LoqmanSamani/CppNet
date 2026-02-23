@@ -11,7 +11,6 @@
 #include "CppNet/layers/linear.hpp"
 
 
-// linear layer implementation with cpu and gpu support.  
 
 namespace CppNet
 {
@@ -200,10 +199,8 @@ namespace CppNet
                     );
                 }
 
-                // Copy input to GPU (only needed on first forward or if input changed)
                 cudaMemcpy(d_input_cache_, input.data(), batch_size * input_size * sizeof(float), cudaMemcpyHostToDevice);
 
-                // Matrix multiplication: output = input * weights
                 dim3 block(32, 32);
                 dim3 grid((output_size + 31) / 32, (batch_size + 31) / 32);
 
@@ -235,7 +232,6 @@ namespace CppNet
                 }
 
                 // Copy result back to the provided output tensor
-                // This is necessary to maintain API compatibility and avoid layout issues
                 cudaMemcpy(output.data(), d_output_, batch_size * output_size * sizeof(float), cudaMemcpyDeviceToHost);
             }
 
@@ -384,8 +380,6 @@ namespace CppNet
             }
 
             in_cache_ = input;
-            //in_cache_ = input.slice(Eigen::array<Eigen::Index, 2>{0, 0}, Eigen::array<Eigen::Index, 2>{batch_size, input_size});
-
             
 
             const int batch_size = input.dimension(0);
@@ -411,10 +405,8 @@ namespace CppNet
                     }
                     
                     forward_gpu(input, weights_, biases_, gpu_output_cache_, batch_size, input_size, output_size, bias_);
-                    //Eigen::Tensor<float, 2> output(batch_size, output_size);
                     output = gpu_output_cache_.slice(Eigen::array<Eigen::Index, 2>{0, 0},Eigen::array<Eigen::Index, 2>{batch_size, output_size});
-                    
-                    // Return the cache (data is already copied from GPU)
+                
                     return output;
                 #else
                     throw std::runtime_error("GPU device selected but CUDA not available");
@@ -422,7 +414,6 @@ namespace CppNet
             }
             else if (device_ == "cpu-eigen")
             {
-                //Eigen::Tensor<float, 2> output(batch_size, output_size);
                 forward_eigen(input, weights_, biases_, output, batch_size, input_size, output_size, bias_);
                 return output;
             }
@@ -519,10 +510,6 @@ namespace CppNet
             const int output_size = grad_output.dimension(1);
             const int input_size = in_cache_.dimension(1);
 
-            //if (grad_output.dimension(0) != in_cache_.dimension(0)) 
-            //{
-            //    throw std::runtime_error("Batch size mismatch in layer: " + layer_name_);
-            //}
             if (grad_output.dimension(1) != out_size_) 
             {
                 throw std::runtime_error("Output size mismatch in layer: " + layer_name_);

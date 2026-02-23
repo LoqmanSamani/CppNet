@@ -157,9 +157,43 @@ namespace CppNet
             return grad_input;
         }
 
-        void RNN::step(Optimizers::Optimizer& /*optimizer*/, float /*learning_rate*/)
+        void RNN::step(Optimizers::Optimizer& /*optimizer*/, float learning_rate)
         {
-            // TODO: Integrate with optimizer once it supports RNN
+            if (!trainable_) return;
+
+            const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
+
+            if (!adam_initialized_)
+            {
+                m_W_ih_.resize(W_ih_.dimensions()); m_W_ih_.setZero();
+                v_W_ih_.resize(W_ih_.dimensions()); v_W_ih_.setZero();
+                m_W_hh_.resize(W_hh_.dimensions()); m_W_hh_.setZero();
+                v_W_hh_.resize(W_hh_.dimensions()); v_W_hh_.setZero();
+                m_bias_.resize(bias_.dimensions());  m_bias_.setZero();
+                v_bias_.resize(bias_.dimensions());  v_bias_.setZero();
+                adam_initialized_ = true;
+            }
+
+            ++adam_t_;
+            float bc1 = 1.0f - std::pow(beta1, static_cast<float>(adam_t_));
+            float bc2 = 1.0f - std::pow(beta2, static_cast<float>(adam_t_));
+
+            auto adam_update = [&](float* w, float* g, float* m, float* v, int n) {
+                for (int i = 0; i < n; ++i) {
+                    m[i] = beta1 * m[i] + (1.0f - beta1) * g[i];
+                    v[i] = beta2 * v[i] + (1.0f - beta2) * g[i] * g[i];
+                    float mh = m[i] / bc1, vh = v[i] / bc2;
+                    w[i] -= learning_rate * mh / (std::sqrt(vh) + eps);
+                }
+            };
+
+            adam_update(W_ih_.data(), grad_W_ih_.data(), m_W_ih_.data(), v_W_ih_.data(), W_ih_.size());
+            adam_update(W_hh_.data(), grad_W_hh_.data(), m_W_hh_.data(), v_W_hh_.data(), W_hh_.size());
+            adam_update(bias_.data(), grad_bias_.data(), m_bias_.data(), v_bias_.data(), bias_.size());
+
+            grad_W_ih_.setZero();
+            grad_W_hh_.setZero();
+            grad_bias_.setZero();
         }
     }
 }

@@ -79,8 +79,6 @@ namespace CppNet
                         x_t(n, d) = input(n, t, d);
 
                 // Compute all gates from concatenated weights
-                // x_gates = x_t * W_ih  → [batch, 3*H]
-                // h_gates = h_prev * W_hh → [batch, 3*H]
                 Eigen::Tensor<float, 2> x_gates = x_t.contract(W_ih_, contract_dims);
                 Eigen::Tensor<float, 2> h_gates = h_prev.contract(W_hh_, contract_dims);
 
@@ -109,11 +107,6 @@ namespace CppNet
                     }
                 }
 
-                // n_cand needs rh * W_hn (the third hidden-state block)
-                // We already have h_gates which contains h_prev * W_hh for all 3 blocks
-                // But for the candidate we need (r ◦ h_prev) * W_hn, not h_prev * W_hn
-                // So we recompute just the n-block: rh * W_hh[:, 2H:3H]
-                // Extract W_hn sub-matrix
                 Eigen::Tensor<float, 2> W_hn(hidden_size_, H);
                 for (int i = 0; i < hidden_size_; ++i)
                     for (int j = 0; j < H; ++j)
@@ -211,9 +204,6 @@ namespace CppNet
                         dz_raw(n, d) = dz(n, d) *
                             cache.z_gate(n, d) * (1.0f - cache.z_gate(n, d));
 
-                // Backprop through r gate
-                // dn_raw propagates through rh_proj = rh * W_hn
-                // d_rh = dn_raw * W_hn^T
                 Eigen::array<Eigen::IndexPair<int>, 1> contract_t = {Eigen::IndexPair<int>(1, 1)};
                 Eigen::Tensor<float, 2> d_rh = dn_raw.contract(W_hn, contract_t);
 
@@ -249,9 +239,6 @@ namespace CppNet
                 Eigen::array<Eigen::IndexPair<int>, 1> contract_batch = {Eigen::IndexPair<int>(0, 0)};
                 grad_W_ih_ += x_t.contract(dgates, contract_batch);
 
-                // W_hh gradient: h_prev^T * dgates
-                // But for the n-block we need rh, not h_prev
-                // Build h_for_grad: [h_prev for z&r blocks, rh for n block]
                 Eigen::Tensor<float, 2> h_for_grad(batch, gate3);
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < H; ++d)
@@ -260,10 +247,7 @@ namespace CppNet
                         h_for_grad(n, d + 1 * H) = cache.h_prev(n, d);
                         h_for_grad(n, d + 2 * H) = cache.rh(n, d);
                     }
-                // Actually we want: sum over batch of h_for_grad^T * dgates (element-wise per gate)
-                // This is trickier. Let's just accumulate separately per gate group.
-                // For z and r columns: h_prev^T * dgates[:, z_or_r]
-                // For n column: rh^T * dgates[:, n]
+
                 for (int n = 0; n < batch; ++n)
                 {
                     for (int i = 0; i < hidden_size_; ++i)

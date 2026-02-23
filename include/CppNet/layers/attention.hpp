@@ -35,8 +35,7 @@ namespace CppNet
              * @param num_heads Number of attention heads (embed_dim must be divisible by num_heads)
              * @param device Compute backend
              */
-            MultiHeadAttention(int embed_dim, int num_heads,
-                               const std::string& device = "cpu-eigen");
+            MultiHeadAttention(int embed_dim, int num_heads, const std::string& device = "cpu-eigen");
             ~MultiHeadAttention();
 
             /**

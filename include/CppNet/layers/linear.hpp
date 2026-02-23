@@ -1,3 +1,14 @@
+/**
+ * @file linear.hpp
+ * @brief Linear (Fully Connected: Dense) layer
+ * Input = [batch, in_size]
+ * Output = [batch, out_size]
+ * 
+ * Parameters: 
+ *     weights: [in_size, out_size]
+ *     biases: [out_size]
+ */
+
 #ifndef LINEAR_HPP
 #define LINEAR_HPP
 
@@ -17,7 +28,6 @@
 #include "CppNet/layers/layer.hpp"
 
 
-// header file for Linear (Fully Connected: Dense) Layer implementation
 
 namespace CppNet
 {

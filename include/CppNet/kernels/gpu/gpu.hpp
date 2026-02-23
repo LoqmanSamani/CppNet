@@ -3,7 +3,6 @@
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 
-// all GPU kernel declarations for CppNet layers will go here.
 
 namespace CppNet 
 {

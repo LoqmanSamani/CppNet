@@ -139,10 +139,9 @@ namespace CppNet
         const Eigen::Tensor<float, 3> MultiHeadAttention::backward(
             const Eigen::Tensor<float, 3>& grad_output)
         {
-            // Simplified backward pass
-            // TODO: Complete BPTT through attention mechanism
             int batch = grad_output.dimension(0);
             int seq_len = grad_output.dimension(1);
+            float scale = 1.0f / std::sqrt(static_cast<float>(head_dim_));
 
             Eigen::Tensor<float, 3> grad_input(batch, seq_len, embed_dim_);
             grad_input.setZero();
@@ -152,23 +151,80 @@ namespace CppNet
             grad_W_v_.setZero();
             grad_W_o_.setZero();
 
-            // Placeholder: gradient passthrough as approximation
-            // Full implementation requires backward through softmax + projections
-            Eigen::array<Eigen::IndexPair<int>, 1> contract_last = {Eigen::IndexPair<int>(1, 1)};
+            // Contraction axes
+            Eigen::array<Eigen::IndexPair<int>, 1> contract_last  = {Eigen::IndexPair<int>(1, 0)};
+            Eigen::array<Eigen::IndexPair<int>, 1> contract_inner = {Eigen::IndexPair<int>(1, 1)};
+            Eigen::array<Eigen::IndexPair<int>, 1> contract_first = {Eigen::IndexPair<int>(0, 0)};
 
             for (int n = 0; n < batch; ++n)
             {
                 Eigen::Tensor<float, 2> grad_slice(seq_len, embed_dim_);
+                Eigen::Tensor<float, 2> Q(seq_len, embed_dim_);
+                Eigen::Tensor<float, 2> K(seq_len, embed_dim_);
+                Eigen::Tensor<float, 2> V(seq_len, embed_dim_);
+                Eigen::Tensor<float, 2> attn(seq_len, seq_len);
+
                 for (int s = 0; s < seq_len; ++s)
                     for (int d = 0; d < embed_dim_; ++d)
+                    {
                         grad_slice(s, d) = grad_output(n, s, d);
+                        Q(s, d) = query_cache_(n, s, d);
+                        K(s, d) = key_cache_(n, s, d);
+                        V(s, d) = value_cache_(n, s, d);
+                    }
 
-                // Backprop through W_o
-                Eigen::Tensor<float, 2> grad_proj = grad_slice.contract(W_o_, contract_last);
+                for (int i = 0; i < seq_len; ++i)
+                    for (int j = 0; j < seq_len; ++j)
+                        attn(i, j) = attention_weights_cache_(n, i, j);
 
+                Eigen::Tensor<float, 2> Q_proj = Q.contract(W_q_, contract_last);
+                Eigen::Tensor<float, 2> K_proj = K.contract(W_k_, contract_last);
+                Eigen::Tensor<float, 2> V_proj = V.contract(W_v_, contract_last);
+                Eigen::Tensor<float, 2> context = attn.contract(V_proj, contract_last);
+
+                // grad_context[s,i] = sum_j grad_slice[s,j] * W_o[i,j]
+                Eigen::Tensor<float, 2> grad_context = grad_slice.contract(W_o_, contract_inner);
+                // grad_W_o[i,j] += sum_s context[s,i] * grad_slice[s,j]
+                grad_W_o_ += context.contract(grad_slice, contract_first);
+
+                // grad_attn[s,t] = sum_d grad_context[s,d] * V_proj[t,d]
+                Eigen::Tensor<float, 2> grad_attn = grad_context.contract(V_proj, contract_inner);
+                // grad_V_proj[t,d] = sum_s attn[s,t] * grad_context[s,d]
+                Eigen::Tensor<float, 2> grad_V_proj = attn.contract(grad_context, contract_first);
+
+                // grad_scores[i,j] = attn[i,j] * (grad_attn[i,j] - dot_i)
+                //   where dot_i = sum_k attn[i,k] * grad_attn[i,k]
+                Eigen::Tensor<float, 2> grad_scores(seq_len, seq_len);
+                for (int i = 0; i < seq_len; ++i)
+                {
+                    float dot = 0.0f;
+                    for (int j = 0; j < seq_len; ++j)
+                        dot += grad_attn(i, j) * attn(i, j);
+                    for (int j = 0; j < seq_len; ++j)
+                        grad_scores(i, j) = attn(i, j) * (grad_attn(i, j) - dot);
+                }
+
+                Eigen::Tensor<float, 2> grad_raw = grad_scores * grad_scores.constant(scale);
+
+                // grad_Q_proj[i,k] = sum_j grad_raw[i,j] * K_proj[j,k]
+                Eigen::Tensor<float, 2> grad_Q_proj = grad_raw.contract(K_proj, contract_last);
+                // grad_K_proj[j,k] = sum_i grad_raw[i,j] * Q_proj[i,k]
+                Eigen::Tensor<float, 2> grad_K_proj = grad_raw.contract(Q_proj, contract_first);
+
+                // Q_proj = Q * W_q  →  grad_Q = grad_Q_proj * W_q^T, grad_W_q += Q^T * grad_Q_proj
+                Eigen::Tensor<float, 2> grad_Q = grad_Q_proj.contract(W_q_, contract_inner);
+                grad_W_q_ += Q.contract(grad_Q_proj, contract_first);
+
+                Eigen::Tensor<float, 2> grad_K = grad_K_proj.contract(W_k_, contract_inner);
+                grad_W_k_ += K.contract(grad_K_proj, contract_first);
+
+                Eigen::Tensor<float, 2> grad_V = grad_V_proj.contract(W_v_, contract_inner);
+                grad_W_v_ += V.contract(grad_V_proj, contract_first);
+
+                // For self-attention (Q=K=V=input), accumulate all three gradients
                 for (int s = 0; s < seq_len; ++s)
                     for (int d = 0; d < embed_dim_; ++d)
-                        grad_input(n, s, d) = grad_proj(s, d);
+                        grad_input(n, s, d) = grad_Q(s, d) + grad_K(s, d) + grad_V(s, d);
             }
 
             return grad_input;
