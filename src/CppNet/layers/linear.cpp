@@ -71,10 +71,6 @@ namespace CppNet
             #endif
         }
 
-        // ────────────────────────────────────────────────────────────────
-        //  Parameter initialization
-        // ────────────────────────────────────────────────────────────────
-
         void Linear::init_params_and_grads()
         {
             weights_      = CppNet::Utils::init_weights(in_size_, out_size_, weight_init_);
@@ -113,10 +109,6 @@ namespace CppNet
             }
         }
 
-        // ────────────────────────────────────────────────────────────────
-        //  Gradient management & parameter update
-        // ────────────────────────────────────────────────────────────────
-
         void Linear::reset_grads()
         {
             if (!trainable_) return;
@@ -136,10 +128,6 @@ namespace CppNet
                 optimizer.update(biases_.data(), grad_biases_.data(),
                                  biases_.size(), learning_rate);
         }
-
-        // ────────────────────────────────────────────────────────────────
-        //  Forward pass
-        // ────────────────────────────────────────────────────────────────
 
         const Eigen::Tensor<float, 2> Linear::forward(
             const Eigen::Tensor<float, 2>& input)
@@ -187,8 +175,6 @@ namespace CppNet
             throw std::runtime_error("Unknown device: " + device_);
         }
 
-        // ── CPU (OpenMP) forward ───────────────────────────────────────
-
         void Linear::forward_cpu(const Eigen::Tensor<float, 2>& input,
                                  Eigen::Tensor<float, 2>& output,
                                  int batch_size, int input_size, int output_size)
@@ -213,8 +199,6 @@ namespace CppNet
             }
         }
 
-        // ── Eigen forward ──────────────────────────────────────────────
-
         void Linear::forward_eigen(const Eigen::Tensor<float, 2>& input,
                                    Eigen::Tensor<float, 2>& output,
                                    int batch_size, int input_size, int output_size)
@@ -233,10 +217,7 @@ namespace CppNet
             }
         }
 
-        // ────────────────────────────────────────────────────────────────
-        //  Backward pass
-        // ────────────────────────────────────────────────────────────────
-
+     
         const Eigen::Tensor<float, 2> Linear::backward(
             const Eigen::Tensor<float, 2>& grad_output)
         {
@@ -289,8 +270,6 @@ namespace CppNet
             throw std::runtime_error("Unknown device: " + device_);
         }
 
-        // ── CPU (OpenMP) backward ──────────────────────────────────────
-
         void Linear::backward_cpu(const Eigen::Tensor<float, 2>& grad_output,
                                   Eigen::Tensor<float, 2>& grad_input,
                                   int batch_size, int output_size, int input_size)
@@ -337,8 +316,6 @@ namespace CppNet
                 }
         }
 
-        // ── Eigen backward ─────────────────────────────────────────────
-
         void Linear::backward_eigen(const Eigen::Tensor<float, 2>& grad_output,
                                     Eigen::Tensor<float, 2>& grad_input,
                                     int batch_size, int output_size, int input_size)
@@ -363,10 +340,6 @@ namespace CppNet
             // dL/dX = dL/dY * W^T
             grad_input += grad_output.contract(weights_.shuffle(transpose), contract);
         }
-
-        // ────────────────────────────────────────────────────────────────
-        //  GPU backend
-        // ────────────────────────────────────────────────────────────────
 
         #ifdef USE_CUDA
 
@@ -550,10 +523,6 @@ namespace CppNet
         }
 
         #endif // USE_CUDA
-
-        // ────────────────────────────────────────────────────────────────
-        //  Utilities
-        // ────────────────────────────────────────────────────────────────
 
         void Linear::print_layer_info() const
         {
