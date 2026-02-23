@@ -1,187 +1,181 @@
 /**
  * @file linear.hpp
- * @brief Linear (Fully Connected: Dense) layer
- * Input = [batch, in_size]
- * Output = [batch, out_size]
- * 
- * Parameters: 
- *     weights: [in_size, out_size]
- *     biases: [out_size]
+ * @brief Linear (fully-connected / dense) layer
+ *
+ * Computes:
+ *   output = input * W + b
+ *
+ * Parameters:
+ *   W (weights): [in_size, out_size]
+ *   b (biases):  [out_size]           (optional)
+ *
+ * Input:  [batch, in_size]
+ * Output: [batch, out_size]
  */
 
 #ifndef LINEAR_HPP
 #define LINEAR_HPP
 
-#pragma once
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
 #endif
 
-#include <iostream>
+#include "CppNet/layers/layer.hpp"
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
-#include <memory>
 #include <string>
-#include <tuple>
-#include <vector>
-#include <omp.h>
-#include "CppNet/layers/layer.hpp"
-
-
 
 namespace CppNet
 {
     namespace Layers
     {
+        /**
+         * @class Linear
+         * @brief Fully-connected (dense) layer: y = xW + b
+         *
+         * Supports three compute backends:
+         *   - "cpu-eigen"  Eigen tensor contractions (default)
+         *   - "cpu"        OpenMP-parallelised loops
+         *   - "gpu"        CUDA kernels (requires USE_CUDA)
+         *
+         * Weight initialization is delegated to CppNet::Utils::init_weights()
+         * and can be selected via the @p weight_init constructor parameter
+         * ("xavier", "he", "normal", "zeros", …).
+         */
         class Linear : public Layer
         {
-            public:
-                Linear(
-                    int in_size, 
-                    int out_size, 
-                    std::string layer_name = "Linear", 
-                    bool trainable = true, 
-                    bool bias = true,
-                    std::string device = "cpu-eigen",
-                    std::string weight_init = "xavier"
-                ); 
-                ~Linear();
-                
-                const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
-                const Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
+        public:
+            /**
+             * @param in_size     Number of input features
+             * @param out_size    Number of output features
+             * @param layer_name  Human-readable name (used in error messages)
+             * @param trainable   Whether gradients are accumulated
+             * @param bias        Whether to include a learnable bias vector
+             * @param device      Compute backend: "cpu-eigen", "cpu", or "gpu"
+             * @param weight_init Initialization strategy forwarded to init_weights()
+             */
+            Linear(int in_size, int out_size,
+                   std::string layer_name = "Linear",
+                   bool trainable = true, bool bias = true,
+                   std::string device = "cpu-eigen",
+                   std::string weight_init = "xavier");
+            ~Linear();
 
-                void reset_grads() 
-                {
-                    if (trainable_) 
-                    {
-                        grad_weights_.setZero();
-                        if (bias_ && grad_biases_.size() > 0) 
-                            grad_biases_.setZero();    
-                    } 
-                }
+            /// @brief Forward pass: output = input * W + b
+            const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
 
-                int get_input_size() const { return in_size_; }
-                int get_output_size() const { return out_size_; }
-                std::string get_layer_name() const { return layer_name_; }
-                std::string get_device() { return device_; }
+            /// @brief Backward pass: computes grad_input and accumulates param gradients
+            const Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
 
-                Eigen::Tensor<float, 2>& get_weights() { return weights_; }
-                const Eigen::Tensor<float, 2>& get_weights() const { return weights_; }
-                Eigen::Tensor<float, 1>& get_biases() { return biases_; }
-                const Eigen::Tensor<float, 1>& get_biases() const { return biases_; }
+            bool is_trainable() const override { return trainable_; }
+            void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
 
-                const Eigen::Tensor<float, 2>& get_grad_weights() const { return grad_weights_; }
-                const Eigen::Tensor<float, 1>& get_grad_biases() const { return grad_biases_; }
-                Eigen::Tensor<float, 2>& get_grad_weights() { return grad_weights_; }
-                Eigen::Tensor<float, 1>& get_grad_biases() { return grad_biases_; }
+            void freeze()   { trainable_ = false; }
+            void unfreeze() { trainable_ = true; }
 
-                void set_weights(const Eigen::Tensor<float, 2>& weights) { weights_ = weights; }
-                void set_biases(const Eigen::Tensor<float, 1>& biases) { biases_ = biases; }
+            /// @brief Zero-out accumulated parameter gradients
+            void reset_grads();
 
-                bool is_trainable() const override { return trainable_; }
+            // ── Accessors ──────────────────────────────────────────────
+            int get_input_size()  const { return in_size_; }
+            int get_output_size() const { return out_size_; }
+            std::string get_layer_name() const { return layer_name_; }
+            std::string get_device() const { return device_; }
+            bool has_bias() const { return bias_flag_; }
 
-                void freeze(){ trainable_ = false; }
-                void unfreeze() { trainable_ = true; }
+            Eigen::Tensor<float, 2>&       get_weights()       { return weights_; }
+            const Eigen::Tensor<float, 2>& get_weights() const { return weights_; }
+            Eigen::Tensor<float, 1>&       get_biases()        { return biases_; }
+            const Eigen::Tensor<float, 1>& get_biases()  const { return biases_; }
 
-                bool has_bias() const { return bias_; }
+            Eigen::Tensor<float, 2>&       get_grad_weights()       { return grad_weights_; }
+            const Eigen::Tensor<float, 2>& get_grad_weights() const { return grad_weights_; }
+            Eigen::Tensor<float, 1>&       get_grad_biases()        { return grad_biases_; }
+            const Eigen::Tensor<float, 1>& get_grad_biases()  const { return grad_biases_; }
 
-                void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
+            void set_weights(const Eigen::Tensor<float, 2>& weights) { weights_ = weights; }
+            void set_biases(const Eigen::Tensor<float, 1>& biases)   { biases_ = biases; }
 
-                static void set_num_threads(int num_threads);
-                void set_max_batch_size(int max_batch_size);
-                
-                void print_layer_info() const 
-                {
-                    std::cout << "  Layer: " << layer_name_ << std::endl;
-                    std::cout << "  Input size: " << in_size_ << std::endl;
-                    std::cout << "  Output size: " << out_size_ << std::endl;
-                    std::cout << "  Trainable: " << (trainable_ ? "Yes" : "No") << std::endl;
-                    std::cout << "  Has bias: " << (bias_ ? "Yes" : "No") << std::endl;
-                    std::cout << "  Weight shape: [" << weights_.dimension(0) << ", " << weights_.dimension(1) << "]" << std::endl;
+            /// @brief Re-initialize weights with a different strategy
+            void reinitialize_weights(const std::string& method);
 
-                    if (bias_) 
-                    {
-                        std::cout << "  Bias shape: [" << biases_.dimension(0) << "]" << std::endl;
-                    }
-                }
+            /// @brief Print a short summary of this layer's configuration
+            void print_layer_info() const;
 
-                #ifdef USE_CUDA
-                    void init_gpu_buffers(int max_batch_size);
-                    void cleanup_gpu_buffers();
-                    void sync_weights_to_gpu();
-                    void sync_weights_from_gpu();
-                    void sync_gradients_from_gpu();
-                    
-                    float* get_d_weights() { return d_weights_; }
-                    float* get_d_bias() { return d_bias_; }
-                    float* get_d_grad_weights() { return d_grad_weights_; }
-                    float* get_d_grad_bias() { return d_grad_bias_; }
-                    
-                    bool is_gpu_initialized() const { return gpu_initialized_; }
-                #endif
+            /// @brief Set the global OpenMP thread count
+            static void set_num_threads(int num_threads);
 
-            private:
-                int in_size_;
-                int out_size_;
-                std::string layer_name_;
-                bool trainable_;
-                bool bias_;
-                std::string device_;
-                std::string weight_init_;   
-                Eigen::Tensor<float, 2> weights_;
-                Eigen::Tensor<float, 1> biases_;
-                Eigen::Tensor<float, 2> in_cache_;
-                Eigen::Tensor<float, 2> grad_weights_;
-                Eigen::Tensor<float, 1> grad_biases_;
+            #ifdef USE_CUDA
+            void set_max_batch_size(int max_batch_size);
+            void init_gpu_buffers(int max_batch_size);
+            void cleanup_gpu_buffers();
+            void sync_weights_to_gpu();
+            void sync_weights_from_gpu();
+            void sync_gradients_from_gpu();
 
-                // GPU output caches (CPU-side storage for return values)
-                Eigen::Tensor<float, 2> gpu_output_cache_;
-                Eigen::Tensor<float, 2> gpu_grad_input_cache_;
+            float* get_d_weights()      { return d_weights_; }
+            float* get_d_bias()         { return d_bias_; }
+            float* get_d_grad_weights() { return d_grad_weights_; }
+            float* get_d_grad_bias()    { return d_grad_bias_; }
+            bool is_gpu_initialized() const { return gpu_initialized_; }
+            #endif
 
-                void reinitialize_weights(const std::string& new_init_method);
-                void init_params_and_grads();
-                void forward_cpu(
-                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
-                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-                    int batch_size, int input_size, int output_size, bool bias_);
+        private:
+            int in_size_;
+            int out_size_;
+            std::string layer_name_;
+            bool trainable_;
+            bool bias_flag_;
+            std::string device_;
+            std::string weight_init_;
 
-                void forward_gpu(
-                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
-                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-                    int batch_size, int input_size, int output_size, bool bias_);
+            Eigen::Tensor<float, 2> weights_;       // [in_size, out_size]
+            Eigen::Tensor<float, 1> biases_;        // [out_size]
+            Eigen::Tensor<float, 2> grad_weights_;
+            Eigen::Tensor<float, 1> grad_biases_;
+            Eigen::Tensor<float, 2> in_cache_;      // cached input for backward
 
-                void forward_eigen(
-                    const Eigen::Tensor<float, 2>& input, const Eigen::Tensor<float, 2>& weights_, 
-                    const Eigen::Tensor<float, 1>& biases_, Eigen::Tensor<float, 2>& output, 
-                    int batch_size, int input_size, int output_size, bool bias_);
+            // GPU output caches (CPU-side storage for return values)
+            Eigen::Tensor<float, 2> gpu_output_cache_;
+            Eigen::Tensor<float, 2> gpu_grad_input_cache_;
 
-                void backward_gpu(int batch_size, int output_size, int input_size);
-                
-                void backward_cpu(
-                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
-                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
-                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
-                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
+            /// Allocate and zero all parameters and gradient buffers
+            void init_params_and_grads();
 
-                void backward_eigen(
-                    const Eigen::Tensor<float, 2>& grad_output, const Eigen::Tensor<float, 2>& in_cache_,
-                    const Eigen::Tensor<float, 2>& weights_, Eigen::Tensor<float, 2>& grad_weights_, 
-                    Eigen::Tensor<float, 1>& grad_biases_, Eigen::Tensor<float, 2>& grad_input,  
-                    int batch_size, int output_size, int input_size, bool trainable_, bool bias_);
-                
-                #ifdef USE_CUDA
-                    float* d_weights_;      
-                    float* d_bias_;          
-                    float* d_input_cache_;
-                    float* d_output_;         
-                    float* d_grad_weights_;   
-                    float* d_grad_bias_;      
-                    float* d_grad_input_;
-                    float* d_grad_output_;
-                    
-                    bool gpu_initialized_;    
-                    int gpu_max_batch_size_;
-                #endif                  
+            // ── Backend-specific helpers ────────────────────────────────
+            void forward_cpu(const Eigen::Tensor<float, 2>& input,
+                             Eigen::Tensor<float, 2>& output,
+                             int batch_size, int input_size, int output_size);
+
+            void forward_eigen(const Eigen::Tensor<float, 2>& input,
+                               Eigen::Tensor<float, 2>& output,
+                               int batch_size, int input_size, int output_size);
+
+            void backward_cpu(const Eigen::Tensor<float, 2>& grad_output,
+                              Eigen::Tensor<float, 2>& grad_input,
+                              int batch_size, int output_size, int input_size);
+
+            void backward_eigen(const Eigen::Tensor<float, 2>& grad_output,
+                                Eigen::Tensor<float, 2>& grad_input,
+                                int batch_size, int output_size, int input_size);
+
+            #ifdef USE_CUDA
+            void forward_gpu(const Eigen::Tensor<float, 2>& input,
+                             Eigen::Tensor<float, 2>& output,
+                             int batch_size, int input_size, int output_size);
+            void backward_gpu(int batch_size, int output_size, int input_size);
+
+            float* d_weights_       = nullptr;
+            float* d_bias_          = nullptr;
+            float* d_input_cache_   = nullptr;
+            float* d_output_        = nullptr;
+            float* d_grad_weights_  = nullptr;
+            float* d_grad_bias_     = nullptr;
+            float* d_grad_input_    = nullptr;
+            float* d_grad_output_   = nullptr;
+            bool   gpu_initialized_ = false;
+            int    gpu_max_batch_size_ = 0;
+            #endif
         };
     }
 }
