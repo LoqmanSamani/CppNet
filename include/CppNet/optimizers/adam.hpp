@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <unordered_map>
+#include <vector>
 #include <string>
 
 namespace CppNet
@@ -34,6 +35,8 @@ namespace CppNet
             Adam(float beta1 = 0.9f, float beta2 = 0.999f, float epsilon = 1e-8f);
 
             void step(CppNet::Layers::Linear& layer, float learning_rate) override;
+            void update(float* weights, const float* gradients,
+                        int size, float learning_rate) override;
 
         private:
             float beta1_;
@@ -46,6 +49,11 @@ namespace CppNet
             std::unordered_map<void*, Eigen::Tensor<float, 2>> v_weights_;
             std::unordered_map<void*, Eigen::Tensor<float, 1>> m_biases_;
             std::unordered_map<void*, Eigen::Tensor<float, 1>> v_biases_;
+
+            // Per-pointer state for generic update()
+            std::unordered_map<void*, std::vector<float>> m_params_;
+            std::unordered_map<void*, std::vector<float>> v_params_;
+            std::unordered_map<void*, int> t_params_;
         };
     }
 }

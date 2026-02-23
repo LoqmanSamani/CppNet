@@ -80,11 +80,6 @@ namespace CppNet
             Eigen::Tensor<float, 3> key_cache_;
             Eigen::Tensor<float, 3> value_cache_;
             Eigen::Tensor<float, 3> attention_weights_cache_;
-
-            // Adam optimizer state
-            Eigen::Tensor<float, 2> m_q_, v_q_, m_k_, v_k_, m_v_, v_v_, m_o_, v_o_;
-            int adam_t_ = 0;
-            bool adam_initialized_ = false;
         };
     }
 }

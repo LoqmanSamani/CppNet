@@ -17,7 +17,6 @@
 #include "CppNet/optimizers/optimizer.hpp"
 
 
-// header file for SGD optimizer implementation
 
 namespace CppNet
 {
@@ -28,9 +27,8 @@ namespace CppNet
         public:
             SGD(int gpu_block_size = 256);
             void step(CppNet::Layers::Linear& layer, float learning_rate) override;
-            //void step_gpu(CppNet::Layers::Linear& layer, float learning_rate);// override;
-            //void step(CppNet::Layers::Conv2d& layer, double learning_rate) override;
-            //void step(CppNet::Layers::MultiHeadAttention& layer, double learning_rate) override;
+            void update(float* weights, const float* gradients,
+                        int size, float learning_rate) override;
 
         private:
             int gpu_block_size_;

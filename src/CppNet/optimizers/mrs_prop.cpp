@@ -18,6 +18,23 @@ namespace CppNet
         {
         }
 
+        void RMSProp::update(float* weights, const float* gradients,
+                             int size, float learning_rate)
+        {
+            void* key = static_cast<void*>(weights);
+
+            if (cache_params_.find(key) == cache_params_.end())
+                cache_params_[key].assign(size, 0.0f);
+
+            auto& s = cache_params_[key];
+
+            for (int i = 0; i < size; ++i)
+            {
+                s[i] = rho_ * s[i] + (1.0f - rho_) * gradients[i] * gradients[i];
+                weights[i] -= learning_rate * gradients[i] / (std::sqrt(s[i]) + epsilon_);
+            }
+        }
+
         void RMSProp::step(CppNet::Layers::Linear& layer, float learning_rate)
         {
             if (!layer.is_trainable()) return;

@@ -21,6 +21,36 @@ namespace CppNet
         {
         }
 
+        void Adam::update(float* weights, const float* gradients,
+                          int size, float learning_rate)
+        {
+            void* key = static_cast<void*>(weights);
+
+            if (m_params_.find(key) == m_params_.end())
+            {
+                m_params_[key].assign(size, 0.0f);
+                v_params_[key].assign(size, 0.0f);
+                t_params_[key] = 0;
+            }
+
+            auto& m = m_params_[key];
+            auto& v = v_params_[key];
+            int& t = t_params_[key];
+            ++t;
+
+            float bc1 = 1.0f - std::pow(beta1_, static_cast<float>(t));
+            float bc2 = 1.0f - std::pow(beta2_, static_cast<float>(t));
+
+            for (int i = 0; i < size; ++i)
+            {
+                m[i] = beta1_ * m[i] + (1.0f - beta1_) * gradients[i];
+                v[i] = beta2_ * v[i] + (1.0f - beta2_) * gradients[i] * gradients[i];
+                float mh = m[i] / bc1;
+                float vh = v[i] / bc2;
+                weights[i] -= learning_rate * mh / (std::sqrt(vh) + epsilon_);
+            }
+        }
+
         void Adam::step(CppNet::Layers::Linear& layer, float learning_rate)
         {
             if (!layer.is_trainable()) return;

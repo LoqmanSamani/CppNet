@@ -38,12 +38,10 @@ namespace CppNet
 
             for (int n = 0; n < batch; ++n)
             {
-                // 1. Find max for numerical stability
                 float max_val = logits(n, 0);
                 for (int c = 1; c < classes; ++c)
                     max_val = std::max(max_val, logits(n, c));
 
-                // 2. Compute exp(logit - max) and their sum
                 float sum_exp = 0.0f;
                 for (int c = 0; c < classes; ++c)
                 {
@@ -51,7 +49,6 @@ namespace CppNet
                     sum_exp += softmax_cache_(n, c);
                 }
 
-                // 3. Normalize to get softmax, accumulate loss
                 float log_sum = std::log(sum_exp + 1e-12f);
                 for (int c = 0; c < classes; ++c)
                 {
@@ -71,7 +68,6 @@ namespace CppNet
             const Eigen::Tensor<float, 2>& logits,
             const Eigen::Tensor<float, 2>& targets)
         {
-            // If forward() hasn't been called yet, compute softmax now
             int batch = logits.dimension(0);
             int classes = logits.dimension(1);
 

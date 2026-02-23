@@ -12,6 +12,7 @@
  */
 
 #include "CppNet/layers/batch_norm.hpp"
+#include "CppNet/optimizers/optimizer.hpp"
 #include <cmath>
 #include <stdexcept>
 
@@ -180,41 +181,14 @@ namespace CppNet
             return grad_input;
         }
 
-        void BatchNorm::step(Optimizers::Optimizer& /*optimizer*/, float learning_rate)
+        void BatchNorm::step(Optimizers::Optimizer& optimizer, float learning_rate)
         {
             if (!trainable_) return;
 
-            const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
-
-            if (!adam_initialized_)
-            {
-                m_gamma_.resize(num_features_); m_gamma_.setZero();
-                v_gamma_.resize(num_features_); v_gamma_.setZero();
-                m_beta_.resize(num_features_);  m_beta_.setZero();
-                v_beta_.resize(num_features_);  v_beta_.setZero();
-                adam_initialized_ = true;
-            }
-
-            ++adam_t_;
-            float bc1 = 1.0f - std::pow(beta1, static_cast<float>(adam_t_));
-            float bc2 = 1.0f - std::pow(beta2, static_cast<float>(adam_t_));
-
-            for (int f = 0; f < num_features_; ++f)
-            {
-                // Adam update for gamma
-                m_gamma_(f) = beta1 * m_gamma_(f) + (1.0f - beta1) * grad_gamma_(f);
-                v_gamma_(f) = beta2 * v_gamma_(f) + (1.0f - beta2) * grad_gamma_(f) * grad_gamma_(f);
-                float mh_g = m_gamma_(f) / bc1;
-                float vh_g = v_gamma_(f) / bc2;
-                gamma_(f) -= learning_rate * mh_g / (std::sqrt(vh_g) + eps);
-
-                // Adam update for beta
-                m_beta_(f) = beta1 * m_beta_(f) + (1.0f - beta1) * grad_beta_(f);
-                v_beta_(f) = beta2 * v_beta_(f) + (1.0f - beta2) * grad_beta_(f) * grad_beta_(f);
-                float mh_b = m_beta_(f) / bc1;
-                float vh_b = v_beta_(f) / bc2;
-                beta_(f) -= learning_rate * mh_b / (std::sqrt(vh_b) + eps);
-            }
+            optimizer.update(gamma_.data(), grad_gamma_.data(),
+                             num_features_, learning_rate);
+            optimizer.update(beta_.data(), grad_beta_.data(),
+                             num_features_, learning_rate);
 
             grad_gamma_.setZero();
             grad_beta_.setZero();

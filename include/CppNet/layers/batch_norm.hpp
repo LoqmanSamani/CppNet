@@ -97,12 +97,6 @@ namespace CppNet
             Eigen::Tensor<float, 1> batch_var_;
             Eigen::Tensor<float, 2> input_cache_;
             int batch_size_cache_ = 0;
-
-            // Adam optimizer state
-            Eigen::Tensor<float, 1> m_gamma_, v_gamma_;
-            Eigen::Tensor<float, 1> m_beta_, v_beta_;
-            int adam_t_ = 0;
-            bool adam_initialized_ = false;
         };
     }
 }

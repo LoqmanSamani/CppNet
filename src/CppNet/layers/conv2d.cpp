@@ -7,6 +7,7 @@
  */
 
 #include "CppNet/layers/conv2d.hpp"
+#include "CppNet/optimizers/optimizer.hpp"
 #include "CppNet/utils/init.hpp"
 #include <stdexcept>
 #include <cmath>
@@ -156,55 +157,16 @@ namespace CppNet
             return grad_input;
         }
 
-        void Conv2D::step(Optimizers::Optimizer& /*optimizer*/, float learning_rate)
+        void Conv2D::step(Optimizers::Optimizer& optimizer, float learning_rate)
         {
             if (!trainable_) return;
 
-            // Adam hyperparameters
-            const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
+            optimizer.update(weights_.data(), grad_weights_.data(),
+                             weights_.size(), learning_rate);
 
-            // Lazy-initialise Adam state on first call
-            if (!adam_initialized_)
-            {
-                m_w_.resize(weights_.dimensions()); m_w_.setZero();
-                v_w_.resize(weights_.dimensions()); v_w_.setZero();
-                if (bias_flag_) {
-                    m_b_.resize(biases_.dimensions()); m_b_.setZero();
-                    v_b_.resize(biases_.dimensions()); v_b_.setZero();
-                }
-                adam_initialized_ = true;
-            }
-
-            ++adam_t_;
-            float bc1 = 1.0f - std::pow(beta1, adam_t_);
-            float bc2 = 1.0f - std::pow(beta2, adam_t_);
-
-            // Update weights with Adam
-            int nw = weights_.size();
-            for (int i = 0; i < nw; ++i)
-            {
-                float g = grad_weights_.data()[i];
-                m_w_.data()[i] = beta1 * m_w_.data()[i] + (1.0f - beta1) * g;
-                v_w_.data()[i] = beta2 * v_w_.data()[i] + (1.0f - beta2) * g * g;
-                float m_hat = m_w_.data()[i] / bc1;
-                float v_hat = v_w_.data()[i] / bc2;
-                weights_.data()[i] -= learning_rate * m_hat / (std::sqrt(v_hat) + eps);
-            }
-
-            // Update biases with Adam
             if (bias_flag_)
-            {
-                int nb = biases_.size();
-                for (int i = 0; i < nb; ++i)
-                {
-                    float g = grad_biases_.data()[i];
-                    m_b_.data()[i] = beta1 * m_b_.data()[i] + (1.0f - beta1) * g;
-                    v_b_.data()[i] = beta2 * v_b_.data()[i] + (1.0f - beta2) * g * g;
-                    float m_hat = m_b_.data()[i] / bc1;
-                    float v_hat = v_b_.data()[i] / bc2;
-                    biases_.data()[i] -= learning_rate * m_hat / (std::sqrt(v_hat) + eps);
-                }
-            }
+                optimizer.update(biases_.data(), grad_biases_.data(),
+                                 biases_.size(), learning_rate);
 
             grad_weights_.setZero();
             grad_biases_.setZero();

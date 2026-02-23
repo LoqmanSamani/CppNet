@@ -76,14 +76,6 @@ namespace CppNet
             Eigen::Tensor<float, 4> grad_weights_;
             Eigen::Tensor<float, 1> grad_biases_;
             Eigen::Tensor<float, 4> input_cache_;   // cached input for backward
-
-            // Adam optimizer state (used internally by step())
-            Eigen::Tensor<float, 4> m_w_;           // first moment (weights)
-            Eigen::Tensor<float, 4> v_w_;           // second moment (weights)
-            Eigen::Tensor<float, 1> m_b_;           // first moment (biases)
-            Eigen::Tensor<float, 1> v_b_;           // second moment (biases)
-            int adam_t_ = 0;                         // step counter
-            bool adam_initialized_ = false;
         };
     }
 }

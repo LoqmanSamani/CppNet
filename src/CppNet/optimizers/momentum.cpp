@@ -17,6 +17,23 @@ namespace CppNet
         {
         }
 
+        void Momentum::update(float* weights, const float* gradients,
+                              int size, float learning_rate)
+        {
+            void* key = static_cast<void*>(weights);
+
+            if (vel_params_.find(key) == vel_params_.end())
+                vel_params_[key].assign(size, 0.0f);
+
+            auto& vel = vel_params_[key];
+
+            for (int i = 0; i < size; ++i)
+            {
+                vel[i] = mu_ * vel[i] - learning_rate * gradients[i];
+                weights[i] += vel[i];
+            }
+        }
+
         void Momentum::step(CppNet::Layers::Linear& layer, float learning_rate)
         {
             if (!layer.is_trainable()) return;

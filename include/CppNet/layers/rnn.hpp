@@ -67,13 +67,6 @@ namespace CppNet
             // Caches for backward pass
             std::vector<Eigen::Tensor<float, 2>> hidden_states_;  // per timestep
             Eigen::Tensor<float, 3> input_cache_;
-
-            // Adam optimizer state
-            Eigen::Tensor<float, 2> m_W_ih_, v_W_ih_;
-            Eigen::Tensor<float, 2> m_W_hh_, v_W_hh_;
-            Eigen::Tensor<float, 1> m_bias_, v_bias_;
-            int adam_t_ = 0;
-            bool adam_initialized_ = false;
         };
     }
 }

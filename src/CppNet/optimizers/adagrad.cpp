@@ -18,6 +18,23 @@ namespace CppNet
         {
         }
 
+        void Adagrad::update(float* weights, const float* gradients,
+                             int size, float learning_rate)
+        {
+            void* key = static_cast<void*>(weights);
+
+            if (accum_params_.find(key) == accum_params_.end())
+                accum_params_[key].assign(size, 0.0f);
+
+            auto& g = accum_params_[key];
+
+            for (int i = 0; i < size; ++i)
+            {
+                g[i] += gradients[i] * gradients[i];
+                weights[i] -= learning_rate * gradients[i] / (std::sqrt(g[i]) + epsilon_);
+            }
+        }
+
         void Adagrad::step(CppNet::Layers::Linear& layer, float learning_rate)
         {
             if (!layer.is_trainable()) return;

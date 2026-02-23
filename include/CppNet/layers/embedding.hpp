@@ -77,11 +77,6 @@ namespace CppNet
 
             // Cache input indices for backward scatter
             Eigen::Tensor<int, 2> input_cache_;
-
-            // Adam optimizer state
-            Eigen::Tensor<float, 2> m_w_, v_w_;
-            int adam_t_ = 0;
-            bool adam_initialized_ = false;
         };
     }
 }

@@ -3,7 +3,6 @@
 
 #include "CppNet/layers/linear.hpp"
 
-// header base optimizer class, all optimizers will inherit from this class and implement the step function for each layer type
 
 namespace CppNet
 {
@@ -13,8 +12,18 @@ namespace CppNet
         {
         public:
             virtual void step(CppNet::Layers::Linear& layer, float learning_rate) = 0;
-            //virtual void step(CppNet::Layers::Conv2d& layer, float learning_rate) = 0;
-            //virtual void step(CppNet::Layers::MultiHeadAttention& layer, float learning_rate) = 0;
+
+            /**
+             * @brief Generic parameter update on raw arrays.
+             * Allows all layer types to use any optimizer.
+             * @param weights   Pointer to the parameter buffer
+             * @param gradients Pointer to the gradient buffer (same size)
+             * @param size      Number of scalar elements
+             * @param learning_rate Step size
+             */
+            virtual void update(float* weights, const float* gradients,
+                                int size, float learning_rate) = 0;
+
             virtual ~Optimizer() = default;
         };
     }
