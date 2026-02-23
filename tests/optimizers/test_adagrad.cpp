@@ -79,7 +79,7 @@ int main()
         auto grad = mse.backward(output, target);
         layer.backward(grad);
 
-        adagrad.step(layer, 0.01f);
+        layer.step(adagrad, 0.01f);
 
         auto updated = layer.get_weights();
         bool changed = false;
@@ -113,7 +113,7 @@ int main()
             mse.forward(output, target);
             auto grad = mse.backward(output, target);
             layer.backward(grad);
-            adagrad.step(layer, 0.1f);
+            layer.step(adagrad, 0.1f);
             layer.reset_grads();
         }
 
@@ -144,7 +144,7 @@ int main()
         auto grad1 = mse.backward(out1, target);
         layer.backward(grad1);
         auto w_before1 = layer.get_weights();
-        adagrad.step(layer, lr);
+        layer.step(adagrad, lr);
         auto w_after1 = layer.get_weights();
         layer.reset_grads();
 
@@ -158,7 +158,7 @@ int main()
             mse.forward(out, target);
             auto grad = mse.backward(out, target);
             layer.backward(grad);
-            adagrad.step(layer, lr);
+            layer.step(adagrad, lr);
             layer.reset_grads();
         }
 
@@ -168,7 +168,7 @@ int main()
         auto grad_n = mse.backward(out_n, target);
         layer.backward(grad_n);
         auto w_before_n = layer.get_weights();
-        adagrad.step(layer, lr);
+        layer.step(adagrad, lr);
         auto w_after_n = layer.get_weights();
 
         float delta_n = 0.0f;
@@ -197,7 +197,7 @@ int main()
             mse.forward(output, target);
             auto grad = mse.backward(output, target);
             layer.backward(grad);
-            adagrad.step(layer, 0.01f);
+            layer.step(adagrad, 0.01f);
             layer.reset_grads();
         }
 
@@ -225,7 +225,7 @@ int main()
         mse.forward(output, target);
         auto grad = mse.backward(output, target);
         layer.backward(grad);
-        adagrad.step(layer, 0.01f);
+        layer.step(adagrad, 0.01f);
 
         auto updated = layer.get_weights();
         for (int i = 0; i < updated.size(); ++i)

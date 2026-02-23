@@ -13,7 +13,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include "CppNet/layers/linear.hpp"
 #include "CppNet/optimizers/optimizer.hpp"
 
 
@@ -26,13 +25,11 @@ namespace CppNet
         {
         public:
             SGD(int gpu_block_size = 256);
-            void step(CppNet::Layers::Linear& layer, float learning_rate) override;
             void update(float* weights, const float* gradients,
                         int size, float learning_rate) override;
 
         private:
             int gpu_block_size_;
-            void step_gpu(CppNet::Layers::Linear& layer, float learning_rate);
         };
     }
 }

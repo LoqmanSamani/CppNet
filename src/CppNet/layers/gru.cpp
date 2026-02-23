@@ -11,6 +11,7 @@
 
 #include "CppNet/layers/gru.hpp"
 #include "CppNet/optimizers/optimizer.hpp"
+#include "CppNet/utils/init.hpp"
 #include <cmath>
 
 namespace CppNet
@@ -29,17 +30,13 @@ namespace CppNet
         {
             int gate3 = 3 * hidden_size_;
 
+            // Xavier uniform with per-gate fan_out = hidden_size_
             float limit_ih = std::sqrt(6.0f / static_cast<float>(input_size_ + hidden_size_));
             float limit_hh = std::sqrt(6.0f / static_cast<float>(hidden_size_ + hidden_size_));
 
-            W_ih_.resize(input_size_, gate3);
-            W_hh_.resize(hidden_size_, gate3);
+            W_ih_ = CppNet::Utils::uniform_init(input_size_, gate3, -limit_ih, limit_ih);
+            W_hh_ = CppNet::Utils::uniform_init(hidden_size_, gate3, -limit_hh, limit_hh);
             bias_.resize(gate3);
-
-            W_ih_.setRandom();
-            W_ih_ = W_ih_ * W_ih_.constant(limit_ih);
-            W_hh_.setRandom();
-            W_hh_ = W_hh_ * W_hh_.constant(limit_hh);
             bias_.setZero();
 
             grad_W_ih_.resize(input_size_, gate3);

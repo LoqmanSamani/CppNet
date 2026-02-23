@@ -11,6 +11,7 @@
 #include "CppNet/utils/init.hpp"
 #include <stdexcept>
 #include <cmath>
+#include <cstring>
 
 #ifdef USE_OPENMP
 #include <omp.h>
@@ -32,13 +33,16 @@ namespace CppNet
             grad_weights_.resize(out_channels_, in_channels_, kernel_size_, kernel_size_);
             grad_weights_.setZero();
 
-            // Xavier initialization
+            // Xavier initialization via utility (flatten 4D → 2D, copy back)
             float fan_in = static_cast<float>(in_channels_ * kernel_size_ * kernel_size_);
             float fan_out = static_cast<float>(out_channels_ * kernel_size_ * kernel_size_);
             float limit = std::sqrt(6.0f / (fan_in + fan_out));
 
-            weights_.setRandom();
-            weights_ = weights_ * weights_.constant(limit);
+            auto w_flat = CppNet::Utils::uniform_init(
+                out_channels_, in_channels_ * kernel_size_ * kernel_size_,
+                -limit, limit);
+            std::memcpy(weights_.data(), w_flat.data(),
+                        weights_.size() * sizeof(float));
 
             if (bias_flag_)
             {

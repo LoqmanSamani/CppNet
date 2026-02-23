@@ -8,6 +8,7 @@
 
 #include "CppNet/layers/embedding.hpp"
 #include "CppNet/optimizers/optimizer.hpp"
+#include "CppNet/utils/init.hpp"
 #include <cmath>
 #include <stdexcept>
 
@@ -19,15 +20,11 @@ namespace CppNet
                              const std::string& device)
             : vocab_size_(vocab_size), embed_dim_(embed_dim), device_(device)
         {
-            // Initialize with N(0, 1) scaled by 1/sqrt(embed_dim)
+            // Uniform[-1/sqrt(d), 1/sqrt(d)] initialization
             float scale = 1.0f / std::sqrt(static_cast<float>(embed_dim_));
+            weight_ = CppNet::Utils::uniform_init(vocab_size_, embed_dim_, -scale, scale);
 
-            weight_.resize(vocab_size_, embed_dim_);
-            weight_.setRandom();   // uniform [-1, 1]
-            weight_ = weight_ * weight_.constant(scale);
-
-            grad_weight_.resize(vocab_size_, embed_dim_);
-            grad_weight_.setZero();
+            grad_weight_ = CppNet::Utils::constant_init(vocab_size_, embed_dim_, 0.0f);
         }
 
         Embedding::~Embedding() = default;

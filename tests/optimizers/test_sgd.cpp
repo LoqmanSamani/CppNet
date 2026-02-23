@@ -77,7 +77,7 @@ int main()
         layer.backward(grad_output);
 
         // Apply SGD step
-        sgd.step(layer, 0.01f);
+        layer.step(sgd, 0.01f);
 
         // Verify weights changed
         auto updated_weights = layer.get_weights();
@@ -111,7 +111,7 @@ int main()
         auto grad = mse.backward(output, target);
         layer.backward(grad);
 
-        sgd.step(layer, 0.01f);
+        layer.step(sgd, 0.01f);
 
         Eigen::Tensor<float, 1> updated_biases = layer.get_biases();
         bool changed = false;
@@ -147,7 +147,7 @@ int main()
             mse.forward(output, target);
             auto grad = mse.backward(output, target);
             layer.backward(grad);
-            sgd.step(layer, 0.01f);
+            layer.step(sgd, 0.01f);
             layer.reset_grads();
         }
 
@@ -191,8 +191,8 @@ int main()
         layer_large.backward(grad_l);
 
         // Step with different learning rates
-        sgd.step(layer_small, 0.001f);
-        sgd.step(layer_large, 0.1f);
+        layer_small.step(sgd, 0.001f);
+        layer_large.step(sgd, 0.1f);
 
         auto w_s = layer_small.get_weights();
         auto w_l = layer_large.get_weights();
@@ -226,7 +226,7 @@ int main()
         mse.forward(output, target);
         auto grad = mse.backward(output, target);
         layer.backward(grad);
-        sgd.step(layer, 0.01f);
+        layer.step(sgd, 0.01f);
 
         auto updated_weights = layer.get_weights();
         for (int i = 0; i < updated_weights.size(); ++i)

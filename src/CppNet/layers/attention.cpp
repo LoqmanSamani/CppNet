@@ -9,6 +9,7 @@
 
 #include "CppNet/layers/attention.hpp"
 #include "CppNet/optimizers/optimizer.hpp"
+#include "CppNet/utils/init.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>
@@ -28,29 +29,16 @@ namespace CppNet
                     "embed_dim must be divisible by num_heads");
             }
 
-            float limit = std::sqrt(6.0f / static_cast<float>(embed_dim_ + embed_dim_));
+            // Xavier initialization for projection weights
+            W_q_ = CppNet::Utils::xavier_uniform(embed_dim_, embed_dim_);
+            W_k_ = CppNet::Utils::xavier_uniform(embed_dim_, embed_dim_);
+            W_v_ = CppNet::Utils::xavier_uniform(embed_dim_, embed_dim_);
+            W_o_ = CppNet::Utils::xavier_uniform(embed_dim_, embed_dim_);
 
-            // Initialize projection weights
-            auto init_weight = [&](Eigen::Tensor<float, 2>& w) {
-                w.resize(embed_dim_, embed_dim_);
-                w.setRandom();
-                w = w * w.constant(limit);
-            };
-
-            init_weight(W_q_);
-            init_weight(W_k_);
-            init_weight(W_v_);
-            init_weight(W_o_);
-
-            auto init_grad = [&](Eigen::Tensor<float, 2>& g) {
-                g.resize(embed_dim_, embed_dim_);
-                g.setZero();
-            };
-
-            init_grad(grad_W_q_);
-            init_grad(grad_W_k_);
-            init_grad(grad_W_v_);
-            init_grad(grad_W_o_);
+            grad_W_q_ = CppNet::Utils::constant_init(embed_dim_, embed_dim_, 0.0f);
+            grad_W_k_ = CppNet::Utils::constant_init(embed_dim_, embed_dim_, 0.0f);
+            grad_W_v_ = CppNet::Utils::constant_init(embed_dim_, embed_dim_, 0.0f);
+            grad_W_o_ = CppNet::Utils::constant_init(embed_dim_, embed_dim_, 0.0f);
         }
 
         MultiHeadAttention::~MultiHeadAttention() = default;

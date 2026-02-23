@@ -80,7 +80,7 @@ int main()
         auto grad = mse.backward(output, target);
         layer.backward(grad);
 
-        adam.step(layer, 0.001f);
+        layer.step(adam, 0.001f);
 
         auto updated = layer.get_weights();
         bool changed = false;
@@ -114,7 +114,7 @@ int main()
             mse.forward(output, target);
             auto grad = mse.backward(output, target);
             layer.backward(grad);
-            adam.step(layer, 0.01f);
+            layer.step(adam, 0.01f);
             layer.reset_grads();
         }
 
@@ -153,7 +153,7 @@ int main()
             mse.forward(out_a, target);
             auto grad_a = mse.backward(out_a, target);
             layer_adam.backward(grad_a);
-            adam.step(layer_adam, lr);
+            layer_adam.step(adam, lr);
             layer_adam.reset_grads();
 
             // SGD step
@@ -161,7 +161,7 @@ int main()
             mse.forward(out_s, target);
             auto grad_s = mse.backward(out_s, target);
             layer_sgd.backward(grad_s);
-            sgd.step(layer_sgd, lr);
+            layer_sgd.step(sgd, lr);
             layer_sgd.reset_grads();
         }
 
@@ -192,7 +192,7 @@ int main()
             mse.forward(output, target);
             auto grad = mse.backward(output, target);
             layer.backward(grad);
-            adam.step(layer, 0.001f);
+            layer.step(adam, 0.001f);
             layer.reset_grads();
         }
 
@@ -220,7 +220,7 @@ int main()
         mse.forward(output, target);
         auto grad = mse.backward(output, target);
         layer.backward(grad);
-        adam.step(layer, 0.01f);
+        layer.step(adam, 0.01f);
 
         auto updated = layer.get_weights();
         for (int i = 0; i < updated.size(); ++i)

@@ -27,15 +27,12 @@ namespace CppNet
         public:
             RMSProp(float rho = 0.9f, float epsilon = 1e-8f);
 
-            void step(CppNet::Layers::Linear& layer, float learning_rate) override;
             void update(float* weights, const float* gradients,
                         int size, float learning_rate) override;
 
         private:
             float rho_;
             float epsilon_;
-            std::unordered_map<void*, Eigen::Tensor<float, 2>> cache_weights_;
-            std::unordered_map<void*, Eigen::Tensor<float, 1>> cache_biases_;
             std::unordered_map<void*, std::vector<float>> cache_params_;
         };
     }

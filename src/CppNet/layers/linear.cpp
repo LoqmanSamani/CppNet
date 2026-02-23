@@ -320,7 +320,14 @@ namespace CppNet
 
         void Linear::step(Optimizers::Optimizer& optimizer, float learning_rate)
         {
-            optimizer.step(*this, learning_rate);
+            if (!trainable_) return;
+
+            optimizer.update(weights_.data(), grad_weights_.data(),
+                             weights_.size(), learning_rate);
+
+            if (bias_)
+                optimizer.update(biases_.data(), grad_biases_.data(),
+                                 biases_.size(), learning_rate);
         }
 
         void Linear::forward_cpu(

@@ -142,11 +142,6 @@ namespace CppNet
                 }
 
             // Backprop through normalization
-            // dx_hat = grad_output * gamma
-            // dvar   = sum(dx_hat * (x - mean) * -0.5 * (var + eps)^{-3/2})
-            // dmean  = sum(dx_hat * -1/sqrt(var+eps)) + dvar * mean(-2*(x-mean))/N
-            // dx     = dx_hat / sqrt(var+eps) + dvar * 2*(x-mean)/N + dmean/N
-
             Eigen::Tensor<float, 2> grad_input(batch, features);
 
             for (int f = 0; f < features; ++f)

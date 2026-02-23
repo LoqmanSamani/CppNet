@@ -8,6 +8,7 @@
 
 #include "CppNet/layers/rnn.hpp"
 #include "CppNet/optimizers/optimizer.hpp"
+#include "CppNet/utils/init.hpp"
 #include <cmath>
 #include <stdexcept>
 
@@ -25,17 +26,9 @@ namespace CppNet
               return_sequences_(return_sequences), device_(device)
         {
             // Xavier initialization
-            float limit_ih = std::sqrt(6.0f / static_cast<float>(input_size_ + hidden_size_));
-            float limit_hh = std::sqrt(6.0f / static_cast<float>(hidden_size_ + hidden_size_));
-
-            W_ih_.resize(input_size_, hidden_size_);
-            W_hh_.resize(hidden_size_, hidden_size_);
+            W_ih_ = CppNet::Utils::xavier_uniform(input_size_, hidden_size_);
+            W_hh_ = CppNet::Utils::xavier_uniform(hidden_size_, hidden_size_);
             bias_.resize(hidden_size_);
-
-            W_ih_.setRandom();
-            W_ih_ = W_ih_ * W_ih_.constant(limit_ih);
-            W_hh_.setRandom();
-            W_hh_ = W_hh_ * W_hh_.constant(limit_hh);
             bias_.setZero();
 
             grad_W_ih_.resize(input_size_, hidden_size_);

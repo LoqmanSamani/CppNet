@@ -34,7 +34,6 @@ namespace CppNet
              */
             Adam(float beta1 = 0.9f, float beta2 = 0.999f, float epsilon = 1e-8f);
 
-            void step(CppNet::Layers::Linear& layer, float learning_rate) override;
             void update(float* weights, const float* gradients,
                         int size, float learning_rate) override;
 
@@ -43,12 +42,6 @@ namespace CppNet
             float beta2_;
             float epsilon_;
             int t_ = 0;  // timestep counter
-
-            // Per-layer moment caches (keyed by layer pointer address)
-            std::unordered_map<void*, Eigen::Tensor<float, 2>> m_weights_;
-            std::unordered_map<void*, Eigen::Tensor<float, 2>> v_weights_;
-            std::unordered_map<void*, Eigen::Tensor<float, 1>> m_biases_;
-            std::unordered_map<void*, Eigen::Tensor<float, 1>> v_biases_;
 
             // Per-pointer state for generic update()
             std::unordered_map<void*, std::vector<float>> m_params_;

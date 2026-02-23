@@ -1,8 +1,6 @@
 #ifndef OPTIMIZER_HPP
 #define OPTIMIZER_HPP
 
-#include "CppNet/layers/linear.hpp"
-
 
 namespace CppNet
 {
@@ -11,8 +9,6 @@ namespace CppNet
         class Optimizer
         {
         public:
-            virtual void step(CppNet::Layers::Linear& layer, float learning_rate) = 0;
-
             /**
              * @brief Generic parameter update on raw arrays.
              * Allows all layer types to use any optimizer.

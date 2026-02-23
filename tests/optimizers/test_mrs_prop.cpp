@@ -79,7 +79,7 @@ int main()
         auto grad = mse.backward(output, target);
         layer.backward(grad);
 
-        rmsprop.step(layer, 0.01f);
+        layer.step(rmsprop, 0.01f);
 
         auto updated = layer.get_weights();
         bool changed = false;
@@ -113,7 +113,7 @@ int main()
             mse.forward(output, target);
             auto grad = mse.backward(output, target);
             layer.backward(grad);
-            rmsprop.step(layer, 0.01f);
+            layer.step(rmsprop, 0.01f);
             layer.reset_grads();
         }
 
@@ -142,7 +142,7 @@ int main()
             mse.forward(output, target);
             auto grad = mse.backward(output, target);
             layer.backward(grad);
-            rmsprop.step(layer, 0.001f);
+            layer.step(rmsprop, 0.001f);
             layer.reset_grads();
         }
 
@@ -170,7 +170,7 @@ int main()
             mse.forward(output, target);
             auto grad = mse.backward(output, target);
             layer.backward(grad);
-            rmsprop.step(layer, 0.001f);
+            layer.step(rmsprop, 0.001f);
             layer.reset_grads();
         }
 
@@ -198,7 +198,7 @@ int main()
         mse.forward(output, target);
         auto grad = mse.backward(output, target);
         layer.backward(grad);
-        rmsprop.step(layer, 0.01f);
+        layer.step(rmsprop, 0.01f);
 
         auto updated = layer.get_weights();
         for (int i = 0; i < updated.size(); ++i)
