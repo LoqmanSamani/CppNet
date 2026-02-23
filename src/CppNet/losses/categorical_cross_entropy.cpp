@@ -10,7 +10,6 @@ namespace CppNet
 {
     namespace Losses
     {
-        /************************************** CategoricalCrossEntropy Loss Function *************************************/
         CategoricalCrossEntropy::CategoricalCrossEntropy(const std::string& reduction, bool from_logits, float label_smoothing) 
             : reduction_(reduction), from_logits_(from_logits), label_smoothing_(label_smoothing) {}
 
@@ -25,8 +24,27 @@ namespace CppNet
 
         float CategoricalCrossEntropy::forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) 
         {
-            // TODO: implement CrossEntropy for class indices: -sum(log(softmax(pred)[target]))
-            return 0.0f;
+            if (predictions.size() == 0 || targets.size() == 0)
+                throw std::runtime_error("CategoricalCrossEntropy: Empty input tensors");
+
+            int batch_size = predictions.dimension(0);
+            int num_classes = predictions.dimension(1);
+
+            if (targets.dimension(0) != batch_size)
+                throw std::runtime_error("CategoricalCrossEntropy: Batch size mismatch between predictions and targets");
+
+            // Convert class indices to one-hot and delegate
+            Eigen::Tensor<float, 2> one_hot(batch_size, num_classes);
+            one_hot.setZero();
+            for (int b = 0; b < batch_size; ++b)
+            {
+                int cls = targets(b);
+                if (cls < 0 || cls >= num_classes)
+                    throw std::runtime_error("CategoricalCrossEntropy: Target index out of range");
+                one_hot(b, cls) = 1.0f;
+            }
+
+            return forward(predictions, one_hot);
         }
 
 
@@ -132,15 +150,60 @@ namespace CppNet
 
         float CategoricalCrossEntropy::forward(const Eigen::Tensor<float, 3>& predictions, const Eigen::Tensor<int, 2>& targets) 
         {
-            return 0.0f;
+            // predictions: [batch, seq_len, num_classes], targets: [batch, seq_len] (class indices)
+            if (predictions.size() == 0 || targets.size() == 0)
+                throw std::runtime_error("CategoricalCrossEntropy: Empty input tensors");
+
+            int batch_size = predictions.dimension(0);
+            int seq_len = predictions.dimension(1);
+            int num_classes = predictions.dimension(2);
+
+            if (targets.dimension(0) != batch_size || targets.dimension(1) != seq_len)
+                throw std::runtime_error("CategoricalCrossEntropy: Shape mismatch between predictions and targets");
+
+            // Reshape to 2D [batch*seq_len, num_classes] and [batch*seq_len]
+            int total = batch_size * seq_len;
+            Eigen::Tensor<float, 2> pred_2d(total, num_classes);
+            Eigen::Tensor<float, 2> one_hot(total, num_classes);
+            one_hot.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int t = 0; t < seq_len; ++t)
+                {
+                    int idx = b * seq_len + t;
+                    int cls = targets(b, t);
+                    if (cls < 0 || cls >= num_classes)
+                        throw std::runtime_error("CategoricalCrossEntropy: Target index out of range");
+                    one_hot(idx, cls) = 1.0f;
+                    for (int c = 0; c < num_classes; ++c)
+                        pred_2d(idx, c) = predictions(b, t, c);
+                }
+            }
+
+            return forward(pred_2d, one_hot);
         }
 
         Eigen::Tensor<float, 2> CategoricalCrossEntropy::backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets) 
         {
-            // TODO: implement CrossEntropy gradient: softmax(pred) - one_hot(target)
-            Eigen::Tensor<float, 2> grad(predictions.dimension(0), predictions.dimension(1));
-            grad.setZero();
-            return grad;
+            int batch_size = predictions.dimension(0);
+            int num_classes = predictions.dimension(1);
+
+            if (targets.dimension(0) != batch_size)
+                throw std::runtime_error("CategoricalCrossEntropy: Batch size mismatch in backward");
+
+            // Convert class indices to one-hot and delegate
+            Eigen::Tensor<float, 2> one_hot(batch_size, num_classes);
+            one_hot.setZero();
+            for (int b = 0; b < batch_size; ++b)
+            {
+                int cls = targets(b);
+                if (cls < 0 || cls >= num_classes)
+                    throw std::runtime_error("CategoricalCrossEntropy: Target index out of range");
+                one_hot(b, cls) = 1.0f;
+            }
+
+            return backward(predictions, one_hot);
         }
 
         Eigen::Tensor<float, 2> CategoricalCrossEntropy::backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
@@ -208,8 +271,47 @@ namespace CppNet
         }
         Eigen::Tensor<float, 3> CategoricalCrossEntropy::backward(const Eigen::Tensor<float, 3>& predictions, const Eigen::Tensor<int, 2>& targets) 
         {
-            Eigen::Tensor<float, 3> grad(predictions.dimension(0), predictions.dimension(1), predictions.dimension(2));
-            grad.setZero();
+            int batch_size = predictions.dimension(0);
+            int seq_len = predictions.dimension(1);
+            int num_classes = predictions.dimension(2);
+
+            if (targets.dimension(0) != batch_size || targets.dimension(1) != seq_len)
+                throw std::runtime_error("CategoricalCrossEntropy: Shape mismatch in backward");
+
+            // Reshape to 2D, compute gradient, reshape back
+            int total = batch_size * seq_len;
+            Eigen::Tensor<float, 2> pred_2d(total, num_classes);
+            Eigen::Tensor<float, 2> one_hot(total, num_classes);
+            one_hot.setZero();
+
+            for (int b = 0; b < batch_size; ++b)
+            {
+                for (int t = 0; t < seq_len; ++t)
+                {
+                    int idx = b * seq_len + t;
+                    int cls = targets(b, t);
+                    if (cls < 0 || cls >= num_classes)
+                        throw std::runtime_error("CategoricalCrossEntropy: Target index out of range");
+                    one_hot(idx, cls) = 1.0f;
+                    for (int c = 0; c < num_classes; ++c)
+                        pred_2d(idx, c) = predictions(b, t, c);
+                }
+            }
+
+            // Need to call forward on 2D to populate caches, then backward
+            forward(pred_2d, one_hot);
+            Eigen::Tensor<float, 2> grad_2d = backward(pred_2d, one_hot);
+
+            // Reshape back to 3D
+            Eigen::Tensor<float, 3> grad(batch_size, seq_len, num_classes);
+            for (int b = 0; b < batch_size; ++b)
+                for (int t = 0; t < seq_len; ++t)
+                {
+                    int idx = b * seq_len + t;
+                    for (int c = 0; c < num_classes; ++c)
+                        grad(b, t, c) = grad_2d(idx, c);
+                }
+
             return grad;
         }
     }

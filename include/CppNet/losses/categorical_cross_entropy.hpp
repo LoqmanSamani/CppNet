@@ -10,7 +10,6 @@
 #include "CppNet/losses/loss.hpp"
 
 
-// header for Categorical Cross Entropy Loss
 
 namespace CppNet
 {

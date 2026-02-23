@@ -10,7 +10,6 @@
 #include "CppNet/losses/loss.hpp"
 
 
-// header file for Binary Cross Entropy Loss implementation in CppNet
 
 namespace CppNet
 {

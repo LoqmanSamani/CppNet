@@ -9,8 +9,6 @@ namespace CppNet
 {
     namespace Losses
     {
-        /******************************BinaryCrossEntropy Loss Function********************************/
-
         BinaryCrossEntropy::BinaryCrossEntropy(const std::string& reduction, bool from_logits, float pos_weight) 
             : reduction_(reduction), from_logits_(from_logits), pos_weight_(pos_weight) 
         {
@@ -81,7 +79,6 @@ namespace CppNet
                 for (int j = 0; j < cols; ++j)
                 {
                     // clip values to [1e-7, 1 - 1e-7] to avoid log(0) and division by 0
-                    // NOTE: 1e-15f is too small — 1.0f - 1e-15f == 1.0f in float32
                     float pred_clipped = std::max(1e-7f, std::min(predictions(i, j), 1.0f - 1e-7f));
                     float target_val = targets(i, j);
                     
