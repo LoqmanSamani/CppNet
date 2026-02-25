@@ -25,7 +25,7 @@ namespace CppNet
                 float thread_sum = 0.0f;
                 for (int b = tid; b < batch; b += blockDim.x) 
                 {
-                    thread_sum += dY[b * out_size + j];
+                    thread_sum += dY[b + j * batch];  // ColMajor
                 }
                 shared_sum[tid] = thread_sum;
                 __syncthreads();

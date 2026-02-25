@@ -179,13 +179,15 @@ namespace CppNet
             }
             else if (device_ == "cpu-eigen")
             {
-                //grad_input = grad_output * (output_cache_2d_ > 0.0f).template cast<float>();
-                grad_input = grad_output * output_cache_2d_.cwiseMax(0.0f);
+                auto mask = (output_cache_2d_ > output_cache_2d_.constant(0.0f))
+                    .select(output_cache_2d_.constant(1.0f),
+                            output_cache_2d_.constant(0.0f));
+                grad_input = grad_output * mask;
             }
             #ifdef USE_CUDA
                 else if (device_ == "gpu")
                 {
-                    backward_gpu(grad_output);
+                    backward_gpu(grad_output, grad_input);
                 }
             #endif
 
@@ -210,13 +212,15 @@ namespace CppNet
             }
             else if (device_ == "cpu-eigen")
             {
-                //grad_input = grad_output * (output_cache_4d_ > 0.0f).template cast<float>();
-                grad_input = grad_output * output_cache_4d_.cwiseMax(0.0f);
+                auto mask = (output_cache_4d_ > output_cache_4d_.constant(0.0f))
+                    .select(output_cache_4d_.constant(1.0f),
+                            output_cache_4d_.constant(0.0f));
+                grad_input = grad_output * mask;
             }
             #ifdef USE_CUDA
                 else if (device_ == "gpu")
                 {
-                    backward_gpu(grad_output);
+                    backward_gpu(grad_output, grad_input);
                 }
             #endif
 
@@ -263,7 +267,8 @@ namespace CppNet
                 cudaFree(d_in);
             }
 
-            void ReLU::backward_gpu(const Eigen::Tensor<float, 2>& grad)
+            void ReLU::backward_gpu(const Eigen::Tensor<float, 2>& grad,
+                                    Eigen::Tensor<float, 2>& grad_input)
             {
                 const std::size_t n = grad.size();
 
@@ -279,11 +284,14 @@ namespace CppNet
 
                 Kernels::GPU::relu_grad_kernel<<<grid, block>>>(d_grad, d_output_cache_2d_, d_out, n);
 
+                cudaMemcpy(grad_input.data(), d_out, n * sizeof(float), cudaMemcpyDeviceToHost);
+
                 cudaFree(d_grad);
                 cudaFree(d_out);
             }
 
-            void ReLU::backward_gpu(const Eigen::Tensor<float, 4>& grad)
+            void ReLU::backward_gpu(const Eigen::Tensor<float, 4>& grad,
+                                    Eigen::Tensor<float, 4>& grad_input)
             {
                 const std::size_t n = grad.size();
 
@@ -298,6 +306,8 @@ namespace CppNet
                 const int grid = (n + block - 1) / block;
 
                 Kernels::GPU::relu_grad_kernel<<<grid, block>>>(d_grad, d_output_cache_4d_, d_out, n);
+
+                cudaMemcpy(grad_input.data(), d_out, n * sizeof(float), cudaMemcpyDeviceToHost);
 
                 cudaFree(d_grad);
                 cudaFree(d_out);

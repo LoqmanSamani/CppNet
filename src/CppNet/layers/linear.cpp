@@ -115,11 +115,26 @@ namespace CppNet
             grad_weights_.setZero();
             if (bias_flag_ && grad_biases_.size() > 0)
                 grad_biases_.setZero();
+
+            #ifdef USE_CUDA
+            if (device_ == "gpu" && gpu_initialized_)
+            {
+                cudaMemset(d_grad_weights_, 0,
+                           in_size_ * out_size_ * sizeof(float));
+                if (bias_flag_)
+                    cudaMemset(d_grad_bias_, 0, out_size_ * sizeof(float));
+            }
+            #endif
         }
 
         void Linear::step(Optimizers::Optimizer& optimizer, float learning_rate)
         {
             if (!trainable_) return;
+
+            #ifdef USE_CUDA
+            if (device_ == "gpu" && gpu_initialized_)
+                sync_gradients_from_gpu();
+            #endif
 
             optimizer.update(weights_.data(), grad_weights_.data(),
                              weights_.size(), learning_rate);
@@ -127,6 +142,11 @@ namespace CppNet
             if (bias_flag_)
                 optimizer.update(biases_.data(), grad_biases_.data(),
                                  biases_.size(), learning_rate);
+
+            #ifdef USE_CUDA
+            if (device_ == "gpu" && gpu_initialized_)
+                sync_weights_to_gpu();
+            #endif
         }
 
         Eigen::Tensor<float, 2> Linear::forward(

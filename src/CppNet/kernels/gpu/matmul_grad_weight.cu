@@ -29,22 +29,22 @@ namespace CppNet
                 
                 for (int t = 0; t < num_tiles; t++) 
                 {
-                    // load tile of X^T (so we access X[b, i] as X_transposed[i, b])
+                    // load tile of X^T (ColMajor: X(b, i) = X[b + i*batch])
                     int b = t * TILE_SIZE + threadIdx.x;
                     if (i < in_size && b < batch) 
                     {
-                        tile_X[threadIdx.y][threadIdx.x] = X[b * in_size + i];
+                        tile_X[threadIdx.y][threadIdx.x] = X[b + i * batch];
                     } 
                     else 
                     {
                         tile_X[threadIdx.y][threadIdx.x] = 0.0f;
                     }
                     
-                    // load tile of dY
+                    // load tile of dY (ColMajor: dY(b, j) = dY[b + j*batch])
                     b = t * TILE_SIZE + threadIdx.y;
                     if (b < batch && j < out_size) 
                     {
-                        tile_dY[threadIdx.y][threadIdx.x] = dY[b * out_size + j];
+                        tile_dY[threadIdx.y][threadIdx.x] = dY[b + j * batch];
                     } 
                     else 
                     {
@@ -64,7 +64,7 @@ namespace CppNet
                 
                 if (i < in_size && j < out_size)
                 {
-                    atomicAdd(&dW[i * out_size + j], sum);
+                    atomicAdd(&dW[i + j * in_size], sum);  // ColMajor
                 }
             }
 

@@ -14,9 +14,9 @@ namespace CppNet
             #define TILE_SIZE 32  // 32x32 tiles 
 
             __global__ void matmul_kernel(
-                const float* A,  // input matrix [M x K]
-                const float* B,  // weight matrix [K x N]
-                float* C,        // output matrix [M x N]
+                const float* A,  // input matrix [M x K]  (ColMajor)
+                const float* B,  // weight matrix [K x N] (ColMajor)
+                float* C,        // output matrix [M x N] (ColMajor)
                 int M, int N, int K)
             {
                 // each thread computes one element of C
@@ -35,17 +35,17 @@ namespace CppNet
                 
                 for (int tile = 0; tile < num_tiles; tile++) 
                 {
-                    // load one tile from A into shared memory
+                    // load one tile from A into shared memory (ColMajor: A(r,c) = A[r + c*M])
                     int a_col = tile * TILE_SIZE + threadIdx.x;
                     if (row < M && a_col < K)
-                        tile_A[threadIdx.y][threadIdx.x] = A[row * K + a_col];
+                        tile_A[threadIdx.y][threadIdx.x] = A[row + a_col * M];
                     else
                         tile_A[threadIdx.y][threadIdx.x] = 0.0f;  // padding for edge cases
                     
-                    // load one tile from B into shared memory
+                    // load one tile from B into shared memory (ColMajor: B(r,c) = B[r + c*K])
                     int b_row = tile * TILE_SIZE + threadIdx.y;
                     if (b_row < K && col < N)
-                        tile_B[threadIdx.y][threadIdx.x] = B[b_row * N + col];
+                        tile_B[threadIdx.y][threadIdx.x] = B[b_row + col * K];
                     else
                         tile_B[threadIdx.y][threadIdx.x] = 0.0f;
                     
@@ -63,10 +63,10 @@ namespace CppNet
                     __syncthreads();
                 }
                 
-                // write final result to global memory
+                // write final result to global memory (ColMajor: C(r,c) = C[r + c*M])
                 if (row < M && col < N) 
                 {
-                    C[row * N + col] = sum;
+                    C[row + col * M] = sum;
                 }
             }
 

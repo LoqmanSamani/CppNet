@@ -54,9 +54,11 @@ namespace CppNet
                 #endif
 
                 void forward_gpu(const Eigen::Tensor<float, 2>& pre_activation);
-                void backward_gpu(const Eigen::Tensor<float, 2>& grad_output);
+                void backward_gpu(const Eigen::Tensor<float, 2>& grad_output,
+                                  Eigen::Tensor<float, 2>& grad_input);
                 void forward_gpu(const Eigen::Tensor<float, 4>& pre_activation);
-                void backward_gpu(const Eigen::Tensor<float, 4>& grad_output);
+                void backward_gpu(const Eigen::Tensor<float, 4>& grad_output,
+                                  Eigen::Tensor<float, 4>& grad_input);
         };
     } 
 } 
