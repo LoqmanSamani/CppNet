@@ -217,7 +217,7 @@ int main()
     generate_spiral_data(X, Y, samples_per_class, num_classes, 0.05f);
     std::cout << "Dataset: " << N << " samples, " << num_classes << " classes, 2 features\n";
 
-    plot_spiral(X, Y);
+    // plot_spiral(X, Y);  // uncomment to visualize (blocks until window closed)
 
     // network configurations (small → xlarge)
     //
@@ -230,9 +230,9 @@ int main()
 
     std::vector<NetConfig> configs = {
         {"Small",    {64,  64},                  50,  128, 0.001f},
-        {"Medium",   {128, 256, 128},            50,  256, 0.0005f},
-        {"Large",    {256, 512, 512, 256},       30,  256, 0.0005f},
-        {"XLarge",   {512, 1024, 1024, 512},     20,  512, 0.0003f},
+        {"Medium",   {128, 256, 128},            40,  256, 0.0005f},
+        {"Large",    {256, 512, 512, 256},       10,  256, 0.0005f},
+        {"XLarge",   {512, 1024, 1024, 512},     10,  512, 0.0003f},
     };
 
     // devices to benchmark

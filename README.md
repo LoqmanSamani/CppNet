@@ -273,6 +273,7 @@ The `examples/` directory contains complete, self-contained deep learning progra
 | [`rnn_sequence_prediction.cpp`](examples/rnn_sequence_prediction.cpp) | LSTM(1,16)→Linear(16,1) | Sine-wave sequences (400 samples) | **MSE ≈ 0.00001** |
 | [`transformer_classifier.cpp`](examples/transformer_classifier.cpp) | Embedding→Self-Attention+skip→ReLU→Linear | Token sequences (400 samples) | **100% accuracy** |
 | [`resnet_classifier.cpp`](examples/resnet_classifier.cpp) | Linear→ReLU→ResBlock(32)→Linear→Sigmoid | Concentric circles (600 samples) | **~99% accuracy** |
+| [`spiral_classification.cpp`](examples/spiral_classification.cpp) | MLP (variable width) — device benchmark | 5-class spiral (15,000 samples, 2D) | **~92% accuracy, up to 25x GPU speedup** |
 
 Build and run:
 
@@ -285,6 +286,7 @@ make -j$(nproc)
 ./examples/rnn_sequence_prediction
 ./examples/transformer_classifier
 ./examples/resnet_classifier
+./examples/spiral_classification
 ```
 
 Each example demonstrates key patterns:
@@ -293,6 +295,7 @@ Each example demonstrates key patterns:
 - **RNN/LSTM**: Time-series regression, sequence processing with hidden states
 - **Transformer**: Token embedding + self-attention, skip connections, mean-pooling
 - **ResNet**: Residual (skip) connections, gradient clipping, He initialization
+- **Spiral Benchmark**: Multi-backend (cpu-eigen / cpu / gpu) performance comparison across network sizes
 
 ---
 
@@ -321,14 +324,23 @@ cmake .. -DCUDAToolkit_ROOT=/nonexistent
 
 ## Benchmarks
 
-Measured on the included examples (single machine):
+### MLP Device Benchmark — Spiral Classification
 
-| Task | Threads | Time | Speedup |
-|:-----|:--------|:-----|:--------|
-| Linear (breast cancer, 1000 epochs) | 1 | 53.9 s | 1.00x |
-| Linear (breast cancer, 1000 epochs) | 8 | 19.2 s | **2.81x** |
-| CNN (synthetic 64x64, 15 epochs) | 1 | 42.9 s | 1.00x |
-| CNN (synthetic 64x64, 15 epochs) | 8 | 15.0 s | **2.87x** |
+A 5-class 2D spiral with 15,000 samples (3,000 per class) is classified by MLPs of increasing width.
+Three backends are compared: **cpu-eigen** (Eigen contractions), **cpu** (OpenMP loops, 4 threads), and **gpu** (CUDA kernels).
+All configurations use the Adam optimizer and ReLU activations.
+
+| Config | Architecture | Epochs | Batch | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup vs cpu-eigen |
+|:-------|:-------------|:-------|:------|:----------|:-------------|:-----------|:-------------------------|
+| Small | 2→64→64→5 | 50 | 128 | 7.4 s | 17.9 s | 3.6 s | **2.03x** |
+| Medium | 2→128→256→128→5 | 40 | 256 | 61.6 s | 241.9 s | 8.9 s | **6.91x** |
+| Large | 2→256→512→512→256→5 | 10 | 256 | 114.5 s | 669.9 s | 8.0 s | **14.31x** |
+| XLarge | 2→512→1024→1024→512→5 | 10 | 512 | 473.1 s | 3,027.0 s | 18.7 s | **25.28x** |
+
+All configs converge to ~92–93% accuracy across all devices.
+GPU advantage grows dramatically with network width — up to **25x** faster on the largest model.
+
+> See [benchmarks.md](benchmarks.md) for full details, per-epoch logs, and methodology.
 
 ---
 
@@ -376,7 +388,7 @@ CppNet/
 │   └── visualizations/         # TrainingLogger
 ├── src/CppNet/                 # Implementation files (.cpp / .cu)
 ├── tests/                      # 40 CTest unit tests (layers, activations, losses, ...)
-├── examples/                   # 5 deep learning examples (MLP, CNN, RNN, Transformer, ResNet)
+├── examples/                   # 6 deep learning examples (MLP, CNN, RNN, Transformer, ResNet, Benchmark)
 └── docs/                       # Additional documentation
 ```
 
