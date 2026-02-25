@@ -39,8 +39,8 @@ namespace CppNet
                    const std::string& device = "cpu-eigen");
             ~Conv2D();
 
-            const Eigen::Tensor<float, 4> forward(const Eigen::Tensor<float, 4>& input);
-            const Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 4>& grad_output);
+            Eigen::Tensor<float, 4> forward(const Eigen::Tensor<float, 4>& input);
+            Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 4>& grad_output);
 
             bool is_trainable() const override { return trainable_; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;

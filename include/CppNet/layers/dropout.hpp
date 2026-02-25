@@ -37,16 +37,16 @@ namespace CppNet
             ~Dropout();
 
             /// Forward pass for 2D tensors [batch, features]
-            const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
+            Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
 
             /// Forward pass for 4D tensors [batch, channels, H, W]
-            const Eigen::Tensor<float, 4> forward(const Eigen::Tensor<float, 4>& input);
+            Eigen::Tensor<float, 4> forward(const Eigen::Tensor<float, 4>& input);
 
             /// Backward pass for 2D tensors
-            const Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
+            Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
 
             /// Backward pass for 4D tensors
-            const Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 4>& grad_output);
+            Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 4>& grad_output);
 
             bool is_trainable() const override { return false; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;

@@ -50,7 +50,7 @@ namespace CppNet
 
         BatchNorm::~BatchNorm() = default;
 
-        const Eigen::Tensor<float, 2> BatchNorm::forward(
+        Eigen::Tensor<float, 2> BatchNorm::forward(
             const Eigen::Tensor<float, 2>& input)
         {
             int batch = input.dimension(0);
@@ -122,7 +122,7 @@ namespace CppNet
             return output;
         }
 
-        const Eigen::Tensor<float, 2> BatchNorm::backward(
+        Eigen::Tensor<float, 2> BatchNorm::backward(
             const Eigen::Tensor<float, 2>& grad_output)
         {
             int batch = grad_output.dimension(0);

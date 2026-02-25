@@ -29,6 +29,7 @@ option(BUILD_TESTS "Build test executables" ON)
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(OpenMP)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
 
 set(CPU_SOURCES
     src/CppNet/activations/sigmoid.cpp

@@ -26,7 +26,7 @@ namespace CppNet
 
         // ---------- 2D forward / backward ----------
 
-        const Eigen::Tensor<float, 2> Dropout::forward(
+        Eigen::Tensor<float, 2> Dropout::forward(
             const Eigen::Tensor<float, 2>& input)
         {
             if (!training_ || p_ == 0.0f)
@@ -49,7 +49,7 @@ namespace CppNet
             return output;
         }
 
-        const Eigen::Tensor<float, 2> Dropout::backward(
+        Eigen::Tensor<float, 2> Dropout::backward(
             const Eigen::Tensor<float, 2>& grad_output)
         {
             if (!training_ || p_ == 0.0f)
@@ -68,7 +68,7 @@ namespace CppNet
 
         // ---------- 4D forward / backward ----------
 
-        const Eigen::Tensor<float, 4> Dropout::forward(
+        Eigen::Tensor<float, 4> Dropout::forward(
             const Eigen::Tensor<float, 4>& input)
         {
             if (!training_ || p_ == 0.0f)
@@ -95,7 +95,7 @@ namespace CppNet
             return output;
         }
 
-        const Eigen::Tensor<float, 4> Dropout::backward(
+        Eigen::Tensor<float, 4> Dropout::backward(
             const Eigen::Tensor<float, 4>& grad_output)
         {
             if (!training_ || p_ == 0.0f)

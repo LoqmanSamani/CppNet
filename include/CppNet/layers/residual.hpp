@@ -49,16 +49,16 @@ namespace CppNet
             ~Residual() override;
 
             /// Forward: run the block, then add the (projected) input
-            const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
+            Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
 
             /// Backward: gradient flows through both the block and the shortcut
-            const Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
+            Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
 
             bool is_trainable() const override { return true; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
 
             /// Zero all internal layer gradients
-            void reset_grads();
+            void reset_grads() override;
 
             std::size_t num_block_layers() const { return block_.size(); }
             bool has_projection() const { return projection_ != nullptr; }

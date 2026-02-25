@@ -25,7 +25,7 @@ namespace CppNet
         {
         }
 
-        const Eigen::Tensor<float, 4> MaxPool2D::forward(const Eigen::Tensor<float, 4>& input)
+        Eigen::Tensor<float, 4> MaxPool2D::forward(const Eigen::Tensor<float, 4>& input)
         {
             // input: [batch, channels, H, W]
             input_cache_ = input;
@@ -81,7 +81,7 @@ namespace CppNet
             return output;
         }
 
-        const Eigen::Tensor<float, 4> MaxPool2D::backward(const Eigen::Tensor<float, 4>& grad_output)
+        Eigen::Tensor<float, 4> MaxPool2D::backward(const Eigen::Tensor<float, 4>& grad_output)
         {
             int batch = input_cache_.dimension(0);
             int channels = input_cache_.dimension(1);

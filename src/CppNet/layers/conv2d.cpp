@@ -55,7 +55,7 @@ namespace CppNet
 
         Conv2D::~Conv2D() = default;
 
-        const Eigen::Tensor<float, 4> Conv2D::forward(const Eigen::Tensor<float, 4>& input)
+        Eigen::Tensor<float, 4> Conv2D::forward(const Eigen::Tensor<float, 4>& input)
         {
             // input: [batch, in_channels, H, W]
             input_cache_ = input;
@@ -107,7 +107,7 @@ namespace CppNet
             return output;
         }
 
-        const Eigen::Tensor<float, 4> Conv2D::backward(const Eigen::Tensor<float, 4>& grad_output)
+        Eigen::Tensor<float, 4> Conv2D::backward(const Eigen::Tensor<float, 4>& grad_output)
         {
             // grad_output: [batch, out_channels, H_out, W_out]
             int batch = grad_output.dimension(0);

@@ -44,8 +44,8 @@ namespace CppNet
                       const std::string& device = "cpu-eigen");
             ~BatchNorm();
 
-            const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
-            const Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
+            Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
+            Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
 
             bool is_trainable() const override { return trainable_; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;

@@ -38,7 +38,7 @@ namespace CppNet
 
         Residual::~Residual() = default;
 
-        const Eigen::Tensor<float, 2> Residual::forward(
+        Eigen::Tensor<float, 2> Residual::forward(
             const Eigen::Tensor<float, 2>& input)
         {
             input_cache_ = input;
@@ -70,7 +70,7 @@ namespace CppNet
             return result;
         }
 
-        const Eigen::Tensor<float, 2> Residual::backward(
+        Eigen::Tensor<float, 2> Residual::backward(
             const Eigen::Tensor<float, 2>& grad_output)
         {
         

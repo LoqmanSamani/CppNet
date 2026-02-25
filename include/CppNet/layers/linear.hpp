@@ -62,10 +62,10 @@ namespace CppNet
             ~Linear();
 
             /// @brief Forward pass: output = input * W + b
-            const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
+            Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
 
             /// @brief Backward pass: computes grad_input and accumulates param gradients
-            const Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
+            Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
 
             bool is_trainable() const override { return trainable_; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
@@ -74,7 +74,7 @@ namespace CppNet
             void unfreeze() { trainable_ = true; }
 
             /// @brief Zero-out accumulated parameter gradients
-            void reset_grads();
+            void reset_grads() override;
 
             // ── Accessors ──────────────────────────────────────────────
             int get_input_size()  const { return in_size_; }

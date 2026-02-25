@@ -129,7 +129,7 @@ namespace CppNet
                                  biases_.size(), learning_rate);
         }
 
-        const Eigen::Tensor<float, 2> Linear::forward(
+        Eigen::Tensor<float, 2> Linear::forward(
             const Eigen::Tensor<float, 2>& input)
         {
             if (input.dimension(1) != weights_.dimension(0))
@@ -218,7 +218,7 @@ namespace CppNet
         }
 
      
-        const Eigen::Tensor<float, 2> Linear::backward(
+        Eigen::Tensor<float, 2> Linear::backward(
             const Eigen::Tensor<float, 2>& grad_output)
         {
             const int batch_size  = grad_output.dimension(0);
