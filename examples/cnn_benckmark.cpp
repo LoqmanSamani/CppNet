@@ -337,11 +337,10 @@ int main()
               << channels << "×" << height << "×" << width
               << ", " << num_classes << " classes\n";
 
-    // CNN configurations (Small → Large)
+    // CNN configurations (Small & Medium)
     //
-    //  small:  2 conv layers (16, 32 filters), pool after each
-    //  medium: 2 conv layers (32, 64 filters), pool after each, FC hidden
-    //  large:  3 conv layers (64, 128, 128 filters), pool after 1st & 3rd
+    //  Small:  2 conv layers (16, 32 filters), pool after each
+    //  Medium: 2 conv layers (32, 64 filters), pool after each, FC hidden
 
     std::vector<CNNConfig> configs = {
         {
@@ -356,13 +355,6 @@ int main()
             {{32, 3, 1, 1}, {64, 3, 1, 1}},
             {2, 2},
             {128},        // one FC hidden
-            2, 32, 0.0005f
-        },
-        {
-            "Large",
-            {{64, 3, 1, 1}, {128, 3, 1, 1}, {128, 3, 1, 1}},
-            {2, 0, 2},   // pool after 1st and 3rd
-            {256},
             2, 32, 0.0005f
         },
     };
