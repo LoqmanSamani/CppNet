@@ -12,9 +12,14 @@
 #include <stdexcept>
 #include <cmath>
 #include <cstring>
+#include <iostream>
 
 #ifdef USE_OPENMP
 #include <omp.h>
+#endif
+
+#ifdef USE_CUDA
+#include "CppNet/kernels/gpu/gpu.hpp"
 #endif
 
 namespace CppNet
@@ -55,6 +60,21 @@ namespace CppNet
 
         Conv2D::~Conv2D() = default;
 
+        #ifdef USE_CUDA
+        void Conv2D::set_max_batch_size(int max_batch_size)
+        {
+            gpu_max_batch_size_ = max_batch_size;
+            std::cout << "Conv2D GPU max batch size set to " << max_batch_size << "\n";
+        }
+        #endif
+
+        void Conv2D::reset_grads()
+        {
+            grad_weights_.setZero();
+            if (bias_flag_)
+                grad_biases_.setZero();
+        }
+
         Eigen::Tensor<float, 4> Conv2D::forward(const Eigen::Tensor<float, 4>& input)
         {
             // input: [batch, in_channels, H, W]
@@ -69,6 +89,14 @@ namespace CppNet
 
             Eigen::Tensor<float, 4> output(batch, out_channels_, H_out, W_out);
             output.setZero();
+
+            #ifdef USE_CUDA
+            if (device_ == "gpu")
+            {
+                forward_gpu(input, output, batch, H, W, H_out, W_out);
+                return output;
+            }
+            #endif
 
             #ifdef USE_OPENMP
             #pragma omp parallel for collapse(2) if(device_ == "cpu")
@@ -123,6 +151,14 @@ namespace CppNet
             if (bias_flag_)
                 grad_biases_.setZero();
 
+            #ifdef USE_CUDA
+            if (device_ == "gpu")
+            {
+                backward_gpu(grad_output, grad_input, batch, H, W, H_out, W_out);
+                return grad_input;
+            }
+            #endif
+
             for (int n = 0; n < batch; ++n)
             {
                 for (int oc = 0; oc < out_channels_; ++oc)
@@ -175,5 +211,115 @@ namespace CppNet
             grad_weights_.setZero();
             grad_biases_.setZero();
         }
+
+        // ─── GPU forward/backward ─────────────────────────────────────
+
+        void Conv2D::forward_gpu(
+            [[maybe_unused]] const Eigen::Tensor<float, 4>& input,
+            [[maybe_unused]] Eigen::Tensor<float, 4>& output,
+            [[maybe_unused]] int batch, [[maybe_unused]] int H,
+            [[maybe_unused]] int W, [[maybe_unused]] int H_out,
+            [[maybe_unused]] int W_out)
+        {
+            #ifdef USE_CUDA
+            int in_size  = batch * in_channels_ * H * W;
+            int out_size = batch * out_channels_ * H_out * W_out;
+            int w_size   = out_channels_ * in_channels_ * kernel_size_ * kernel_size_;
+
+            float *d_input, *d_weights, *d_bias, *d_output;
+            cudaMalloc(&d_input,   in_size  * sizeof(float));
+            cudaMalloc(&d_weights, w_size   * sizeof(float));
+            cudaMalloc(&d_output,  out_size * sizeof(float));
+
+            cudaMemcpy(d_input,   input.data(),   in_size  * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemcpy(d_weights, weights_.data(), w_size   * sizeof(float), cudaMemcpyHostToDevice);
+
+            d_bias = nullptr;
+            if (bias_flag_)
+            {
+                cudaMalloc(&d_bias, out_channels_ * sizeof(float));
+                cudaMemcpy(d_bias, biases_.data(), out_channels_ * sizeof(float), cudaMemcpyHostToDevice);
+            }
+
+            int total = out_size;
+            int block = 256;
+            int grid  = (total + block - 1) / block;
+
+            Kernels::GPU::conv2d_forward_kernel<<<grid, block>>>(
+                d_input, d_weights, d_bias, d_output,
+                batch, in_channels_, H, W,
+                out_channels_, kernel_size_, kernel_size_,
+                stride_, padding_, H_out, W_out, bias_flag_);
+            cudaDeviceSynchronize();
+
+            cudaMemcpy(output.data(), d_output, out_size * sizeof(float), cudaMemcpyDeviceToHost);
+
+            cudaFree(d_input);
+            cudaFree(d_weights);
+            cudaFree(d_output);
+            if (d_bias) cudaFree(d_bias);
+            #endif
+        }
+
+        void Conv2D::backward_gpu(
+            [[maybe_unused]] const Eigen::Tensor<float, 4>& grad_output,
+            [[maybe_unused]] Eigen::Tensor<float, 4>& grad_input,
+            [[maybe_unused]] int batch, [[maybe_unused]] int H,
+            [[maybe_unused]] int W, [[maybe_unused]] int H_out,
+            [[maybe_unused]] int W_out)
+        {
+            #ifdef USE_CUDA
+            int in_size   = batch * in_channels_ * H * W;
+            int out_size  = batch * out_channels_ * H_out * W_out;
+            int w_size    = out_channels_ * in_channels_ * kernel_size_ * kernel_size_;
+
+            float *d_grad_out, *d_input_cache, *d_weights;
+            float *d_grad_input, *d_grad_weights, *d_grad_biases;
+
+            cudaMalloc(&d_grad_out,    out_size * sizeof(float));
+            cudaMalloc(&d_input_cache, in_size  * sizeof(float));
+            cudaMalloc(&d_weights,     w_size   * sizeof(float));
+            cudaMalloc(&d_grad_input,  in_size  * sizeof(float));
+            cudaMalloc(&d_grad_weights, w_size  * sizeof(float));
+
+            cudaMemcpy(d_grad_out,    grad_output.data(),   out_size * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemcpy(d_input_cache, input_cache_.data(),  in_size  * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemcpy(d_weights,     weights_.data(),      w_size   * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemset(d_grad_input,  0, in_size  * sizeof(float));
+            cudaMemset(d_grad_weights, 0, w_size  * sizeof(float));
+
+            d_grad_biases = nullptr;
+            if (bias_flag_)
+            {
+                cudaMalloc(&d_grad_biases, out_channels_ * sizeof(float));
+                cudaMemset(d_grad_biases, 0, out_channels_ * sizeof(float));
+            }
+
+            int total = out_size;
+            int block = 256;
+            int grid  = (total + block - 1) / block;
+
+            Kernels::GPU::conv2d_backward_kernel<<<grid, block>>>(
+                d_grad_out, d_input_cache, d_weights,
+                d_grad_input, d_grad_weights, d_grad_biases,
+                batch, in_channels_, H, W,
+                out_channels_, kernel_size_, kernel_size_,
+                stride_, padding_, H_out, W_out, bias_flag_);
+            cudaDeviceSynchronize();
+
+            cudaMemcpy(grad_input.data(),    d_grad_input,   in_size * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(grad_weights_.data(), d_grad_weights, w_size  * sizeof(float), cudaMemcpyDeviceToHost);
+            if (bias_flag_)
+                cudaMemcpy(grad_biases_.data(), d_grad_biases, out_channels_ * sizeof(float), cudaMemcpyDeviceToHost);
+
+            cudaFree(d_grad_out);
+            cudaFree(d_input_cache);
+            cudaFree(d_weights);
+            cudaFree(d_grad_input);
+            cudaFree(d_grad_weights);
+            if (d_grad_biases) cudaFree(d_grad_biases);
+            #endif
+        }
+
     }
 }

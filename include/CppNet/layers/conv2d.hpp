@@ -6,6 +6,10 @@
 #ifndef CONV2D_HPP
 #define CONV2D_HPP
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 #include "CppNet/layers/layer.hpp"
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
@@ -61,6 +65,12 @@ namespace CppNet
             int get_stride() const { return stride_; }
             int get_padding() const { return padding_; }
 
+            void reset_grads() override;
+
+            #ifdef USE_CUDA
+            void set_max_batch_size(int max_batch_size);
+            #endif
+
         private:
             int in_channels_;
             int out_channels_;
@@ -76,6 +86,18 @@ namespace CppNet
             Eigen::Tensor<float, 4> grad_weights_;
             Eigen::Tensor<float, 1> grad_biases_;
             Eigen::Tensor<float, 4> input_cache_;   // cached input for backward
+
+            // ── GPU helpers ─────────────────────────────────────────
+            void forward_gpu(const Eigen::Tensor<float, 4>& input,
+                             Eigen::Tensor<float, 4>& output,
+                             int batch, int H, int W, int H_out, int W_out);
+            void backward_gpu(const Eigen::Tensor<float, 4>& grad_output,
+                              Eigen::Tensor<float, 4>& grad_input,
+                              int batch, int H, int W, int H_out, int W_out);
+
+            #ifdef USE_CUDA
+            int gpu_max_batch_size_ = 0;
+            #endif
         };
     }
 }

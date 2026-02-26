@@ -29,6 +29,40 @@ namespace CppNet
 
             __global__ void relu_grad_kernel(const float* __restrict__ dA, const float* __restrict__ Z, float* __restrict__ dZ, int total_elements);
 
+            // ── Conv2D kernels ──────────────────────────────────────
+            __global__ void conv2d_forward_kernel(
+                const float* input, const float* weights, const float* bias,
+                float* output,
+                int N, int C_in, int H, int W,
+                int C_out, int kH, int kW,
+                int stride, int padding,
+                int H_out, int W_out,
+                bool use_bias);
+
+            __global__ void conv2d_backward_kernel(
+                const float* grad_output, const float* input_cache,
+                const float* weights,
+                float* grad_input, float* grad_weights, float* grad_biases,
+                int N, int C_in, int H, int W,
+                int C_out, int kH, int kW,
+                int stride, int padding,
+                int H_out, int W_out,
+                bool use_bias);
+
+            // ── MaxPool2D kernels ───────────────────────────────────
+            __global__ void maxpool2d_forward_kernel(
+                const float* input, float* output, int* max_indices,
+                int N, int C, int H, int W,
+                int pool_size, int stride,
+                int H_out, int W_out);
+
+            __global__ void maxpool2d_backward_kernel(
+                const float* grad_output, const int* max_indices,
+                float* grad_input,
+                int N, int C, int H, int W,
+                int pool_size, int stride,
+                int H_out, int W_out);
+
         }
     }
 }

@@ -6,6 +6,10 @@
 #ifndef MAX_POOL2D_HPP
 #define MAX_POOL2D_HPP
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 #include "CppNet/layers/layer.hpp"
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
@@ -47,6 +51,16 @@ namespace CppNet
             std::string device_;
             Eigen::Tensor<int, 4> max_indices_;  // stores argmax for backward
             Eigen::Tensor<float, 4> input_cache_;
+
+            // ── GPU helpers ─────────────────────────────────────────
+            void forward_gpu(const Eigen::Tensor<float, 4>& input,
+                             Eigen::Tensor<float, 4>& output,
+                             int batch, int channels, int H, int W,
+                             int H_out, int W_out);
+            void backward_gpu(const Eigen::Tensor<float, 4>& grad_output,
+                              Eigen::Tensor<float, 4>& grad_input,
+                              int batch, int channels, int H, int W,
+                              int H_out, int W_out);
         };
     }
 }

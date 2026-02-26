@@ -86,6 +86,10 @@ set(GPU_SOURCES
     src/CppNet/kernels/gpu/sgd_step.cu
     src/CppNet/kernels/gpu/relu.cu
     src/CppNet/kernels/gpu/relu_grad.cu
+    src/CppNet/kernels/gpu/conv2d_forward.cu
+    src/CppNet/kernels/gpu/conv2d_backward.cu
+    src/CppNet/kernels/gpu/maxpool2d_forward.cu
+    src/CppNet/kernels/gpu/maxpool2d_backward.cu
 )
 
 set(CPP_NET_SOURCES ${CPU_SOURCES})
@@ -100,6 +104,8 @@ endif()
 if(USE_CUDA)
     set_source_files_properties(
         src/CppNet/layers/linear.cpp
+        src/CppNet/layers/conv2d.cpp
+        src/CppNet/layers/max_pool2d.cpp
         src/CppNet/optimizers/sgd.cpp
         src/CppNet/activations/relu.cpp
         PROPERTIES
