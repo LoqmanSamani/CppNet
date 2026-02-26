@@ -26,8 +26,8 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 
 
-// ─── synthetic image dataset ─────────────────────────────────────────
-// Each class gets a different deterministic pattern + noise so every
+// synthetic image dataset
+// each class gets a different deterministic pattern + noise so every
 // device trains on exactly the same data.
 static void generate_image_data(
     Eigen::Tensor<float, 4>& images,    // [N, C, H, W]
@@ -73,7 +73,7 @@ static void generate_image_data(
 }
 
 
-// ─── CNN configuration ───────────────────────────────────────────────
+// CNN configuration
 struct CNNConfig
 {
     std::string label;
@@ -90,7 +90,7 @@ struct CNNConfig
 };
 
 
-// ─── training function ───────────────────────────────────────────────
+// training function
 static std::tuple<double, float, float> train_cnn(
     const CNNConfig& cfg,
     const std::string& dev,
@@ -111,7 +111,7 @@ static std::tuple<double, float, float> train_cnn(
         CppNet::Activations::ReLU::set_num_threads(4);
     }
 
-    // ── build conv / pool / relu stack ──
+    // build conv / pool / relu stack
     std::vector<std::shared_ptr<CppNet::Layers::Conv2D>>   conv_layers;
     std::vector<std::shared_ptr<CppNet::Layers::MaxPool2D>> pool_layers;
     std::vector<CppNet::Activations::ReLU>                  relu_layers;
@@ -155,7 +155,7 @@ static std::tuple<double, float, float> train_cnn(
     auto flatten = std::make_shared<CppNet::Layers::Flatten>();
     int flat_size = cur_ch * cur_h * cur_w;
 
-    // ── build FC head ──
+    // build FC head
     std::vector<std::shared_ptr<CppNet::Layers::Linear>> fc_layers;
     std::vector<CppNet::Activations::ReLU>               fc_relus;
 
@@ -216,7 +216,7 @@ static std::tuple<double, float, float> train_cnn(
                     y_batch(i, c) = labels(idx, c);
             }
 
-            // ── forward ──
+            // forward
             Eigen::Tensor<float, 4> z = x_batch;
             for (size_t i = 0; i < conv_layers.size(); ++i)
             {
@@ -241,7 +241,7 @@ static std::tuple<double, float, float> train_cnn(
             epoch_acc  += CppNet::Metrics::accuracy(fc_out, y_batch);
             ++num_batches;
 
-            // ── backward ──
+            // backward
             auto grad2d = loss.backward(fc_out, y_batch);
 
             for (int i = (int)fc_layers.size() - 1; i >= 0; --i)
@@ -261,7 +261,7 @@ static std::tuple<double, float, float> train_cnn(
                 grad4d = conv_layers[i]->backward(grad4d);
             }
 
-            // ── update ──
+            // update
             for (auto& fc : fc_layers)
                 fc->step(optim, cfg.lr);
             for (auto& conv : conv_layers)
@@ -291,7 +291,7 @@ static std::tuple<double, float, float> train_cnn(
 }
 
 
-// ─── architecture string helper ──────────────────────────────────────
+// architecture string helper
 static std::string arch_str(const CNNConfig& cfg, int in_ch)
 {
     std::string s;
@@ -313,14 +313,14 @@ static std::string arch_str(const CNNConfig& cfg, int in_ch)
 }
 
 
-// ═════════════════════════════════════════════════════════════════════
+// main benchmark function
 int main()
 {
     std::cout << "---------------------------------------------------------------\n";
     std::cout << "    CppNet — CNN Device Benchmark (Image Classification)       \n";
     std::cout << "---------------------------------------------------------------\n";
 
-    // ── dataset parameters (CIFAR-10-like shape) ──
+    // dataset parameters (CIFAR-10-like shape)
     const int samples_per_class = 100;
     const int num_classes        = 10;
     const int channels           = 3;
@@ -337,11 +337,11 @@ int main()
               << channels << "×" << height << "×" << width
               << ", " << num_classes << " classes\n";
 
-    // ── CNN configurations (Small → Large) ──
+    // CNN configurations (Small → Large)
     //
-    //  Small:  2 conv layers (16, 32 filters), pool after each
-    //  Medium: 2 conv layers (32, 64 filters), pool after each, FC hidden
-    //  Large:  3 conv layers (64, 128, 128 filters), pool after 1st & 3rd
+    //  small:  2 conv layers (16, 32 filters), pool after each
+    //  medium: 2 conv layers (32, 64 filters), pool after each, FC hidden
+    //  large:  3 conv layers (64, 128, 128 filters), pool after 1st & 3rd
 
     std::vector<CNNConfig> configs = {
         {
@@ -367,17 +367,17 @@ int main()
         },
     };
 
-    // ── devices ──
+    // devices
     std::vector<std::string> devices = {"cpu-eigen", "cpu"};
     #ifdef USE_CUDA
     devices.push_back("gpu");
     #endif
 
-    // ── results storage ──
+    // results storage
     struct Result { double ms; float loss; float acc; };
     std::map<std::string, std::map<std::string, Result>> results;
 
-    // ── run experiments ──
+    // run experiments
     for (auto& cfg : configs)
     {
         std::string arch = arch_str(cfg, channels);
@@ -404,11 +404,11 @@ int main()
         }
     }
 
-    // ── summary table ──
+    // summary table
     std::cout << "\n\n";
-    std::cout << "==================================================================\n";
+    std::cout << "------------------------------------------------------------------\n";
     std::cout << "          CppNet CNN Device Benchmark — Summary                   \n";
-    std::cout << "==================================================================\n";
+    std::cout << "------------------------------------------------------------------\n";
 
     std::cout << std::left << std::setw(10) << "Config";
     for (auto& dev : devices)
@@ -466,7 +466,7 @@ int main()
         }
         std::cout << "\n";
     }
-    std::cout << "==================================================================\n";
+    std::cout << "-------------------------------------------------------------------\n";
 
     return 0;
 }

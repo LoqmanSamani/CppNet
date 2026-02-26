@@ -23,16 +23,16 @@ namespace CppNet
          * @class MaxPool2D
          * @brief 2D Max Pooling with configurable pool size and stride.
          *
-         * Input:  [batch, channels, H, W]
-         * Output: [batch, channels, H_out, W_out]
+         * input:  [batch, channels, H, W]
+         * output: [batch, channels, H_out, W_out]
          */
         class MaxPool2D : public Layer
         {
         public:
             /**
-             * @param pool_size Size of the pooling window (square)
-             * @param stride Stride of the pooling (default = pool_size)
-             * @param device Compute backend: "cpu-eigen", "cpu", or "gpu"
+             * @param pool_size size of the pooling window (square)
+             * @param stride stride of the pooling (default = pool_size)
+             * @param device compute backend: "cpu-eigen", "cpu", or "gpu"
              */
             MaxPool2D(int pool_size = 2, int stride = -1, const std::string& device = "cpu-eigen");
 
@@ -52,7 +52,7 @@ namespace CppNet
             Eigen::Tensor<int, 4> max_indices_;  // stores argmax for backward
             Eigen::Tensor<float, 4> input_cache_;
 
-            // ── GPU helpers ─────────────────────────────────────────
+            // gpu helpers
             void forward_gpu(const Eigen::Tensor<float, 4>& input,
                              Eigen::Tensor<float, 4>& output,
                              int batch, int channels, int H, int W,

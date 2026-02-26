@@ -33,7 +33,7 @@ namespace CppNet
               kernel_size_(kernel_size), stride_(stride), padding_(padding),
               bias_flag_(bias), device_(device)
         {
-            // Initialize weights: [out_channels, in_channels, kH, kW]
+            // initialize weights: [out_channels, in_channels, kH, kW]
             weights_.resize(out_channels_, in_channels_, kernel_size_, kernel_size_);
             grad_weights_.resize(out_channels_, in_channels_, kernel_size_, kernel_size_);
             grad_weights_.setZero();
@@ -212,8 +212,7 @@ namespace CppNet
             grad_biases_.setZero();
         }
 
-        // ─── GPU forward/backward ─────────────────────────────────────
-
+        // gpu forward/backward
         void Conv2D::forward_gpu(
             [[maybe_unused]] const Eigen::Tensor<float, 4>& input,
             [[maybe_unused]] Eigen::Tensor<float, 4>& output,

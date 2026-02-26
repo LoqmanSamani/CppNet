@@ -33,7 +33,7 @@ namespace CppNet
                 int total = N * C_out * H_out * W_out;
                 if (idx >= total) return;
 
-                // Decode linear index → (n, oc, oh, ow) in ColMajor order
+                // decode linear index → (n, oc, oh, ow) in ColMajor order
                 int n  = idx % N;
                 int rem = idx / N;
                 int oc = rem % C_out;

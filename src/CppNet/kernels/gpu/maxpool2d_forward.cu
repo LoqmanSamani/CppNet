@@ -26,7 +26,7 @@ namespace CppNet
                 int total = N * C * H_out * W_out;
                 if (idx >= total) return;
 
-                // Decode: (n, c, oh, ow) ColMajor
+                // decode: (n, c, oh, ow) ColMajor
                 int n   = idx % N;
                 int rem = idx / N;
                 int ch  = rem % C;

@@ -23,20 +23,20 @@ namespace CppNet
          * @class Conv2D
          * @brief 2D Convolutional layer with configurable kernel, stride, and padding.
          *
-         * Input shape:  [batch, in_channels, height, width]
-         * Output shape: [batch, out_channels, out_height, out_width]
+         * input shape:  [batch, in_channels, height, width]
+         * output shape: [batch, out_channels, out_height, out_width]
          */
         class Conv2D : public Layer
         {
         public:
             /**
-             * @param in_channels Number of input channels
-             * @param out_channels Number of output filters
-             * @param kernel_size Size of the convolving kernel (square)
-             * @param stride Stride of the convolution (default 1)
-             * @param padding Zero-padding added to both sides (default 0)
-             * @param bias Whether to include a learnable bias (default true)
-             * @param device Compute backend: "cpu-eigen", "cpu", or "gpu"
+             * @param in_channels number of input channels
+             * @param out_channels number of output filters
+             * @param kernel_size size of the convolving kernel (square)
+             * @param stride stride of the convolution (default 1)
+             * @param padding zero-padding added to both sides (default 0)
+             * @param bias whether to include a learnable bias (default true)
+             * @param device compute backend: "cpu-eigen", "cpu", or "gpu"
              */
             Conv2D(int in_channels, int out_channels, int kernel_size,
                    int stride = 1, int padding = 0, bool bias = true,
@@ -52,7 +52,7 @@ namespace CppNet
             void freeze() { trainable_ = false; }
             void unfreeze() { trainable_ = true; }
 
-            // Accessors
+            // accessors
             Eigen::Tensor<float, 4>& get_weights() { return weights_; }
             const Eigen::Tensor<float, 4>& get_weights() const { return weights_; }
             Eigen::Tensor<float, 1>& get_biases() { return biases_; }
@@ -87,7 +87,7 @@ namespace CppNet
             Eigen::Tensor<float, 1> grad_biases_;
             Eigen::Tensor<float, 4> input_cache_;   // cached input for backward
 
-            // ── GPU helpers ─────────────────────────────────────────
+            // gpu helpers
             void forward_gpu(const Eigen::Tensor<float, 4>& input,
                              Eigen::Tensor<float, 4>& output,
                              int batch, int H, int W, int H_out, int W_out);
