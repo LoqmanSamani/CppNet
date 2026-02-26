@@ -63,6 +63,66 @@ namespace CppNet
                 int pool_size, int stride,
                 int H_out, int W_out);
 
+            // ── RNN cell kernels ────────────────────────────────────
+            __global__ void rnn_tanh_forward_kernel(
+                const float* pre_ih, const float* pre_hh,
+                const float* bias, float* h_t,
+                int total, int hidden);
+
+            __global__ void rnn_tanh_backward_kernel(
+                const float* grad, const float* dh_next,
+                const float* h_t, float* dtanh,
+                int total, int hidden);
+
+            // ── LSTM cell kernels ───────────────────────────────────
+            __global__ void lstm_gates_forward_kernel(
+                const float* pre_ih, const float* pre_hh,
+                const float* bias, const float* c_prev,
+                float* i_gate, float* f_gate,
+                float* g_gate, float* o_gate,
+                float* c_t, float* h_t, float* tanh_c,
+                int batch, int hidden);
+
+            __global__ void lstm_gates_backward_kernel(
+                const float* dh, const float* dc_next,
+                const float* i_gate, const float* f_gate,
+                const float* g_gate, const float* o_gate,
+                const float* tanh_c, const float* c_prev,
+                float* dgates, float* dc_out,
+                int batch, int hidden);
+
+            // ── GRU cell kernels ────────────────────────────────────
+            __global__ void gru_zr_forward_kernel(
+                const float* x_gates, const float* h_gates,
+                const float* bias, const float* h_prev,
+                float* z_gate, float* r_gate, float* rh,
+                int batch, int hidden);
+
+            __global__ void gru_output_forward_kernel(
+                const float* x_gates, const float* rh_proj,
+                const float* bias, const float* z_gate,
+                const float* h_prev,
+                float* n_cand, float* h_t,
+                int batch, int hidden);
+
+            __global__ void gru_bwd_gates_kernel(
+                const float* dh_raw, const float* dh_next_in,
+                const float* z_gate, const float* n_cand,
+                const float* h_prev,
+                float* dn_raw, float* dz_raw, float* dh_prev_z,
+                int total);
+
+            __global__ void gru_bwd_reset_kernel(
+                const float* d_rh, const float* h_prev,
+                const float* r_gate, const float* dh_prev_z,
+                float* dr_raw, float* dh_prev_out,
+                int total);
+
+            __global__ void gru_assemble_dgates_kernel(
+                const float* dz_raw, const float* dr_raw,
+                const float* dn_raw, float* dgates,
+                int batch, int hidden);
+
         }
     }
 }

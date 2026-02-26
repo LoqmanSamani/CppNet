@@ -25,6 +25,13 @@ All benchmarks are reproducible via the scripts in the `examples/` directory.
   - [Accuracy Convergence](#accuracy-convergence-1)
   - [Key Takeaways](#key-takeaways-1)
   - [How to Reproduce](#how-to-reproduce-1)
+- [Sequence Layer Device Benchmark — Sine-Wave Regression](#sequence-layer-device-benchmark--sine-wave-regression)
+  - [Experiment Setup](#experiment-setup-2)
+  - [Network Configurations](#network-configurations-2)
+  - [Results Summary](#results-summary-2)
+  - [Speedup Analysis](#speedup-analysis-2)
+  - [Key Takeaways](#key-takeaways-2)
+  - [How to Reproduce](#how-to-reproduce-2)
 
 ---
 
@@ -324,6 +331,95 @@ mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
 make -j$(nproc)
 ./examples/cnn_benchmark
+```
+
+Ensure CUDA is installed and detected by CMake for GPU results.
+
+---
+
+## Sequence Layer Device Benchmark — Sine-Wave Regression
+
+### Experiment Setup
+
+| Item | Value |
+|------|-------|
+| **Task** | Next-value prediction on discretised sine wave |
+| **Loss** | MSE |
+| **Optimizer** | Momentum (μ = 0.9) |
+| **Batch size** | 32 |
+| **Samples** | 800 |
+| **CPU threads** | 4 (OpenMP) |
+| **GPU** | NVIDIA GeForce GTX 1650 (4 GB) |
+| **Build** | Release (-O2), GCC 13.3, CUDA 12.0 |
+
+### Network Configurations
+
+Each configuration uses: `RecurrentLayer(1, H, return_sequences=true) → extract last hidden → Linear(H, 1)`
+
+| Config | Hidden (H) | Seq Length | Epochs | Learning Rate |
+|--------|-----------|------------|--------|---------------|
+| Small | 64 | 20 | 5 | 0.01 |
+| Medium | 128 | 30 | 3 | 0.005 |
+
+### Results Summary
+
+#### Small Config (H=64, seq=20, 5 epochs)
+
+| Layer | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup |
+|-------|----------|-------------|-----------|-------------|
+| **RNN** | 0.89 s | 0.82 s | 0.57 s | **1.6×** |
+| **LSTM** | 3.18 s | 3.17 s | 0.97 s | **3.3×** |
+| **GRU** | 4.52 s | 4.48 s | 0.91 s | **5.0×** |
+
+#### Medium Config (H=128, seq=30, 3 epochs)
+
+| Layer | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup |
+|-------|----------|-------------|-----------|-------------|
+| **RNN** | 2.39 s | 2.33 s | 0.48 s | **5.0×** |
+| **LSTM** | 9.20 s | 9.29 s | 1.23 s | **7.5×** |
+| **GRU** | 20.45 s | 20.70 s | 1.11 s | **18.4×** |
+
+### Speedup Analysis
+
+| Config/Layer | cpu vs cpu-eigen | gpu vs cpu-eigen |
+|---|---|---|
+| Small/RNN | 1.1× | 1.6× |
+| Small/LSTM | 1.0× | 3.3× |
+| Small/GRU | 1.0× | 5.0× |
+| Medium/RNN | 1.0× | 5.0× |
+| Medium/LSTM | 1.0× | 7.5× |
+| Medium/GRU | 1.0× | **18.4×** |
+
+### Key Takeaways
+
+1. **GPU speedup scales with layer complexity**: GRU (3 gates, multi-step backward) benefits most,
+   followed by LSTM (4 gates), then RNN (single gate). The GRU achieves up to **18.4×** speedup
+   on the Medium config.
+
+2. **Larger hidden sizes amplify GPU advantage**: Moving from H=64 → H=128 increases GPU
+   speedup significantly (e.g. RNN: 1.6× → 5.0×, GRU: 5.0× → 18.4×), as the matmul
+   operations become more GPU-friendly.
+
+3. **OpenMP provides marginal improvement for recurrent layers**: Unlike MLPs/CNNs, the
+   sequential timestep structure of RNNs limits OpenMP parallelism. The cpu and cpu-eigen
+   backends perform nearly identically.
+
+4. **GPU loss differs from CPU**: The GPU path produces slightly different final losses due to
+   floating-point ordering differences in parallel reductions, but the model still converges.
+
+5. **CUDA kernels for recurrent layers**: New cell-level CUDA kernels handle element-wise gate
+   activations (sigmoid, tanh, gate mixing), while existing `matmul_kernel` and
+   `matmul_grad_weights_kernel` handle the heavy linear algebra.
+
+### How to Reproduce
+
+```bash
+git clone https://github.com/LoqmanSamani/CppNet.git
+cd CppNet
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
+make -j$(nproc)
+./examples/sequence_benchmark
 ```
 
 Ensure CUDA is installed and detected by CMake for GPU results.

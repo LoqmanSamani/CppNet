@@ -17,6 +17,10 @@
 #ifndef GRU_HPP
 #define GRU_HPP
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 #include "CppNet/layers/layer.hpp"
 #include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
@@ -46,6 +50,7 @@ namespace CppNet
 
             bool is_trainable() const override { return trainable_; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
+            void reset_grads() override;
 
             void freeze() { trainable_ = false; }
             void unfreeze() { trainable_ = true; }
@@ -85,6 +90,15 @@ namespace CppNet
             std::vector<TimeCache> caches_;
             Eigen::Tensor<float, 3> input_cache_;
             Eigen::Tensor<float, 2> h0_;
+
+            #ifdef USE_CUDA
+            void forward_gpu(const Eigen::Tensor<float, 3>& input,
+                             Eigen::Tensor<float, 3>& output,
+                             int batch, int seq_len);
+            void backward_gpu(const Eigen::Tensor<float, 3>& grad_output,
+                              Eigen::Tensor<float, 3>& grad_input,
+                              int batch, int seq_len);
+            #endif
         };
     }
 }

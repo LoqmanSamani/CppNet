@@ -14,6 +14,10 @@
 #include "CppNet/utils/init.hpp"
 #include <cmath>
 
+#ifdef USE_CUDA
+#include "CppNet/kernels/gpu/gpu.hpp"
+#endif
+
 namespace CppNet
 {
     namespace Layers
@@ -64,6 +68,11 @@ namespace CppNet
             caches_.resize(seq_len);
 
             Eigen::Tensor<float, 3> output(batch, seq_len, H);
+
+#ifdef USE_CUDA
+            if (device_ == "gpu") { forward_gpu(input, output, batch, seq_len); return output; }
+#endif
+
             Eigen::Tensor<float, 2> h_prev = h0_;
 
             Eigen::array<Eigen::IndexPair<int>, 1> contract_dims = {Eigen::IndexPair<int>(1, 0)};
@@ -156,6 +165,10 @@ namespace CppNet
 
             Eigen::Tensor<float, 3> grad_input(batch, seq_len, input_size_);
             grad_input.setZero();
+
+#ifdef USE_CUDA
+            if (device_ == "gpu") { backward_gpu(grad_output, grad_input, batch, seq_len); return grad_input; }
+#endif
 
             Eigen::Tensor<float, 2> dh_next(batch, H);
             dh_next.setZero();
@@ -308,5 +321,305 @@ namespace CppNet
             grad_W_hh_.setZero();
             grad_bias_.setZero();
         }
+
+        void GRU::reset_grads()
+        {
+            grad_W_ih_.setZero();
+            grad_W_hh_.setZero();
+            grad_bias_.setZero();
+        }
+
+#ifdef USE_CUDA
+        void GRU::forward_gpu(const Eigen::Tensor<float, 3>& input,
+                              Eigen::Tensor<float, 3>& output,
+                              int batch, int seq_len)
+        {
+            int I = input_size_, H = hidden_size_;
+            int gate3 = 3 * H;
+
+            float *d_W_ih, *d_W_hh, *d_bias;
+            float *d_x_t, *d_h_prev;
+            float *d_x_gates, *d_h_gates;
+            float *d_z, *d_r, *d_rh;
+            float *d_W_hn, *d_rh_proj;
+            float *d_n, *d_h_t;
+
+            cudaMalloc(&d_W_ih,     I * gate3 * sizeof(float));
+            cudaMalloc(&d_W_hh,     H * gate3 * sizeof(float));
+            cudaMalloc(&d_bias,     gate3 * sizeof(float));
+            cudaMalloc(&d_x_t,      batch * I * sizeof(float));
+            cudaMalloc(&d_h_prev,   batch * H * sizeof(float));
+            cudaMalloc(&d_x_gates,  batch * gate3 * sizeof(float));
+            cudaMalloc(&d_h_gates,  batch * gate3 * sizeof(float));
+            cudaMalloc(&d_z,        batch * H * sizeof(float));
+            cudaMalloc(&d_r,        batch * H * sizeof(float));
+            cudaMalloc(&d_rh,       batch * H * sizeof(float));
+            cudaMalloc(&d_W_hn,     H * H * sizeof(float));
+            cudaMalloc(&d_rh_proj,  batch * H * sizeof(float));
+            cudaMalloc(&d_n,        batch * H * sizeof(float));
+            cudaMalloc(&d_h_t,      batch * H * sizeof(float));
+
+            cudaMemcpy(d_W_ih, W_ih_.data(), I * gate3 * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemcpy(d_W_hh, W_hh_.data(), H * gate3 * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemcpy(d_bias, bias_.data(), gate3 * sizeof(float),       cudaMemcpyHostToDevice);
+            cudaMemset(d_h_prev, 0, batch * H * sizeof(float));
+
+            // Extract W_hn (columns 2H..3H of W_hh) on CPU then upload
+            Eigen::Tensor<float, 2> W_hn(H, H);
+            for (int i = 0; i < H; ++i)
+                for (int j = 0; j < H; ++j)
+                    W_hn(i, j) = W_hh_(i, j + 2 * H);
+            cudaMemcpy(d_W_hn, W_hn.data(), H * H * sizeof(float), cudaMemcpyHostToDevice);
+
+            Eigen::Tensor<float, 2> x_t(batch, I);
+
+            for (int t = 0; t < seq_len; ++t)
+            {
+                for (int n = 0; n < batch; ++n)
+                    for (int d = 0; d < I; ++d)
+                        x_t(n, d) = input(n, t, d);
+                cudaMemcpy(d_x_t, x_t.data(), batch * I * sizeof(float), cudaMemcpyHostToDevice);
+
+                // x_gates = x_t * W_ih  [batch, 3H]
+                dim3 block(32, 32);
+                dim3 grid((gate3 + 31) / 32, (batch + 31) / 32);
+                Kernels::GPU::matmul_kernel<<<grid, block>>>(d_x_t, d_W_ih, d_x_gates, batch, gate3, I);
+
+                // h_gates = h_prev * W_hh  [batch, 3H]
+                Kernels::GPU::matmul_kernel<<<grid, block>>>(d_h_prev, d_W_hh, d_h_gates, batch, gate3, H);
+
+                int total = batch * H;
+                int bk = 256;
+                int gr = (total + bk - 1) / bk;
+
+                // z, r gates + rh = r * h_prev
+                Kernels::GPU::gru_zr_forward_kernel<<<gr, bk>>>(
+                    d_x_gates, d_h_gates, d_bias, d_h_prev,
+                    d_z, d_r, d_rh, batch, H);
+
+                // rh_proj = rh * W_hn  [batch, H]
+                dim3 grid_hn((H + 31) / 32, (batch + 31) / 32);
+                Kernels::GPU::matmul_kernel<<<grid_hn, block>>>(d_rh, d_W_hn, d_rh_proj, batch, H, H);
+
+                // n = tanh(x_gates_n + rh_proj + b_n), h_t = (1-z)*n + z*h_prev
+                Kernels::GPU::gru_output_forward_kernel<<<gr, bk>>>(
+                    d_x_gates, d_rh_proj, d_bias, d_z, d_h_prev,
+                    d_n, d_h_t, batch, H);
+
+                // Copy caches to CPU
+                Eigen::Tensor<float, 2> buf(batch, H);
+                cudaMemcpy(buf.data(), d_z, batch * H * sizeof(float), cudaMemcpyDeviceToHost);
+                caches_[t].z_gate = buf;
+                cudaMemcpy(buf.data(), d_r, batch * H * sizeof(float), cudaMemcpyDeviceToHost);
+                caches_[t].r_gate = buf;
+                cudaMemcpy(buf.data(), d_n, batch * H * sizeof(float), cudaMemcpyDeviceToHost);
+                caches_[t].n_cand = buf;
+                cudaMemcpy(buf.data(), d_h_t, batch * H * sizeof(float), cudaMemcpyDeviceToHost);
+                caches_[t].h_t = buf;
+                cudaMemcpy(buf.data(), d_rh, batch * H * sizeof(float), cudaMemcpyDeviceToHost);
+                caches_[t].rh = buf;
+
+                Eigen::Tensor<float, 2> hp(batch, H);
+                cudaMemcpy(hp.data(), d_h_prev, batch * H * sizeof(float), cudaMemcpyDeviceToHost);
+                caches_[t].h_prev = hp;
+
+                for (int n = 0; n < batch; ++n)
+                    for (int d = 0; d < H; ++d)
+                        output(n, t, d) = caches_[t].h_t(n, d);
+
+                cudaMemcpy(d_h_prev, d_h_t, batch * H * sizeof(float), cudaMemcpyDeviceToDevice);
+            }
+
+            cudaFree(d_W_ih); cudaFree(d_W_hh); cudaFree(d_bias);
+            cudaFree(d_x_t); cudaFree(d_h_prev);
+            cudaFree(d_x_gates); cudaFree(d_h_gates);
+            cudaFree(d_z); cudaFree(d_r); cudaFree(d_rh);
+            cudaFree(d_W_hn); cudaFree(d_rh_proj);
+            cudaFree(d_n); cudaFree(d_h_t);
+        }
+
+        void GRU::backward_gpu(const Eigen::Tensor<float, 3>& grad_output,
+                               Eigen::Tensor<float, 3>& grad_input,
+                               int batch, int seq_len)
+        {
+            int I = input_size_, H = hidden_size_;
+            int gate3 = 3 * H;
+
+            float *d_W_ih, *d_W_hh, *d_W_hn;
+            float *d_x_t, *d_h_prev, *d_rh_cache;
+            float *d_z, *d_r, *d_n, *d_dh, *d_dh_next;
+            float *d_dn_raw, *d_dz_raw, *d_dr_raw, *d_dh_prev_z;
+            float *d_d_rh, *d_dh_prev_complete;
+            float *d_dgates;
+            float *d_dW_ih, *d_dW_hh, *d_dbias;
+            float *d_dW_ih_t, *d_dW_hh_zr_t, *d_dW_hn_t;
+            float *d_dx;
+            float *d_dgates_zr, *d_W_hh_zr, *d_dh_from_gates;
+
+            cudaMalloc(&d_W_ih,              I * gate3 * sizeof(float));
+            cudaMalloc(&d_W_hh,              H * gate3 * sizeof(float));
+            cudaMalloc(&d_W_hn,              H * H * sizeof(float));
+            cudaMalloc(&d_x_t,               batch * I * sizeof(float));
+            cudaMalloc(&d_h_prev,            batch * H * sizeof(float));
+            cudaMalloc(&d_rh_cache,          batch * H * sizeof(float));
+            cudaMalloc(&d_z,                 batch * H * sizeof(float));
+            cudaMalloc(&d_r,                 batch * H * sizeof(float));
+            cudaMalloc(&d_n,                 batch * H * sizeof(float));
+            cudaMalloc(&d_dh,                batch * H * sizeof(float));
+            cudaMalloc(&d_dh_next,           batch * H * sizeof(float));
+            cudaMalloc(&d_dn_raw,            batch * H * sizeof(float));
+            cudaMalloc(&d_dz_raw,            batch * H * sizeof(float));
+            cudaMalloc(&d_dr_raw,            batch * H * sizeof(float));
+            cudaMalloc(&d_dh_prev_z,         batch * H * sizeof(float));
+            cudaMalloc(&d_d_rh,              batch * H * sizeof(float));
+            cudaMalloc(&d_dh_prev_complete,  batch * H * sizeof(float));
+            cudaMalloc(&d_dgates,            batch * gate3 * sizeof(float));
+            cudaMalloc(&d_dW_ih,             I * gate3 * sizeof(float));
+            cudaMalloc(&d_dW_hh,             H * gate3 * sizeof(float));
+            cudaMalloc(&d_dbias,             gate3 * sizeof(float));
+            cudaMalloc(&d_dW_ih_t,           I * gate3 * sizeof(float));
+            cudaMalloc(&d_dW_hh_zr_t,        H * 2 * H * sizeof(float));
+            cudaMalloc(&d_dW_hn_t,           H * H * sizeof(float));
+            cudaMalloc(&d_dx,                batch * I * sizeof(float));
+            cudaMalloc(&d_dgates_zr,         batch * 2 * H * sizeof(float));
+            cudaMalloc(&d_W_hh_zr,           H * 2 * H * sizeof(float));
+            cudaMalloc(&d_dh_from_gates,     batch * H * sizeof(float));
+
+            cudaMemcpy(d_W_ih, W_ih_.data(), I * gate3 * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemcpy(d_W_hh, W_hh_.data(), H * gate3 * sizeof(float), cudaMemcpyHostToDevice);
+
+            // Extract W_hn and W_hh_zr
+            Eigen::Tensor<float, 2> W_hn(H, H);
+            for (int i = 0; i < H; ++i)
+                for (int j = 0; j < H; ++j)
+                    W_hn(i, j) = W_hh_(i, j + 2 * H);
+            cudaMemcpy(d_W_hn, W_hn.data(), H * H * sizeof(float), cudaMemcpyHostToDevice);
+
+            Eigen::Tensor<float, 2> W_hh_zr(H, 2 * H);
+            for (int i = 0; i < H; ++i)
+                for (int j = 0; j < 2 * H; ++j)
+                    W_hh_zr(i, j) = W_hh_(i, j);
+            cudaMemcpy(d_W_hh_zr, W_hh_zr.data(), H * 2 * H * sizeof(float), cudaMemcpyHostToDevice);
+
+            cudaMemset(d_dW_ih,   0, I * gate3 * sizeof(float));
+            cudaMemset(d_dW_hh,   0, H * gate3 * sizeof(float));
+            cudaMemset(d_dbias,   0, gate3 * sizeof(float));
+            cudaMemset(d_dh_next, 0, batch * H * sizeof(float));
+
+            Eigen::Tensor<float, 2> x_t(batch, I);
+            Eigen::Tensor<float, 2> grad_t(batch, H);
+
+            for (int t = seq_len - 1; t >= 0; --t)
+            {
+                auto& cache = caches_[t];
+
+                // Upload grad slice
+                for (int nn = 0; nn < batch; ++nn)
+                    for (int d = 0; d < H; ++d)
+                        grad_t(nn, d) = grad_output(nn, t, d);
+                cudaMemcpy(d_dh, grad_t.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
+
+                // Upload cached gate values
+                cudaMemcpy(d_z, cache.z_gate.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(d_r, cache.r_gate.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(d_n, cache.n_cand.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(d_h_prev, cache.h_prev.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
+                cudaMemcpy(d_rh_cache, cache.rh.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
+
+                int total = batch * H;
+                int bk = 256;
+                int gr = (total + bk - 1) / bk;
+
+                // Step 1: dn_raw, dz_raw, dh_prev_z
+                Kernels::GPU::gru_bwd_gates_kernel<<<gr, bk>>>(
+                    d_dh, d_dh_next, d_z, d_n, d_h_prev,
+                    d_dn_raw, d_dz_raw, d_dh_prev_z, total);
+
+                // Step 2: d_rh = dn_raw * W_hn^T  [batch, H]
+                dim3 block(32, 32);
+                dim3 grid_hn((H + 31) / 32, (batch + 31) / 32);
+                Kernels::GPU::matmul_grad_input_kernel<<<grid_hn, block>>>(
+                    d_dn_raw, d_W_hn, d_d_rh, batch, H, H);
+
+                // Step 3: dr_raw, dh_prev_complete
+                Kernels::GPU::gru_bwd_reset_kernel<<<gr, bk>>>(
+                    d_d_rh, d_h_prev, d_r, d_dh_prev_z,
+                    d_dr_raw, d_dh_prev_complete, total);
+
+                // Step 4: assemble dgates [batch, 3H]
+                Kernels::GPU::gru_assemble_dgates_kernel<<<gr, bk>>>(
+                    d_dz_raw, d_dr_raw, d_dn_raw, d_dgates, batch, H);
+
+                // Upload x_t
+                for (int nn = 0; nn < batch; ++nn)
+                    for (int d = 0; d < I; ++d)
+                        x_t(nn, d) = input_cache_(nn, t, d);
+                cudaMemcpy(d_x_t, x_t.data(), batch * I * sizeof(float), cudaMemcpyHostToDevice);
+
+                // grad_W_ih += x_t^T * dgates
+                dim3 grid_wih((gate3 + 31) / 32, (I + 31) / 32);
+                Kernels::GPU::matmul_grad_weights_kernel<<<grid_wih, block>>>(
+                    d_x_t, d_dgates, d_dW_ih_t, batch, I, gate3);
+                int ws = I * gate3;
+                Kernels::GPU::elementwise_kernel<<<(ws + bk - 1) / bk, bk>>>(
+                    d_dW_ih, d_dW_ih_t, d_dW_ih, ws, 0, 0);
+
+                // grad_W_hh: z/r columns from h_prev, n column from rh
+                // Extract dgates_zr (first 2H columns) - contiguous in ColMajor
+                cudaMemcpy(d_dgates_zr, d_dgates, batch * 2 * H * sizeof(float), cudaMemcpyDeviceToDevice);
+
+                dim3 grid_whzr((2 * H + 31) / 32, (H + 31) / 32);
+                Kernels::GPU::matmul_grad_weights_kernel<<<grid_whzr, block>>>(
+                    d_h_prev, d_dgates_zr, d_dW_hh_zr_t, batch, H, 2 * H);
+                int wzr = H * 2 * H;
+                Kernels::GPU::elementwise_kernel<<<(wzr + bk - 1) / bk, bk>>>(
+                    d_dW_hh, d_dW_hh_zr_t, d_dW_hh, wzr, 0, 0);
+
+                dim3 grid_whn((H + 31) / 32, (H + 31) / 32);
+                Kernels::GPU::matmul_grad_weights_kernel<<<grid_whn, block>>>(
+                    d_rh_cache, d_dn_raw, d_dW_hn_t, batch, H, H);
+                int wn = H * H;
+                // Accumulate into columns [2H..3H] of d_dW_hh  (offset = H*2H in ColMajor)
+                float* d_dW_hh_n_ptr = d_dW_hh + H * 2 * H;
+                Kernels::GPU::elementwise_kernel<<<(wn + bk - 1) / bk, bk>>>(
+                    d_dW_hh_n_ptr, d_dW_hn_t, d_dW_hh_n_ptr, wn, 0, 0);
+
+                // bias gradient
+                Kernels::GPU::bias_grad_kernel<<<gate3, 256>>>(d_dgates, d_dbias, batch, gate3);
+
+                // grad_input = dgates * W_ih^T
+                dim3 grid_dx((I + 31) / 32, (batch + 31) / 32);
+                Kernels::GPU::matmul_grad_input_kernel<<<grid_dx, block>>>(
+                    d_dgates, d_W_ih, d_dx, batch, I, gate3);
+                Eigen::Tensor<float, 2> dx(batch, I);
+                cudaMemcpy(dx.data(), d_dx, batch * I * sizeof(float), cudaMemcpyDeviceToHost);
+                for (int nn = 0; nn < batch; ++nn)
+                    for (int d = 0; d < I; ++d)
+                        grad_input(nn, t, d) = dx(nn, d);
+
+                // dh_next = dh_prev_complete + dgates_zr * W_hh_zr^T
+                Kernels::GPU::matmul_grad_input_kernel<<<grid_hn, block>>>(
+                    d_dgates_zr, d_W_hh_zr, d_dh_from_gates, batch, H, 2 * H);
+                Kernels::GPU::elementwise_kernel<<<(total + bk - 1) / bk, bk>>>(
+                    d_dh_prev_complete, d_dh_from_gates, d_dh_next, total, 0, 0);
+            }
+
+            cudaMemcpy(grad_W_ih_.data(), d_dW_ih, I * gate3 * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(grad_W_hh_.data(), d_dW_hh, H * gate3 * sizeof(float), cudaMemcpyDeviceToHost);
+            cudaMemcpy(grad_bias_.data(), d_dbias, gate3 * sizeof(float),       cudaMemcpyDeviceToHost);
+
+            cudaFree(d_W_ih); cudaFree(d_W_hh); cudaFree(d_W_hn);
+            cudaFree(d_x_t); cudaFree(d_h_prev); cudaFree(d_rh_cache);
+            cudaFree(d_z); cudaFree(d_r); cudaFree(d_n);
+            cudaFree(d_dh); cudaFree(d_dh_next);
+            cudaFree(d_dn_raw); cudaFree(d_dz_raw); cudaFree(d_dr_raw);
+            cudaFree(d_dh_prev_z); cudaFree(d_d_rh); cudaFree(d_dh_prev_complete);
+            cudaFree(d_dgates);
+            cudaFree(d_dW_ih); cudaFree(d_dW_hh); cudaFree(d_dbias);
+            cudaFree(d_dW_ih_t); cudaFree(d_dW_hh_zr_t); cudaFree(d_dW_hn_t);
+            cudaFree(d_dx);
+            cudaFree(d_dgates_zr); cudaFree(d_W_hh_zr); cudaFree(d_dh_from_gates);
+        }
+#endif // USE_CUDA
     }
 }
