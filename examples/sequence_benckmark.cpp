@@ -201,6 +201,7 @@ int main()
     std::vector<SeqConfig> configs = {
         {"Small",  64,  20, 5, 32, 800, 0.01f},
         {"Medium", 128, 30, 3, 32, 800, 0.005f},
+        {"Large",  256, 50, 3, 32, 1200, 0.002f},
     };
 
     std::vector<std::string> layer_types = {"RNN", "LSTM", "GRU"};

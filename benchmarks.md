@@ -347,7 +347,7 @@ Ensure CUDA is installed and detected by CMake for GPU results.
 | **Loss** | MSE |
 | **Optimizer** | Momentum (μ = 0.9) |
 | **Batch size** | 32 |
-| **Samples** | 800 |
+| **Samples** | 800 (Small/Medium), 1200 (Large) |
 | **CPU threads** | 4 (OpenMP) |
 | **GPU** | NVIDIA GeForce GTX 1650 (4 GB) |
 | **Build** | Release (-O2), GCC 13.3, CUDA 12.0 |
@@ -360,6 +360,7 @@ Each configuration uses: `RecurrentLayer(1, H, return_sequences=true) → extrac
 |--------|-----------|------------|--------|---------------|
 | Small | 64 | 20 | 5 | 0.01 |
 | Medium | 128 | 30 | 3 | 0.005 |
+| Large | 256 | 50 | 3 | 0.002 |
 
 ### Results Summary
 
@@ -367,42 +368,53 @@ Each configuration uses: `RecurrentLayer(1, H, return_sequences=true) → extrac
 
 | Layer | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup |
 |-------|----------|-------------|-----------|-------------|
-| **RNN** | 0.89 s | 0.82 s | 0.57 s | **1.6×** |
-| **LSTM** | 3.18 s | 3.17 s | 0.97 s | **3.3×** |
-| **GRU** | 4.52 s | 4.48 s | 0.91 s | **5.0×** |
+| **RNN** | 0.99 s | 0.81 s | 0.40 s | **2.5×** |
+| **LSTM** | 3.46 s | 3.51 s | 0.99 s | **3.5×** |
+| **GRU** | 5.03 s | 4.94 s | 0.98 s | **5.1×** |
 
 #### Medium Config (H=128, seq=30, 3 epochs)
 
 | Layer | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup |
 |-------|----------|-------------|-----------|-------------|
-| **RNN** | 2.39 s | 2.33 s | 0.48 s | **5.0×** |
-| **LSTM** | 9.20 s | 9.29 s | 1.23 s | **7.5×** |
-| **GRU** | 20.45 s | 20.70 s | 1.11 s | **18.4×** |
+| **RNN** | 2.53 s | 2.84 s | 0.54 s | **4.7×** |
+| **LSTM** | 11.41 s | 11.73 s | 1.57 s | **7.3×** |
+| **GRU** | 21.59 s | 21.69 s | 1.39 s | **15.5×** |
+
+#### Large Config (H=256, seq=50, 3 epochs, N=1200)
+
+| Layer | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup |
+|-------|----------|-------------|-----------|-------------|
+| **RNN** | 22.93 s | 24.24 s | 1.88 s | **12.2×** |
+| **LSTM** | 100.40 s | 101.28 s | 6.16 s | **16.3×** |
+| **GRU** | 318.00 s | 318.07 s | 5.64 s | **56.4×** |
 
 ### Speedup Analysis
 
 | Config/Layer | cpu vs cpu-eigen | gpu vs cpu-eigen |
 |---|---|---|
-| Small/RNN | 1.1× | 1.6× |
-| Small/LSTM | 1.0× | 3.3× |
-| Small/GRU | 1.0× | 5.0× |
-| Medium/RNN | 1.0× | 5.0× |
-| Medium/LSTM | 1.0× | 7.5× |
-| Medium/GRU | 1.0× | **18.4×** |
+| Small/RNN | 1.2× | 2.5× |
+| Small/LSTM | 1.0× | 3.5× |
+| Small/GRU | 1.0× | 5.1× |
+| Medium/RNN | 0.9× | 4.7× |
+| Medium/LSTM | 1.0× | 7.3× |
+| Medium/GRU | 1.0× | 15.5× |
+| Large/RNN | 0.9× | 12.2× |
+| Large/LSTM | 1.0× | 16.3× |
+| Large/GRU | 1.0× | **56.4×** |
 
 ### Key Takeaways
 
-1. **GPU speedup scales with layer complexity**: GRU (3 gates, multi-step backward) benefits most,
-   followed by LSTM (4 gates), then RNN (single gate). The GRU achieves up to **18.4×** speedup
-   on the Medium config.
+1. **GPU speedup scales dramatically with layer complexity and size**: GRU (3 gates, multi-step backward)
+   benefits most, followed by LSTM (4 gates), then RNN (single gate). The GRU achieves up to **56.4×**
+   speedup on the Large config — the largest speedup across all CppNet benchmarks.
 
-2. **Larger hidden sizes amplify GPU advantage**: Moving from H=64 → H=128 increases GPU
-   speedup significantly (e.g. RNN: 1.6× → 5.0×, GRU: 5.0× → 18.4×), as the matmul
-   operations become more GPU-friendly.
+2. **Larger hidden sizes amplify GPU advantage**: Moving from H=64 → H=256 increases GPU
+   speedup dramatically (e.g. RNN: 2.5× → 12.2×, GRU: 5.1× → 56.4×), as the matmul
+   operations become increasingly GPU-friendly.
 
 3. **OpenMP provides marginal improvement for recurrent layers**: Unlike MLPs/CNNs, the
    sequential timestep structure of RNNs limits OpenMP parallelism. The cpu and cpu-eigen
-   backends perform nearly identically.
+   backends perform nearly identically across all configs.
 
 4. **GPU loss differs from CPU**: The GPU path produces slightly different final losses due to
    floating-point ordering differences in parallel reductions, but the model still converges.
