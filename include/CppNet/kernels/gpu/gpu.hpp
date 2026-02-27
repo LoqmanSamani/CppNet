@@ -126,12 +126,12 @@ namespace CppNet
             // ── Embedding kernels ───────────────────────────────────
             __global__ void embedding_forward_kernel(
                 const int* input, const float* weight, float* output,
-                int batch_seq, int embed_dim);
+                int batch, int seq_len, int embed_dim, int vocab_size);
 
             __global__ void embedding_backward_kernel(
                 const int* input, const float* grad_output,
                 float* grad_weight,
-                int batch_seq, int embed_dim);
+                int batch, int seq_len, int embed_dim, int vocab_size);
 
             // ── Attention kernels ───────────────────────────────────
             __global__ void attention_scale_kernel(

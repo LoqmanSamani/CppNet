@@ -194,21 +194,19 @@ namespace CppNet
         {
             int batch = input.dimension(0);
             int seq_len = input.dimension(1);
-            int batch_seq = batch * seq_len;
-            int total = batch_seq * embed_dim_;
+            int total = batch * seq_len * embed_dim_;
 
             // Allocate device buffers
             int*   d_input  = nullptr;
             float* d_weight = nullptr;
             float* d_output = nullptr;
 
-            cudaMalloc(&d_input,  batch_seq * sizeof(int));
+            cudaMalloc(&d_input,  batch * seq_len * sizeof(int));
             cudaMalloc(&d_weight, vocab_size_ * embed_dim_ * sizeof(float));
             cudaMalloc(&d_output, total * sizeof(float));
 
-            // Copy input tokens (row-major) and weight table to device
-            // Input tensor is [batch, seq_len] in row-major
-            cudaMemcpy(d_input, input.data(), batch_seq * sizeof(int),
+            // Copy data to device (ColMajor layout preserved)
+            cudaMemcpy(d_input, input.data(), batch * seq_len * sizeof(int),
                        cudaMemcpyHostToDevice);
             cudaMemcpy(d_weight, weight_.data(), vocab_size_ * embed_dim_ * sizeof(float),
                        cudaMemcpyHostToDevice);
@@ -217,7 +215,7 @@ namespace CppNet
             int threads = 256;
             int blocks = (total + threads - 1) / threads;
             Kernels::GPU::embedding_forward_kernel<<<blocks, threads>>>(
-                d_input, d_weight, d_output, batch_seq, embed_dim_);
+                d_input, d_weight, d_output, batch, seq_len, embed_dim_, vocab_size_);
 
             // Copy result back
             cudaMemcpy(output.data(), d_output, total * sizeof(float),
@@ -232,18 +230,17 @@ namespace CppNet
         {
             int batch = grad_output.dimension(0);
             int seq_len = grad_output.dimension(1);
-            int batch_seq = batch * seq_len;
-            int total = batch_seq * embed_dim_;
+            int total = batch * seq_len * embed_dim_;
 
             int*   d_input       = nullptr;
             float* d_grad_output = nullptr;
             float* d_grad_weight = nullptr;
 
-            cudaMalloc(&d_input,       batch_seq * sizeof(int));
+            cudaMalloc(&d_input,       batch * seq_len * sizeof(int));
             cudaMalloc(&d_grad_output, total * sizeof(float));
             cudaMalloc(&d_grad_weight, vocab_size_ * embed_dim_ * sizeof(float));
 
-            cudaMemcpy(d_input, input_cache_.data(), batch_seq * sizeof(int),
+            cudaMemcpy(d_input, input_cache_.data(), batch * seq_len * sizeof(int),
                        cudaMemcpyHostToDevice);
             cudaMemcpy(d_grad_output, grad_output.data(), total * sizeof(float),
                        cudaMemcpyHostToDevice);
@@ -253,7 +250,7 @@ namespace CppNet
             int threads = 256;
             int blocks = (total + threads - 1) / threads;
             Kernels::GPU::embedding_backward_kernel<<<blocks, threads>>>(
-                d_input, d_grad_output, d_grad_weight, batch_seq, embed_dim_);
+                d_input, d_grad_output, d_grad_weight, batch, seq_len, embed_dim_, vocab_size_);
 
             // Copy gradients back to host
             cudaMemcpy(grad_weight_.data(), d_grad_weight,

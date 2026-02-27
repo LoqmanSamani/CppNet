@@ -2,8 +2,8 @@
  * @file embedding_backward.cu
  * @brief CUDA kernel for embedding backward pass (scatter-add gradients)
  *
- * Backward: grad_weight[input[n,s], d] += grad_output[n, s, d]
- * Uses atomicAdd for thread-safe scatter accumulation.
+ * Backward: grad_weight[input[b,s], d] += grad_output[b, s, d]
+ * Uses ColMajor layout (Eigen default) and atomicAdd for thread safety.
  */
 
 #include <cuda_runtime.h>
@@ -17,21 +17,33 @@ namespace GPU
 {
 
 __global__ void embedding_backward_kernel(
-    const int*   input,        // [batch * seq_len]  token IDs (row-major)
-    const float* grad_output,  // [batch * seq_len * embed_dim] (row-major)
-    float*       grad_weight,  // [vocab_size * embed_dim] (row-major)
-    int batch_seq,             // batch * seq_len
-    int embed_dim)
+    const int*   input,        // [batch, seq_len] ColMajor
+    const float* grad_output,  // [batch, seq_len, embed_dim] ColMajor
+    float*       grad_weight,  // [vocab_size, embed_dim] ColMajor
+    int batch,
+    int seq_len,
+    int embed_dim,
+    int vocab_size)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int total = batch_seq * embed_dim;
+    int total = batch * seq_len * embed_dim;
     if (idx >= total) return;
 
-    int pos = idx / embed_dim;   // which (batch, seq) position
-    int d   = idx % embed_dim;   // which embedding dimension
+    // Decompose linear index for 3D ColMajor [batch, seq_len, embed_dim]
+    int bs = batch * seq_len;
+    int d = idx / bs;
+    int rem = idx % bs;
+    int s = rem / batch;
+    int b = rem % batch;
 
-    int token_id = input[pos];
-    atomicAdd(&grad_weight[token_id * embed_dim + d], grad_output[idx]);
+    // input [batch, seq_len] ColMajor
+    int token_id = input[b + s * batch];
+
+    // grad_output ColMajor
+    float grad_val = grad_output[b + s * batch + d * bs];
+
+    // grad_weight [vocab_size, embed_dim] ColMajor
+    atomicAdd(&grad_weight[token_id + d * vocab_size], grad_val);
 }
 
 } // namespace GPU

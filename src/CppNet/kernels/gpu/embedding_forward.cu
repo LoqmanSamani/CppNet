@@ -2,8 +2,8 @@
  * @file embedding_forward.cu
  * @brief CUDA kernel for embedding forward pass (gather rows by index)
  *
- * Forward: output[n, s, d] = weight[input[n, s], d]
- * Each thread handles one element of the output tensor.
+ * Forward: output[b, s, d] = weight[input[b, s], d]
+ * Uses ColMajor layout (Eigen default).
  */
 
 #include <cuda_runtime.h>
@@ -17,21 +17,34 @@ namespace GPU
 {
 
 __global__ void embedding_forward_kernel(
-    const int*   input,    // [batch * seq_len]  token IDs (row-major)
-    const float* weight,   // [vocab_size * embed_dim] (row-major)
-    float*       output,   // [batch * seq_len * embed_dim] (row-major)
-    int batch_seq,         // batch * seq_len
-    int embed_dim)
+    const int*   input,    // [batch, seq_len] ColMajor
+    const float* weight,   // [vocab_size, embed_dim] ColMajor
+    float*       output,   // [batch, seq_len, embed_dim] ColMajor
+    int batch,
+    int seq_len,
+    int embed_dim,
+    int vocab_size)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int total = batch_seq * embed_dim;
+    int total = batch * seq_len * embed_dim;
     if (idx >= total) return;
 
-    int pos = idx / embed_dim;   // which (batch, seq) position
-    int d   = idx % embed_dim;   // which embedding dimension
+    // Decompose linear index for 3D ColMajor [batch, seq_len, embed_dim]
+    // element (b, s, d) at index b + s*batch + d*batch*seq_len
+    int bs = batch * seq_len;
+    int d = idx / bs;                // embed dimension
+    int rem = idx % bs;
+    int s = rem / batch;             // seq position
+    int b = rem % batch;             // batch index
 
-    int token_id = input[pos];
-    output[idx] = weight[token_id * embed_dim + d];
+    // input [batch, seq_len] ColMajor: input(b, s) = input[b + s * batch]
+    int token_id = input[b + s * batch];
+
+    // weight [vocab_size, embed_dim] ColMajor: weight(v, d) = weight[v + d * vocab_size]
+    float val = weight[token_id + d * vocab_size];
+
+    // output [batch, seq_len, embed_dim] ColMajor: output(b, s, d) = output[b + s*batch + d*batch*seq_len]
+    output[b + s * batch + d * bs] = val;
 }
 
 } // namespace GPU
