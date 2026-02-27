@@ -30,13 +30,6 @@ __global__ void rnn_tanh_forward_kernel(
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= total) return;
-    // ColMajor [batch, hidden]: element (n, d) at n + d * batch
-    // bias index = d = idx / batch  (for ColMajor batch-first)
-    // Actually for ColMajor, idx iterates as (0,0),(1,0),...,(B-1,0),(0,1),...
-    // so d = idx / (total / hidden)  ... let's just use idx % hidden? No.
-    // For ColMajor [batch, hidden]: the data is stored column-by-column.
-    // Column 0 holds batch elements for d=0, column 1 for d=1, etc.
-    // idx goes linearly: col = idx / batch_count, where batch_count = total/hidden
     int batch_count = total / hidden;
     int d = idx / batch_count;  // which hidden dimension
     h_t[idx] = tanhf(pre_ih[idx] + pre_hh[idx] + bias[d]);

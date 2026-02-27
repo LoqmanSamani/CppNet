@@ -17,7 +17,7 @@ namespace CppNet
 
                 if (row < M && col < N)
                 {
-                    output[row + col * M] += bias[col];  // ColMajor
+                    output[row + col * M] += bias[col];
                 }
             }
 

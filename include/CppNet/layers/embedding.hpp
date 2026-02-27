@@ -41,18 +41,8 @@ namespace CppNet
                       const std::string& device = "cpu-eigen");
             ~Embedding();
 
-            /**
-             * @brief Forward pass: lookup token IDs in the embedding table
-             * @param input [batch, seq_len] integer token IDs (must be in [0, vocab_size))
-             * @return [batch, seq_len, embed_dim] dense embeddings
-             */
             const Eigen::Tensor<float, 3> forward(const Eigen::Tensor<int, 2>& input);
 
-            /**
-             * @brief Backward pass: scatter gradient back to embedding rows
-             * @param grad_output [batch, seq_len, embed_dim]
-             * @return Dummy zero tensor (no gradient w.r.t. integer indices)
-             */
             const Eigen::Tensor<float, 3> backward(const Eigen::Tensor<float, 3>& grad_output);
 
             bool is_trainable() const override { return trainable_; }
@@ -79,7 +69,6 @@ namespace CppNet
             Eigen::Tensor<float, 2> weight_;       // [vocab_size, embed_dim]
             Eigen::Tensor<float, 2> grad_weight_;   // [vocab_size, embed_dim]
 
-            // Cache input indices for backward scatter
             Eigen::Tensor<int, 2> input_cache_;
 
 #ifdef USE_CUDA

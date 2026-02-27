@@ -31,8 +31,8 @@ namespace CppNet
          * @class MeanPool1D
          * @brief Average pooling over the sequence dimension
          *
-         * Input:  [batch, seq_len, features]
-         * Output: [batch, features]
+         * input:  [batch, seq_len, features]
+         * output: [batch, features]
          */
         class MeanPool1D : public Layer
         {

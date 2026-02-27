@@ -17,7 +17,6 @@ namespace Kernels
 namespace GPU
 {
 
-// ── Forward step 1: z / r gates and rh ──────────────────────────────
 __global__ void gru_zr_forward_kernel(
     const float* x_gates,  // [batch * 3H]  x_t * W_ih   (ColMajor)
     const float* h_gates,  // [batch * 3H]  h_prev * W_hh
@@ -50,7 +49,6 @@ __global__ void gru_zr_forward_kernel(
     rh[idx]     = r * h_prev[idx];
 }
 
-// ── Forward step 2: candidate n and output h_t ─────────────────────
 __global__ void gru_output_forward_kernel(
     const float* x_gates,  // [batch * 3H]  (only the n-column used)
     const float* rh_proj,  // [batch * H]   rh * W_hn
@@ -76,7 +74,6 @@ __global__ void gru_output_forward_kernel(
     h_t[idx]    = (1.0f - z) * nc + z * h_prev[idx];
 }
 
-// ── Backward step 1: compute dn_raw, dz_raw, dh_prev_z ─────────────
 __global__ void gru_bwd_gates_kernel(
     const float* dh_raw,     // [batch * H]
     const float* dh_next_in, // [batch * H]
@@ -104,7 +101,6 @@ __global__ void gru_bwd_gates_kernel(
     dh_prev_z[idx] = dh * z;
 }
 
-// ── Backward step 2: from d_rh, compute dr_raw and final dh_prev ───
 __global__ void gru_bwd_reset_kernel(
     const float* d_rh,       // [batch * H]  grad w.r.t. rh (from dn_raw * W_hn^T)
     const float* h_prev,
@@ -126,7 +122,6 @@ __global__ void gru_bwd_reset_kernel(
     dh_prev_out[idx] = dh_prev_z[idx] + drh * r;
 }
 
-// ── Backward helper: assemble dgates [batch, 3H] from 3 buffers ────
 __global__ void gru_assemble_dgates_kernel(
     const float* dz_raw,  // [batch * H]
     const float* dr_raw,  // [batch * H]

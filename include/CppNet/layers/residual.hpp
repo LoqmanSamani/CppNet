@@ -53,16 +53,12 @@ namespace CppNet
                      const std::string& device = "cpu-eigen");
             ~Residual() override;
 
-            /// Forward: run the block, then add the (projected) input
             Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
-
-            /// Backward: gradient flows through both the block and the shortcut
             Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
 
             bool is_trainable() const override { return true; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
 
-            /// Zero all internal layer gradients
             void reset_grads() override;
 
             std::size_t num_block_layers() const { return block_.size(); }
@@ -75,7 +71,6 @@ namespace CppNet
             int out_features_;
             std::string device_;
 
-            /// Cached input for backward
             Eigen::Tensor<float, 2> input_cache_;
         };
     }

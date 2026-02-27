@@ -78,20 +78,12 @@ namespace CppNet
             bool training_ = true;
             bool trainable_ = true;
             std::string device_;
-
-            // Learnable parameters
             Eigen::Tensor<float, 1> gamma_;   // [num_features]  scale
             Eigen::Tensor<float, 1> beta_;    // [num_features]  shift
-
-            // Gradients
             Eigen::Tensor<float, 1> grad_gamma_;
             Eigen::Tensor<float, 1> grad_beta_;
-
-            // Running statistics (for inference)
             Eigen::Tensor<float, 1> running_mean_;
             Eigen::Tensor<float, 1> running_var_;
-
-            // Cached values for backward
             Eigen::Tensor<float, 2> x_hat_;       // normalized input
             Eigen::Tensor<float, 1> batch_mean_;
             Eigen::Tensor<float, 1> batch_var_;

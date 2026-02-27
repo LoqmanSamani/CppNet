@@ -9,7 +9,7 @@
  *   Embedding(vocab, embed_dim) → MultiHeadAttention(embed_dim, num_heads)
  *   → MeanPool1D → ReLU → Linear(embed_dim, num_classes)
  *
- * Note: SequentialModel is not used here because it only supports
+ * Note: SequentialModel is not used here because current version only supports
  *       2D (Tensor<float,2>) forward/backward pipelines, while the
  *       Transformer architecture mixes 3D (Embedding, Attention) and
  *       2D tensors (post-pool classification head).
@@ -214,9 +214,9 @@ int main()
     // configurations from small to large
     std::vector<TransformerConfig> configs = {
         //         label   vocab  emb  heads seq  cls  epochs batch   N     lr
-        {"Small",    200,   48,   4,   12,   4,   12,   32,   800,  0.005f},
-        {"Medium",   500,   96,   6,   20,   4,   8,    32,   800,  0.003f},
-        {"Large",    1000,  160,  8,   30,   4,   5,    32,   1200, 0.001f},
+        {"Small",    200,   32,   2,   10,   4,   10,   32,   800,  0.005f},
+        {"Medium",   500,   64,   4,   20,   4,   5,    32,   800,  0.003f},
+        {"Large",    1000,  128,  8,   30,   4,   3,    32,   1200, 0.001f},
     };
 
     // devices to benchmark

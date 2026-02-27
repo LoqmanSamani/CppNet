@@ -23,8 +23,8 @@ namespace CppNet
          * @class GlobalAvgPool2D
          * @brief Global average pooling over spatial dims
          *
-         * Input:  [batch, channels, H, W]
-         * Output: [batch, channels]
+         * input:  [batch, channels, H, W]
+         * output: [batch, channels]
          */
         class GlobalAvgPool2D : public Layer
         {
@@ -49,8 +49,8 @@ namespace CppNet
          * @class GlobalMaxPool2D
          * @brief Global max pooling over spatial dims
          *
-         * Input:  [batch, channels, H, W]
-         * Output: [batch, channels]
+         * input:  [batch, channels, H, W]
+         * output: [batch, channels]
          */
         class GlobalMaxPool2D : public Layer
         {
@@ -70,7 +70,6 @@ namespace CppNet
             int height_cache_ = 0;
             int width_cache_ = 0;
 
-            /// Stores argmax (h, w) per (batch, channel) for gradient routing
             Eigen::Tensor<int, 2> argmax_h_;  // [batch, channels]
             Eigen::Tensor<int, 2> argmax_w_;  // [batch, channels]
         };

@@ -37,8 +37,8 @@ namespace CppNet
          * @class LSTM
          * @brief Single-layer LSTM
          *
-         * Input:  [batch, seq_len, input_size]
-         * Output: [batch, seq_len, hidden_size]   (return_sequences=true)
+         * input:  [batch, seq_len, input_size]
+         * output: [batch, seq_len, hidden_size]   (return_sequences=true)
          *    or   [batch, hidden_size]             (return_sequences=false, last h only)
          */
         class LSTM : public Layer
@@ -78,7 +78,7 @@ namespace CppNet
             bool trainable_ = true;
             std::string device_;
 
-            // Concatenated weight matrices  [... , 4*hidden_size]
+            // concatenated weight matrices  [... , 4*hidden_size]
             Eigen::Tensor<float, 2> W_ih_;   // [input_size,  4*hidden_size]
             Eigen::Tensor<float, 2> W_hh_;   // [hidden_size, 4*hidden_size]
             Eigen::Tensor<float, 1> bias_;   // [4*hidden_size]
@@ -87,7 +87,6 @@ namespace CppNet
             Eigen::Tensor<float, 2> grad_W_hh_;
             Eigen::Tensor<float, 1> grad_bias_;
 
-            // Per-timestep caches for BPTT
             struct TimeCache
             {
                 Eigen::Tensor<float, 2> i_gate;  // [batch, hidden]
@@ -102,7 +101,6 @@ namespace CppNet
             std::vector<TimeCache> caches_;
             Eigen::Tensor<float, 3> input_cache_;
 
-            // Initial states (zero)
             Eigen::Tensor<float, 2> h0_;
             Eigen::Tensor<float, 2> c0_;
 

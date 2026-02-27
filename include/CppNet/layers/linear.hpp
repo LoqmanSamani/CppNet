@@ -61,10 +61,7 @@ namespace CppNet
                    std::string weight_init = "xavier");
             ~Linear();
 
-            /// @brief Forward pass: output = input * W + b
             Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
-
-            /// @brief Backward pass: computes grad_input and accumulates param gradients
             Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
 
             bool is_trainable() const override { return trainable_; }
@@ -73,10 +70,8 @@ namespace CppNet
             void freeze()   { trainable_ = false; }
             void unfreeze() { trainable_ = true; }
 
-            /// @brief Zero-out accumulated parameter gradients
             void reset_grads() override;
 
-            // ── Accessors ──────────────────────────────────────────────
             int get_input_size()  const { return in_size_; }
             int get_output_size() const { return out_size_; }
             std::string get_layer_name() const { return layer_name_; }
@@ -96,13 +91,8 @@ namespace CppNet
             void set_weights(const Eigen::Tensor<float, 2>& weights) { weights_ = weights; }
             void set_biases(const Eigen::Tensor<float, 1>& biases)   { biases_ = biases; }
 
-            /// @brief Re-initialize weights with a different strategy
             void reinitialize_weights(const std::string& method);
-
-            /// @brief Print a short summary of this layer's configuration
             void print_layer_info() const;
-
-            /// @brief Set the global OpenMP thread count
             static void set_num_threads(int num_threads);
 
             #ifdef USE_CUDA
@@ -135,14 +125,11 @@ namespace CppNet
             Eigen::Tensor<float, 1> grad_biases_;
             Eigen::Tensor<float, 2> in_cache_;      // cached input for backward
 
-            // GPU output caches (CPU-side storage for return values)
             Eigen::Tensor<float, 2> gpu_output_cache_;
             Eigen::Tensor<float, 2> gpu_grad_input_cache_;
 
-            /// Allocate and zero all parameters and gradient buffers
             void init_params_and_grads();
 
-            // ── Backend-specific helpers ────────────────────────────────
             void forward_cpu(const Eigen::Tensor<float, 2>& input,
                              Eigen::Tensor<float, 2>& output,
                              int batch_size, int input_size, int output_size);

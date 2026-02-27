@@ -18,7 +18,7 @@ namespace Kernels
 namespace GPU
 {
 
-// ── Scale kernel: scores[i] *= scale ────────────────────────────────────────
+// scale kernel: scores[i] *= scale
 __global__ void attention_scale_kernel(
     float* scores,
     float  scale,
@@ -29,8 +29,8 @@ __global__ void attention_scale_kernel(
     scores[idx] *= scale;
 }
 
-// ── Softmax forward: row-wise softmax over [rows × cols] matrix ─────────────
-// Each block handles one row (one query position)
+// softmax forward: row-wise softmax over [rows × cols] matrix
+// each block handles one row (one query position)
 __global__ void attention_softmax_forward_kernel(
     const float* scores,   // [rows * cols]
     float*       output,   // [rows * cols]
@@ -46,7 +46,6 @@ __global__ void attention_softmax_forward_kernel(
     const float* row_in  = scores + row * cols;
     float*       row_out = output + row * cols;
 
-    // Step 1: find max for numerical stability
     float local_max = -FLT_MAX;
     for (int j = threadIdx.x; j < cols; j += blockDim.x)
         local_max = fmaxf(local_max, row_in[j]);
@@ -54,7 +53,6 @@ __global__ void attention_softmax_forward_kernel(
     sdata[threadIdx.x] = local_max;
     __syncthreads();
 
-    // Tree reduction for max
     for (int stride = blockDim.x / 2; stride > 0; stride >>= 1)
     {
         if (threadIdx.x < stride)
@@ -64,7 +62,6 @@ __global__ void attention_softmax_forward_kernel(
     float row_max = sdata[0];
     __syncthreads();
 
-    // Step 2: compute exp(x - max) and sum
     float local_sum = 0.0f;
     for (int j = threadIdx.x; j < cols; j += blockDim.x)
     {
@@ -76,7 +73,6 @@ __global__ void attention_softmax_forward_kernel(
     sdata[threadIdx.x] = local_sum;
     __syncthreads();
 
-    // Tree reduction for sum
     for (int stride = blockDim.x / 2; stride > 0; stride >>= 1)
     {
         if (threadIdx.x < stride)
@@ -86,14 +82,13 @@ __global__ void attention_softmax_forward_kernel(
     float row_sum = sdata[0];
     __syncthreads();
 
-    // Step 3: normalize
     float inv_sum = 1.0f / row_sum;
     for (int j = threadIdx.x; j < cols; j += blockDim.x)
         row_out[j] *= inv_sum;
 }
 
-// ── Softmax backward: d_scores[i,j] = attn[i,j] * (grad[i,j] - dot_i) ─────
-// Each block handles one row
+// softmax backward: d_scores[i,j] = attn[i,j] * (grad[i,j] - dot_i)
+// each block handles one row
 __global__ void attention_softmax_backward_kernel(
     const float* grad_attn,  // [rows * cols]  upstream gradient
     const float* attn,       // [rows * cols]  softmax output (cached)
@@ -110,7 +105,6 @@ __global__ void attention_softmax_backward_kernel(
     const float* a_row = attn       + row * cols;
     float*       o_row = grad_scores + row * cols;
 
-    // Compute dot = sum_j attn[i,j] * grad_attn[i,j]
     float local_dot = 0.0f;
     for (int j = threadIdx.x; j < cols; j += blockDim.x)
         local_dot += a_row[j] * g_row[j];

@@ -29,7 +29,7 @@ __global__ void embedding_forward_kernel(
     int total = batch * seq_len * embed_dim;
     if (idx >= total) return;
 
-    // Decompose linear index for 3D ColMajor [batch, seq_len, embed_dim]
+    // decompose linear index for 3D ColMajor [batch, seq_len, embed_dim]
     // element (b, s, d) at index b + s*batch + d*batch*seq_len
     int bs = batch * seq_len;
     int d = idx / bs;                // embed dimension
@@ -37,13 +37,10 @@ __global__ void embedding_forward_kernel(
     int s = rem / batch;             // seq position
     int b = rem % batch;             // batch index
 
-    // input [batch, seq_len] ColMajor: input(b, s) = input[b + s * batch]
     int token_id = input[b + s * batch];
 
-    // weight [vocab_size, embed_dim] ColMajor: weight(v, d) = weight[v + d * vocab_size]
     float val = weight[token_id + d * vocab_size];
 
-    // output [batch, seq_len, embed_dim] ColMajor: output(b, s, d) = output[b + s*batch + d*batch*seq_len]
     output[b + s * batch + d * bs] = val;
 }
 

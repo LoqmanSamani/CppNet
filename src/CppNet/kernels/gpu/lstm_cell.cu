@@ -36,11 +36,9 @@ __global__ void lstm_gates_forward_kernel(
     int total = batch * hidden;
     if (idx >= total) return;
 
-    // ColMajor [batch, H]: column d contains batch elements
     int n = idx % batch;   // row (sample index)
     int d = idx / batch;   // column (hidden index)
 
-    // In ColMajor [batch, 4H], element (n, d+k*H) is at n + (d + k*H)*batch
     int base_ih_n = n;  // row offset
     float ig_pre = pre_ih[base_ih_n + (d + 0 * hidden) * batch]
                  + pre_hh[base_ih_n + (d + 0 * hidden) * batch]

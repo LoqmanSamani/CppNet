@@ -42,9 +42,6 @@ namespace CppNet
             MultiHeadAttention(int embed_dim, int num_heads, const std::string& device = "cpu-eigen");
             ~MultiHeadAttention();
 
-            /**
-             * @brief Forward pass (self-attention: query = key = value = input)
-             */
             const Eigen::Tensor<float, 3> forward(
                 const Eigen::Tensor<float, 3>& query,
                 const Eigen::Tensor<float, 3>& key,
@@ -68,7 +65,6 @@ namespace CppNet
             bool trainable_ = true;
             std::string device_;
 
-            // Projection weights: W_Q, W_K, W_V, W_O
             Eigen::Tensor<float, 2> W_q_;  // [embed_dim, embed_dim]
             Eigen::Tensor<float, 2> W_k_;  // [embed_dim, embed_dim]
             Eigen::Tensor<float, 2> W_v_;  // [embed_dim, embed_dim]
@@ -79,7 +75,6 @@ namespace CppNet
             Eigen::Tensor<float, 2> grad_W_v_;
             Eigen::Tensor<float, 2> grad_W_o_;
 
-            // Caches for backward
             Eigen::Tensor<float, 3> query_cache_;
             Eigen::Tensor<float, 3> key_cache_;
             Eigen::Tensor<float, 3> value_cache_;

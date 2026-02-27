@@ -19,7 +19,7 @@ namespace CppNet
          * @class Flatten
          * @brief Flattens a 4D tensor [batch, C, H, W] into 2D [batch, C*H*W]
          *
-         * This layer has no trainable parameters. It simply reshapes
+         * this layer has no trainable parameters. It simply reshapes
          * the input tensor while preserving the batch dimension.
          */
         class Flatten : public Layer
@@ -27,14 +27,7 @@ namespace CppNet
         public:
             Flatten() = default;
 
-            /**
-             * @brief Forward: reshape [batch, C, H, W] -> [batch, C*H*W]
-             */
             const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 4>& input);
-
-            /**
-             * @brief Backward: reshape [batch, C*H*W] -> [batch, C, H, W]
-             */
             const Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 2>& grad_output);
 
             bool is_trainable() const override { return false; }

@@ -69,7 +69,6 @@ namespace CppNet
             Eigen::Tensor<float, 2> grad_W_hh_;
             Eigen::Tensor<float, 1> grad_bias_;
 
-            // Caches for backward pass
             std::vector<Eigen::Tensor<float, 2>> hidden_states_;  // per timestep
             Eigen::Tensor<float, 3> input_cache_;
 

@@ -29,20 +29,16 @@ __global__ void embedding_backward_kernel(
     int total = batch * seq_len * embed_dim;
     if (idx >= total) return;
 
-    // Decompose linear index for 3D ColMajor [batch, seq_len, embed_dim]
     int bs = batch * seq_len;
     int d = idx / bs;
     int rem = idx % bs;
     int s = rem / batch;
     int b = rem % batch;
 
-    // input [batch, seq_len] ColMajor
     int token_id = input[b + s * batch];
 
-    // grad_output ColMajor
     float grad_val = grad_output[b + s * batch + d * bs];
 
-    // grad_weight [vocab_size, embed_dim] ColMajor
     atomicAdd(&grad_weight[token_id + d * vocab_size], grad_val);
 }
 
