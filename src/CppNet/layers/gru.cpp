@@ -538,6 +538,7 @@ namespace CppNet
                 // Step 2: d_rh = dn_raw * W_hn^T  [batch, H]
                 dim3 block(32, 32);
                 dim3 grid_hn((H + 31) / 32, (batch + 31) / 32);
+                cudaMemset(d_d_rh, 0, batch * H * sizeof(float));
                 Kernels::GPU::matmul_grad_input_kernel<<<grid_hn, block>>>(
                     d_dn_raw, d_W_hn, d_d_rh, batch, H, H);
 
@@ -557,10 +558,11 @@ namespace CppNet
                 cudaMemcpy(d_x_t, x_t.data(), batch * I * sizeof(float), cudaMemcpyHostToDevice);
 
                 // grad_W_ih += x_t^T * dgates
+                int ws = I * gate3;
+                cudaMemset(d_dW_ih_t, 0, ws * sizeof(float));
                 dim3 grid_wih((gate3 + 31) / 32, (I + 31) / 32);
                 Kernels::GPU::matmul_grad_weights_kernel<<<grid_wih, block>>>(
                     d_x_t, d_dgates, d_dW_ih_t, batch, I, gate3);
-                int ws = I * gate3;
                 Kernels::GPU::elementwise_kernel<<<(ws + bk - 1) / bk, bk>>>(
                     d_dW_ih, d_dW_ih_t, d_dW_ih, ws, 0, 0);
 
@@ -568,17 +570,19 @@ namespace CppNet
                 // Extract dgates_zr (first 2H columns) - contiguous in ColMajor
                 cudaMemcpy(d_dgates_zr, d_dgates, batch * 2 * H * sizeof(float), cudaMemcpyDeviceToDevice);
 
+                int wzr = H * 2 * H;
+                cudaMemset(d_dW_hh_zr_t, 0, wzr * sizeof(float));
                 dim3 grid_whzr((2 * H + 31) / 32, (H + 31) / 32);
                 Kernels::GPU::matmul_grad_weights_kernel<<<grid_whzr, block>>>(
                     d_h_prev, d_dgates_zr, d_dW_hh_zr_t, batch, H, 2 * H);
-                int wzr = H * 2 * H;
                 Kernels::GPU::elementwise_kernel<<<(wzr + bk - 1) / bk, bk>>>(
                     d_dW_hh, d_dW_hh_zr_t, d_dW_hh, wzr, 0, 0);
 
+                int wn = H * H;
+                cudaMemset(d_dW_hn_t, 0, wn * sizeof(float));
                 dim3 grid_whn((H + 31) / 32, (H + 31) / 32);
                 Kernels::GPU::matmul_grad_weights_kernel<<<grid_whn, block>>>(
                     d_rh_cache, d_dn_raw, d_dW_hn_t, batch, H, H);
-                int wn = H * H;
                 // Accumulate into columns [2H..3H] of d_dW_hh  (offset = H*2H in ColMajor)
                 float* d_dW_hh_n_ptr = d_dW_hh + H * 2 * H;
                 Kernels::GPU::elementwise_kernel<<<(wn + bk - 1) / bk, bk>>>(
@@ -589,6 +593,7 @@ namespace CppNet
 
                 // grad_input = dgates * W_ih^T
                 dim3 grid_dx((I + 31) / 32, (batch + 31) / 32);
+                cudaMemset(d_dx, 0, batch * I * sizeof(float));
                 Kernels::GPU::matmul_grad_input_kernel<<<grid_dx, block>>>(
                     d_dgates, d_W_ih, d_dx, batch, I, gate3);
                 Eigen::Tensor<float, 2> dx(batch, I);
@@ -598,6 +603,7 @@ namespace CppNet
                         grad_input(nn, t, d) = dx(nn, d);
 
                 // dh_next = dh_prev_complete + dgates_zr * W_hh_zr^T
+                cudaMemset(d_dh_from_gates, 0, batch * H * sizeof(float));
                 Kernels::GPU::matmul_grad_input_kernel<<<grid_hn, block>>>(
                     d_dgates_zr, d_W_hh_zr, d_dh_from_gates, batch, H, 2 * H);
                 Kernels::GPU::elementwise_kernel<<<(total + bk - 1) / bk, bk>>>(

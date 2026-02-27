@@ -324,15 +324,17 @@ namespace CppNet
 
                 // dW_ih_t = x_t^T * dtanh, then accumulate
                 dim3 block(32, 32);
+                int wsize = I * H;
+                cudaMemset(d_dW_ih_t, 0, wsize * sizeof(float));
                 dim3 grid_w((H + 31) / 32, (I + 31) / 32);
                 Kernels::GPU::matmul_grad_weights_kernel<<<grid_w, block>>>(d_x_t, d_dtanh, d_dW_ih_t, batch, I, H);
-                int wsize = I * H;
                 Kernels::GPU::elementwise_kernel<<<(wsize + 255) / 256, 256>>>(d_dW_ih, d_dW_ih_t, d_dW_ih, wsize, 0, 0);
 
                 // dW_hh_t = h_prev^T * dtanh, then accumulate
+                int whsize = H * H;
+                cudaMemset(d_dW_hh_t, 0, whsize * sizeof(float));
                 dim3 grid_wh((H + 31) / 32, (H + 31) / 32);
                 Kernels::GPU::matmul_grad_weights_kernel<<<grid_wh, block>>>(d_h_prev, d_dtanh, d_dW_hh_t, batch, H, H);
-                int whsize = H * H;
                 Kernels::GPU::elementwise_kernel<<<(whsize + 255) / 256, 256>>>(d_dW_hh, d_dW_hh_t, d_dW_hh, whsize, 0, 0);
 
                 // dbias += sum(dtanh, axis=0)
@@ -340,6 +342,7 @@ namespace CppNet
 
                 // dx = dtanh * W_ih^T
                 dim3 grid_dx((I + 31) / 32, (batch + 31) / 32);
+                cudaMemset(d_dx, 0, batch * I * sizeof(float));
                 Kernels::GPU::matmul_grad_input_kernel<<<grid_dx, block>>>(d_dtanh, d_W_ih, d_dx, batch, I, H);
                 Eigen::Tensor<float, 2> dx(batch, I);
                 cudaMemcpy(dx.data(), d_dx, batch * I * sizeof(float), cudaMemcpyDeviceToHost);
@@ -349,6 +352,7 @@ namespace CppNet
 
                 // dh_next = dtanh * W_hh^T
                 dim3 grid_dh((H + 31) / 32, (batch + 31) / 32);
+                cudaMemset(d_dh_next, 0, batch * H * sizeof(float));
                 Kernels::GPU::matmul_grad_input_kernel<<<grid_dh, block>>>(d_dtanh, d_W_hh, d_dh_next, batch, H, H);
             }
 

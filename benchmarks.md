@@ -368,9 +368,9 @@ Each configuration uses: `RecurrentLayer(1, H, return_sequences=true) → extrac
 
 | Layer | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup |
 |-------|----------|-------------|-----------|-------------|
-| **RNN** | 0.99 s | 0.81 s | 0.40 s | **2.5×** |
-| **LSTM** | 3.46 s | 3.51 s | 0.99 s | **3.5×** |
-| **GRU** | 5.03 s | 4.94 s | 0.98 s | **5.1×** |
+| **RNN** | 0.87 s | 0.76 s | 0.40 s | **2.2×** |
+| **LSTM** | 2.70 s | 2.89 s | 0.79 s | **3.4×** |
+| **GRU** | 3.98 s | 3.92 s | 0.76 s | **5.2×** |
 
 #### Medium Config (H=128, seq=30, 3 epochs)
 
@@ -392,9 +392,9 @@ Each configuration uses: `RecurrentLayer(1, H, return_sequences=true) → extrac
 
 | Config/Layer | cpu vs cpu-eigen | gpu vs cpu-eigen |
 |---|---|---|
-| Small/RNN | 1.2× | 2.5× |
-| Small/LSTM | 1.0× | 3.5× |
-| Small/GRU | 1.0× | 5.1× |
+| Small/RNN | 1.1× | 2.2× |
+| Small/LSTM | 0.9× | 3.4× |
+| Small/GRU | 1.0× | 5.2× |
 | Medium/RNN | 0.9× | 4.7× |
 | Medium/LSTM | 1.0× | 7.3× |
 | Medium/GRU | 1.0× | 15.5× |
@@ -416,8 +416,9 @@ Each configuration uses: `RecurrentLayer(1, H, return_sequences=true) → extrac
    sequential timestep structure of RNNs limits OpenMP parallelism. The cpu and cpu-eigen
    backends perform nearly identically across all configs.
 
-4. **GPU loss differs from CPU**: The GPU path produces slightly different final losses due to
-   floating-point ordering differences in parallel reductions, but the model still converges.
+4. **GPU loss matches CPU closely**: After fixing CUDA gradient buffer initialization
+   (zeroing `atomicAdd`-based output buffers before each kernel call), the GPU path
+   produces final losses in the same range as both CPU backends.
 
 5. **CUDA kernels for recurrent layers**: New cell-level CUDA kernels handle element-wise gate
    activations (sigmoid, tanh, gate mixing), while existing `matmul_kernel` and
