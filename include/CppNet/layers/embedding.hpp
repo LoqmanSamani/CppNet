@@ -17,6 +17,10 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <string>
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace CppNet
 {
     namespace Layers
@@ -77,6 +81,12 @@ namespace CppNet
 
             // Cache input indices for backward scatter
             Eigen::Tensor<int, 2> input_cache_;
+
+#ifdef USE_CUDA
+            void forward_gpu(const Eigen::Tensor<int, 2>& input,
+                             Eigen::Tensor<float, 3>& output);
+            void backward_gpu(const Eigen::Tensor<float, 3>& grad_output);
+#endif
         };
     }
 }

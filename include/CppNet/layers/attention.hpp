@@ -12,6 +12,10 @@
 #include <string>
 #include <vector>
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace CppNet
 {
     namespace Layers
@@ -80,6 +84,15 @@ namespace CppNet
             Eigen::Tensor<float, 3> key_cache_;
             Eigen::Tensor<float, 3> value_cache_;
             Eigen::Tensor<float, 3> attention_weights_cache_;
+
+#ifdef USE_CUDA
+            void forward_gpu(const Eigen::Tensor<float, 3>& query,
+                             const Eigen::Tensor<float, 3>& key,
+                             const Eigen::Tensor<float, 3>& value,
+                             Eigen::Tensor<float, 3>& output);
+            void backward_gpu(const Eigen::Tensor<float, 3>& grad_output,
+                              Eigen::Tensor<float, 3>& grad_input);
+#endif
         };
     }
 }

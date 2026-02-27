@@ -93,6 +93,9 @@ set(GPU_SOURCES
     src/CppNet/kernels/gpu/rnn_cell.cu
     src/CppNet/kernels/gpu/lstm_cell.cu
     src/CppNet/kernels/gpu/gru_cell.cu
+    src/CppNet/kernels/gpu/embedding_forward.cu
+    src/CppNet/kernels/gpu/embedding_backward.cu
+    src/CppNet/kernels/gpu/attention_scores.cu
 )
 
 set(CPP_NET_SOURCES ${CPU_SOURCES})
@@ -114,6 +117,8 @@ if(USE_CUDA)
         src/CppNet/layers/gru.cpp
         src/CppNet/optimizers/sgd.cpp
         src/CppNet/activations/relu.cpp
+        src/CppNet/layers/embedding.cpp
+        src/CppNet/layers/attention.cpp
         PROPERTIES
             LANGUAGE CUDA
     )

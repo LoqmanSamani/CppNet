@@ -123,6 +123,29 @@ namespace CppNet
                 const float* dn_raw, float* dgates,
                 int batch, int hidden);
 
+            // ── Embedding kernels ───────────────────────────────────
+            __global__ void embedding_forward_kernel(
+                const int* input, const float* weight, float* output,
+                int batch_seq, int embed_dim);
+
+            __global__ void embedding_backward_kernel(
+                const int* input, const float* grad_output,
+                float* grad_weight,
+                int batch_seq, int embed_dim);
+
+            // ── Attention kernels ───────────────────────────────────
+            __global__ void attention_scale_kernel(
+                float* scores, float scale, int total);
+
+            __global__ void attention_softmax_forward_kernel(
+                const float* scores, float* output,
+                int rows, int cols);
+
+            __global__ void attention_softmax_backward_kernel(
+                const float* grad_attn, const float* attn,
+                float* grad_scores,
+                int rows, int cols);
+
         }
     }
 }
