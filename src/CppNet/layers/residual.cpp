@@ -31,7 +31,6 @@ namespace CppNet
             if (block_.empty())
                 throw std::invalid_argument("Residual: block must contain at least one layer");
 
-            // Create a projection shortcut if dimensions differ
             if (in_features_ != out_features_)
             {
                 projection_ = std::make_shared<Linear>(
@@ -72,14 +71,14 @@ namespace CppNet
             {
                 result = out + shortcut;
             }
-#ifdef USE_CUDA
+            #ifdef USE_CUDA
             else if (device_ == "gpu")
             {
                 int N = rows * cols;
                 Kernels::GPU::elementwise_gpu(
                     out.data(), shortcut.data(), result.data(), N, /*op=add*/0);
             }
-#endif
+            #endif
             else // "cpu" — OpenMP
             {
                 int N = rows * cols;
@@ -109,7 +108,7 @@ namespace CppNet
             else
                 grad_shortcut = grad_output;
 
-            // Sum gradients from both paths
+            // sum gradients from both paths
             int rows = grad_block.dimension(0);
             int cols = grad_block.dimension(1);
             Eigen::Tensor<float, 2> grad_input(rows, cols);
@@ -118,14 +117,14 @@ namespace CppNet
             {
                 grad_input = grad_block + grad_shortcut;
             }
-#ifdef USE_CUDA
+            #ifdef USE_CUDA
             else if (device_ == "gpu")
             {
                 int N = rows * cols;
                 Kernels::GPU::elementwise_gpu(
                     grad_block.data(), grad_shortcut.data(), grad_input.data(), N, /*op=add*/0);
             }
-#endif
+            #endif
             else // "cpu" — OpenMP
             {
                 int N = rows * cols;

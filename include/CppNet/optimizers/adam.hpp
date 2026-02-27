@@ -42,8 +42,6 @@ namespace CppNet
             float beta2_;
             float epsilon_;
             int t_ = 0;  // timestep counter
-
-            // Per-pointer state for generic update()
             std::unordered_map<void*, std::vector<float>> m_params_;
             std::unordered_map<void*, std::vector<float>> v_params_;
             std::unordered_map<void*, int> t_params_;

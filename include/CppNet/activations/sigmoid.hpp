@@ -4,7 +4,6 @@
 #include "CppNet/activations/activation.hpp"
 #include <unsupported/Eigen/CXX11/Tensor>
 
-// header file for Sigmoid activation function implementation
 
 namespace CppNet
 {

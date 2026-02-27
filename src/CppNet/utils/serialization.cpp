@@ -23,10 +23,6 @@ namespace CppNet
 {
     namespace Utils
     {
-        // =============================================================
-        //  Low-level tensor I/O helpers
-        // =============================================================
-
         void save_tensor(const std::string& path, const Eigen::Tensor<float, 2>& tensor)
         {
             std::ofstream ofs(path, std::ios::binary);
@@ -94,10 +90,6 @@ namespace CppNet
             return tensor;
         }
 
-        // =============================================================
-        //  Internal: write/read a single tensor to an already-open stream
-        // =============================================================
-
         static void write_tensor_2d(std::ofstream& ofs, const Eigen::Tensor<float, 2>& t)
         {
             int32_t ndims = 2;
@@ -149,16 +141,11 @@ namespace CppNet
             return t;
         }
 
-        // =============================================================
-        //  Model-level save / load
-        // =============================================================
-
         void save_model(const std::string& path, const Models::SequentialModel& model)
         {
             std::ofstream ofs(path, std::ios::binary);
             if (!ofs) throw std::runtime_error("Cannot open file for writing: " + path);
 
-            // Write a small header: magic + layer count
             int32_t magic = 0x434E4554; // "CNET"
             int32_t nlayers = static_cast<int32_t>(model.num_layers());
             ofs.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
@@ -169,11 +156,10 @@ namespace CppNet
                 auto layer = model.get_layer(i);
                 if (!layer->is_trainable()) continue;
 
-                // Try dynamic_cast to known trainable layer types
                 auto* linear = dynamic_cast<Layers::Linear*>(layer.get());
                 if (linear)
                 {
-                    int32_t type_id = 1; // Linear
+                    int32_t type_id = 1;
                     ofs.write(reinterpret_cast<const char*>(&type_id), sizeof(type_id));
                     write_tensor_2d(ofs, linear->get_weights());
                     if (linear->has_bias())
@@ -184,7 +170,7 @@ namespace CppNet
                 auto* bn = dynamic_cast<Layers::BatchNorm*>(layer.get());
                 if (bn)
                 {
-                    int32_t type_id = 2; // BatchNorm
+                    int32_t type_id = 2; 
                     ofs.write(reinterpret_cast<const char*>(&type_id), sizeof(type_id));
                     write_tensor_1d(ofs, bn->get_gamma());
                     write_tensor_1d(ofs, bn->get_beta());
@@ -196,13 +182,12 @@ namespace CppNet
                 auto* emb = dynamic_cast<Layers::Embedding*>(layer.get());
                 if (emb)
                 {
-                    int32_t type_id = 3; // Embedding
+                    int32_t type_id = 3; 
                     ofs.write(reinterpret_cast<const char*>(&type_id), sizeof(type_id));
                     write_tensor_2d(ofs, emb->get_weight());
                     continue;
                 }
 
-                // Generic fallback: skip with type_id 0
                 int32_t type_id = 0;
                 ofs.write(reinterpret_cast<const char*>(&type_id), sizeof(type_id));
             }
@@ -222,7 +207,6 @@ namespace CppNet
             std::size_t layer_idx = 0;
             for (std::size_t i = 0; i < static_cast<std::size_t>(nlayers); ++i)
             {
-                // Find next trainable layer
                 while (layer_idx < model.num_layers() &&
                        !model.get_layer(layer_idx)->is_trainable())
                     ++layer_idx;
@@ -234,7 +218,7 @@ namespace CppNet
                 int32_t type_id;
                 ifs.read(reinterpret_cast<char*>(&type_id), sizeof(type_id));
 
-                if (type_id == 1) // Linear
+                if (type_id == 1) 
                 {
                     auto* linear = dynamic_cast<Layers::Linear*>(layer.get());
                     if (!linear)
@@ -244,7 +228,7 @@ namespace CppNet
                     if (linear->has_bias())
                         linear->set_biases(read_tensor_1d(ifs));
                 }
-                else if (type_id == 2) // BatchNorm
+                else if (type_id == 2)
                 {
                     auto* bn = dynamic_cast<Layers::BatchNorm*>(layer.get());
                     if (!bn)
@@ -252,13 +236,12 @@ namespace CppNet
                                                  std::to_string(layer_idx));
                     bn->get_gamma() = read_tensor_1d(ifs);
                     bn->get_beta() = read_tensor_1d(ifs);
-                    // Read running stats (non-const access via const_cast)
                     auto running_mean = read_tensor_1d(ifs);
                     auto running_var = read_tensor_1d(ifs);
                     bn->set_running_mean(running_mean);
                     bn->set_running_var(running_var);
                 }
-                else if (type_id == 3) // Embedding
+                else if (type_id == 3)
                 {
                     auto* emb = dynamic_cast<Layers::Embedding*>(layer.get());
                     if (!emb)
@@ -266,10 +249,7 @@ namespace CppNet
                                                  std::to_string(layer_idx));
                     emb->set_weight(read_tensor_2d(ifs));
                 }
-                else if (type_id == 0)
-                {
-                    // Generic / skipped layer — nothing to read
-                }
+                else if (type_id == 0) {}
 
                 ++layer_idx;
             }

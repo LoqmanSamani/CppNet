@@ -27,10 +27,6 @@ namespace CppNet
 {
     namespace Layers
     {
-        // ────────────────────────────────────────────────────────────────
-        //  Construction / destruction
-        // ────────────────────────────────────────────────────────────────
-
         Linear::Linear(int in_size, int out_size,
                        std::string layer_name, bool trainable, bool bias,
                        std::string device, std::string weight_init)

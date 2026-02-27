@@ -13,10 +13,6 @@ namespace CppNet
 {
     namespace Schedulers
     {
-        // =============================================================
-        //  StepLR
-        // =============================================================
-
         StepLR::StepLR(float initial_lr, int step_size, float gamma)
             : LRScheduler(initial_lr), step_size_(step_size), gamma_(gamma) {}
 
@@ -27,10 +23,6 @@ namespace CppNet
             return current_lr_;
         }
 
-        // =============================================================
-        //  ExponentialLR
-        // =============================================================
-
         ExponentialLR::ExponentialLR(float initial_lr, float gamma)
             : LRScheduler(initial_lr), gamma_(gamma) {}
 
@@ -40,10 +32,6 @@ namespace CppNet
             current_lr_ = initial_lr_ * std::pow(gamma_, static_cast<float>(epoch_));
             return current_lr_;
         }
-
-        // =============================================================
-        //  CosineAnnealingLR
-        // =============================================================
 
         CosineAnnealingLR::CosineAnnealingLR(float initial_lr, int T_max, float eta_min)
             : LRScheduler(initial_lr), T_max_(T_max), eta_min_(eta_min) {}

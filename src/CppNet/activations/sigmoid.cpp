@@ -3,16 +3,12 @@
 #include "CppNet/activations/sigmoid.hpp"
 
 
-// Sigmoid activation function implementation with OpenMP parallelization and gpu suppoet 
-
 namespace CppNet
 {
     namespace Activations
     {
-        /*****************************Sigmoid Activation Function *****************************/
         Sigmoid::Sigmoid(){}
         
-        // helper method to set number of threads
         void Sigmoid::set_num_threads(int num_threads) 
         {
             if (num_threads > 0) 
@@ -34,13 +30,11 @@ namespace CppNet
             output_cache_2d_ = Eigen::Tensor<float, 2>(rows, cols);
             output_cache_2d_.setZero();
 
-            // compute sigmoid using element-wise operations and parallelization
             #pragma omp parallel for collapse(2) schedule(static)
             for (int i = 0; i < rows; ++i)
             {
                 for (int j = 0; j < cols; ++j) 
                 {
-                    // clamp input to prevent overflow/underflow
                     float clamped_input = std::max(-500.0f, std::min(500.0f, pre_activation(i, j)));
                     output_cache_2d_(i, j) = 1.0f / (1.0f + std::exp(-clamped_input));
                 }
@@ -66,8 +60,6 @@ namespace CppNet
             output_cache_4d_ = Eigen::Tensor<float, 4>(batch, channels, height, width);
             output_cache_4d_.setZero();
             
-            // compute sigmoid using element-wise operations and parallelization
-            // collapse all 4 dimensions for maximum parallelization
             #pragma omp parallel for collapse(4) schedule(static)
             for (int b = 0; b < batch; ++b)
             {
@@ -77,7 +69,6 @@ namespace CppNet
                     {
                         for (int w = 0; w < width; ++w)
                         {
-                            // clamp input to prevent overflow/underflow
                             float clamped_input = std::max(-500.0f, std::min(500.0f, pre_activation(b, c, h, w)));
                             output_cache_4d_(b, c, h, w) = 1.0f / (1.0f + std::exp(-clamped_input));
                         }
@@ -102,7 +93,6 @@ namespace CppNet
             Eigen::Tensor<float, 2> grad_input(rows, cols);
             grad_input.setZero();  
 
-            // compute gradient using element-wise operations and parallelization
             #pragma omp parallel for collapse(2) schedule(static)
                 for (int i = 0; i < rows; ++i) 
                 {
@@ -135,8 +125,6 @@ namespace CppNet
             Eigen::Tensor<float, 4> grad_input(batch, channels, height, width);
             grad_input.setZero();
             
-            // compute gradient using element-wise operations and parallelization
-            // collapse all 4 dimensions for maximum parallelization
             #pragma omp parallel for collapse(4) schedule(static)
             for (int b = 0; b < batch; ++b)
             {

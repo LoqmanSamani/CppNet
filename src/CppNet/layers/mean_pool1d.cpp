@@ -99,7 +99,7 @@ namespace CppNet
             if (device_ == "cpu-eigen")
             {
                 float inv_S = 1.0f / static_cast<float>(S);
-                // Broadcast grad_output to [B, S, D]
+                // broadcast grad_output to [B, S, D]
                 for (int b = 0; b < B; ++b)
                     for (int s = 0; s < S; ++s)
                         for (int d = 0; d < D; ++d)
@@ -139,7 +139,6 @@ namespace CppNet
                 #pragma omp parallel for schedule(static)
                 for (int i = 0; i < total; ++i)
                 {
-                    // ColMajor 3D: idx = b + s*B + d*B*S
                     int d = i / (B * S);
                     int rem = i % (B * S);
                     int s = rem / B;

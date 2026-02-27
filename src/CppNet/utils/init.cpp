@@ -20,7 +20,6 @@ namespace CppNet
 
         Eigen::Tensor<float, 2> xavier_uniform(int rows, int cols)
         {
-            // Glorot uniform: U[-limit, limit] where limit = sqrt(6 / (fan_in + fan_out))
             float limit = std::sqrt(6.0f / static_cast<float>(rows + cols));
             std::uniform_real_distribution<float> dist(-limit, limit);
 
@@ -35,7 +34,6 @@ namespace CppNet
 
         Eigen::Tensor<float, 2> xavier_normal(int rows, int cols)
         {
-            // Glorot normal: N(0, sqrt(2 / (fan_in + fan_out)))
             float stddev = std::sqrt(2.0f / static_cast<float>(rows + cols));
             std::normal_distribution<float> dist(0.0f, stddev);
 
@@ -50,7 +48,6 @@ namespace CppNet
 
         Eigen::Tensor<float, 2> he_uniform(int rows, int cols)
         {
-            // Kaiming uniform: U[-limit, limit] where limit = sqrt(6 / fan_in)
             float limit = std::sqrt(6.0f / static_cast<float>(rows));
             std::uniform_real_distribution<float> dist(-limit, limit);
 
@@ -65,7 +62,6 @@ namespace CppNet
 
         Eigen::Tensor<float, 2> he_normal(int rows, int cols)
         {
-            // Kaiming normal: N(0, sqrt(2 / fan_in))
             float stddev = std::sqrt(2.0f / static_cast<float>(rows));
             std::normal_distribution<float> dist(0.0f, stddev);
 

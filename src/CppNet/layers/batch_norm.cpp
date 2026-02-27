@@ -69,7 +69,7 @@ namespace CppNet
 
             if (training_)
             {
-                // Compute batch mean
+                // compute batch mean
                 batch_mean_.setZero();
                 for (int n = 0; n < batch; ++n)
                     for (int f = 0; f < features; ++f)
@@ -78,7 +78,7 @@ namespace CppNet
                 for (int f = 0; f < features; ++f)
                     batch_mean_(f) *= inv_batch;
 
-                // Compute batch variance
+                // compute batch variance
                 batch_var_.setZero();
                 for (int n = 0; n < batch; ++n)
                     for (int f = 0; f < features; ++f)
@@ -89,7 +89,7 @@ namespace CppNet
                 for (int f = 0; f < features; ++f)
                     batch_var_(f) *= inv_batch;
 
-                // Normalize
+                // normalize
                 for (int n = 0; n < batch; ++n)
                     for (int f = 0; f < features; ++f)
                     {
@@ -98,7 +98,7 @@ namespace CppNet
                         output(n, f) = gamma_(f) * x_hat_(n, f) + beta_(f);
                     }
 
-                // Update running statistics (EMA)
+                // update running statistics (EMA)
                 for (int f = 0; f < features; ++f)
                 {
                     running_mean_(f) = (1.0f - momentum_) * running_mean_(f) +
@@ -109,7 +109,7 @@ namespace CppNet
             }
             else
             {
-                // Inference mode: use running statistics
+                // inference mode: use running statistics
                 for (int n = 0; n < batch; ++n)
                     for (int f = 0; f < features; ++f)
                     {
@@ -141,7 +141,7 @@ namespace CppNet
                     grad_beta_(f) += grad_output(n, f);
                 }
 
-            // Backprop through normalization
+            // backprop through normalization
             Eigen::Tensor<float, 2> grad_input(batch, features);
 
             for (int f = 0; f < features; ++f)
@@ -161,7 +161,7 @@ namespace CppNet
                     dmean += dx_hat * (-inv_std);
                 }
 
-                // Second pass: compute grad_input
+                // second pass: compute grad_input
                 for (int n = 0; n < batch; ++n)
                 {
                     float dx_hat = grad_output(n, f) * gamma_(f);

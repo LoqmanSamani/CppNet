@@ -36,12 +36,10 @@ namespace CppNet
             #endif
             for (int i = 0; i < batch; ++i)
             {
-                // Find max for numerical stability
                 float max_val = pre_activation(i, 0);
                 for (int j = 1; j < features; ++j)
                     max_val = std::max(max_val, pre_activation(i, j));
 
-                // Compute exp(x - max) and sum
                 float sum = 0.0f;
                 for (int j = 0; j < features; ++j)
                 {
@@ -49,7 +47,6 @@ namespace CppNet
                     sum += output_cache_2d_(i, j);
                 }
 
-                // Normalize
                 for (int j = 0; j < features; ++j)
                     output_cache_2d_(i, j) /= sum;
             }
@@ -59,9 +56,6 @@ namespace CppNet
 
         Eigen::Tensor<float, 2> Softmax::backward(const Eigen::Tensor<float, 2>& grad_output)
         {
-            // For softmax: dL/dx_i = sum_j(dL/dy_j * dy_j/dx_i)
-            // dy_j/dx_i = y_i * (delta_ij - y_j)
-            // Simplified: dL/dx = y * (dL/dy - sum_j(dL/dy_j * y_j))
             int batch = grad_output.dimension(0);
             int features = grad_output.dimension(1);
 
@@ -85,7 +79,6 @@ namespace CppNet
 
         Eigen::Tensor<float, 4> Softmax::forward(const Eigen::Tensor<float, 4>& pre_activation)
         {
-            // Apply softmax along the last dimension (axis 3)
             int d0 = pre_activation.dimension(0);
             int d1 = pre_activation.dimension(1);
             int d2 = pre_activation.dimension(2);

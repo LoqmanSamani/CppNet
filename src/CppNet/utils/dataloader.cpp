@@ -31,14 +31,14 @@ namespace CppNet
             if (batch_size_ <= 0)
                 throw std::invalid_argument("DataLoader: batch_size must be > 0");
 
-            // Compute number of batches
+            // compute number of batches
             if (drop_last_)
                 num_batches_ = static_cast<std::size_t>(num_samples_ / batch_size_);
             else
                 num_batches_ = static_cast<std::size_t>(
                     (num_samples_ + batch_size_ - 1) / batch_size_);
 
-            // Initialize index vector
+            // initialize index vector
             indices_.resize(num_samples_);
             for (int i = 0; i < num_samples_; ++i)
                 indices_[i] = i;

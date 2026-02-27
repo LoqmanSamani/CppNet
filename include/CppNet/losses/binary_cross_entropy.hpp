@@ -30,7 +30,6 @@ namespace CppNet
                 std::string reduction_; // "mean", "sum", or "none"
                 bool from_logits_; // whether predictions are logits or probabilities
                 float pos_weight_; // weight for positive examples
-                // helper function to validate inputs
                 void validate_inputs(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets);   
         };
     }

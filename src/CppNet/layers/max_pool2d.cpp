@@ -130,8 +130,6 @@ namespace CppNet
             return grad_input;
         }
 
-        // ─── GPU forward/backward ─────────────────────────────────────
-
         void MaxPool2D::forward_gpu(
             [[maybe_unused]] const Eigen::Tensor<float, 4>& input,
             [[maybe_unused]] Eigen::Tensor<float, 4>& output,

@@ -29,7 +29,6 @@ namespace CppNet
 
             __global__ void relu_grad_kernel(const float* __restrict__ dA, const float* __restrict__ Z, float* __restrict__ dZ, int total_elements);
 
-            // ── Conv2D kernels ──────────────────────────────────────
             __global__ void conv2d_forward_kernel(
                 const float* input, const float* weights, const float* bias,
                 float* output,
@@ -49,7 +48,6 @@ namespace CppNet
                 int H_out, int W_out,
                 bool use_bias);
 
-            // ── MaxPool2D kernels ───────────────────────────────────
             __global__ void maxpool2d_forward_kernel(
                 const float* input, float* output, int* max_indices,
                 int N, int C, int H, int W,
@@ -63,7 +61,6 @@ namespace CppNet
                 int pool_size, int stride,
                 int H_out, int W_out);
 
-            // ── RNN cell kernels ────────────────────────────────────
             __global__ void rnn_tanh_forward_kernel(
                 const float* pre_ih, const float* pre_hh,
                 const float* bias, float* h_t,
@@ -74,7 +71,6 @@ namespace CppNet
                 const float* h_t, float* dtanh,
                 int total, int hidden);
 
-            // ── LSTM cell kernels ───────────────────────────────────
             __global__ void lstm_gates_forward_kernel(
                 const float* pre_ih, const float* pre_hh,
                 const float* bias, const float* c_prev,
@@ -91,7 +87,6 @@ namespace CppNet
                 float* dgates, float* dc_out,
                 int batch, int hidden);
 
-            // ── GRU cell kernels ────────────────────────────────────
             __global__ void gru_zr_forward_kernel(
                 const float* x_gates, const float* h_gates,
                 const float* bias, const float* h_prev,
@@ -123,10 +118,8 @@ namespace CppNet
                 const float* dn_raw, float* dgates,
                 int batch, int hidden);
 
-            // ── Elementwise host wrapper ────────────────────────────
             void elementwise_gpu(const float* A, const float* B, float* C, int N, int op);
 
-            // ── Embedding kernels ───────────────────────────────────
             __global__ void embedding_forward_kernel(
                 const int* input, const float* weight, float* output,
                 int batch, int seq_len, int embed_dim, int vocab_size);
@@ -136,7 +129,6 @@ namespace CppNet
                 float* grad_weight,
                 int batch, int seq_len, int embed_dim, int vocab_size);
 
-            // ── Attention kernels ───────────────────────────────────
             __global__ void attention_scale_kernel(
                 float* scores, float scale, int total);
 
@@ -149,7 +141,6 @@ namespace CppNet
                 float* grad_scores,
                 int rows, int cols);
 
-            // ── MeanPool1D kernels ──────────────────────────────────
             __global__ void mean_pool1d_forward_kernel(
                 const float* input, float* output,
                 int B, int S, int D);

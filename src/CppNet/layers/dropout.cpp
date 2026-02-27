@@ -24,8 +24,6 @@ namespace CppNet
 
         Dropout::~Dropout() = default;
 
-        // ---------- 2D forward / backward ----------
-
         Eigen::Tensor<float, 2> Dropout::forward(
             const Eigen::Tensor<float, 2>& input)
         {
@@ -65,8 +63,6 @@ namespace CppNet
 
             return grad_input;
         }
-
-        // ---------- 4D forward / backward ----------
 
         Eigen::Tensor<float, 4> Dropout::forward(
             const Eigen::Tensor<float, 4>& input)

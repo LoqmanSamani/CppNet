@@ -24,21 +24,9 @@ namespace CppNet
         public:
             virtual ~Loss() = default;
 
-            /**
-             * @brief Compute the loss value
-             * @param predictions Model output [batch, features]
-             * @param targets Ground truth [batch, features]
-             * @return Scalar loss value
-             */
             virtual float forward(const Eigen::Tensor<float, 2>& predictions,
                                   const Eigen::Tensor<float, 2>& targets) = 0;
 
-            /**
-             * @brief Compute the gradient of the loss w.r.t. predictions
-             * @param predictions Model output [batch, features]
-             * @param targets Ground truth [batch, features]
-             * @return Gradient tensor [batch, features]
-             */
             virtual Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& predictions,
                                                       const Eigen::Tensor<float, 2>& targets) = 0;
         };

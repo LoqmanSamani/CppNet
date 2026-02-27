@@ -74,7 +74,7 @@ namespace CppNet
             if (softmax_cache_.dimension(0) != batch ||
                 softmax_cache_.dimension(1) != classes)
             {
-                forward(logits, targets);  // populate cache
+                forward(logits, targets);
             }
 
             Eigen::Tensor<float, 2> grad(batch, classes);

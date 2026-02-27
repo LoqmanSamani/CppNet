@@ -28,10 +28,9 @@ namespace CppNet
             std::vector<std::vector<float>> rows;
             std::string line;
 
-            // Skip header if present
             if (has_header && std::getline(file, line))
             {
-                // header line consumed
+                // skip header
             }
 
             while (std::getline(file, line))
@@ -64,7 +63,7 @@ namespace CppNet
             int num_samples = static_cast<int>(rows.size());
             int num_cols = static_cast<int>(rows[0].size());
 
-            // Resolve label column (-1 means last)
+            // resolve label column (-1 means last)
             if (label_col < 0)
                 label_col = num_cols + label_col;
 
@@ -134,13 +133,13 @@ namespace CppNet
 
             for (int j = 0; j < cols; ++j)
             {
-                // Compute column mean
+                // compute column mean
                 float sum = 0.0f;
                 for (int i = 0; i < rows; ++i)
                     sum += data(i, j);
                 float mean = sum / static_cast<float>(rows);
 
-                // Compute column std
+                // compute column std
                 float sq_sum = 0.0f;
                 for (int i = 0; i < rows; ++i)
                 {
@@ -149,7 +148,7 @@ namespace CppNet
                 }
                 float stddev = std::sqrt(sq_sum / static_cast<float>(rows));
 
-                // Avoid division by zero
+                // avoid division by zero
                 if (stddev < 1e-8f)
                     stddev = 1e-8f;
 
@@ -201,7 +200,7 @@ namespace CppNet
             int num_features = data.dimension(1);
             int num_label_cols = labels.dimension(1);
 
-            // Create index permutation
+            // create index permutation
             std::vector<int> indices(num_samples);
             std::iota(indices.begin(), indices.end(), 0);
 
@@ -213,7 +212,7 @@ namespace CppNet
 
             std::shuffle(indices.begin(), indices.end(), rng);
 
-            // Apply permutation
+            // apply permutation
             Eigen::Tensor<float, 2> shuffled_data(num_samples, num_features);
             Eigen::Tensor<float, 2> shuffled_labels(num_samples, num_label_cols);
 

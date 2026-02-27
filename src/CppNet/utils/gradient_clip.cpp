@@ -11,10 +11,6 @@ namespace CppNet
 {
     namespace Utils
     {
-        // ---------------------------------------------------------------
-        //  clip_by_value
-        // ---------------------------------------------------------------
-
         void clip_by_value(Eigen::Tensor<float, 2>& tensor, float max_val)
         {
             float neg = -max_val;
@@ -39,16 +35,11 @@ namespace CppNet
             }
         }
 
-        // ---------------------------------------------------------------
-        //  clip_by_norm
-        // ---------------------------------------------------------------
-
         float clip_by_norm(Eigen::Tensor<float, 2>& tensor, float max_norm)
         {
             int rows = tensor.dimension(0);
             int cols = tensor.dimension(1);
 
-            // Compute L2 norm
             float norm_sq = 0.0f;
             for (int i = 0; i < rows; ++i)
                 for (int j = 0; j < cols; ++j)

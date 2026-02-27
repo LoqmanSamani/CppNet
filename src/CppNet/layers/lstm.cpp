@@ -26,7 +26,6 @@ namespace CppNet
 {
     namespace Layers
     {
-        // Helpers
         static inline float sigmoid(float x)
         {
             return 1.0f / (1.0f + std::exp(-x));
@@ -39,7 +38,7 @@ namespace CppNet
         {
             int gate4 = 4 * hidden_size_;
 
-            // Xavier uniform with per-gate fan_out = hidden_size_
+            // xavier uniform with per-gate fan_out = hidden_size_
             float limit_ih = std::sqrt(6.0f / static_cast<float>(input_size_ + hidden_size_));
             float limit_hh = std::sqrt(6.0f / static_cast<float>(hidden_size_ + hidden_size_));
 
@@ -48,7 +47,6 @@ namespace CppNet
             bias_.resize(gate4);
             bias_.setZero();
 
-            // Forget-gate bias trick: initialize to 1 so forget gate starts open
             for (int d = hidden_size_; d < 2 * hidden_size_; ++d)
                 bias_(d) = 1.0f;
 
@@ -70,7 +68,6 @@ namespace CppNet
             int batch = input.dimension(0);
             int seq_len = input.dimension(1);
 
-            // Initialize h0, c0
             h0_.resize(batch, hidden_size_);
             c0_.resize(batch, hidden_size_);
             h0_.setZero();
@@ -98,7 +95,6 @@ namespace CppNet
 
             for (int t = 0; t < seq_len; ++t)
             {
-                // Extract x_t [batch, input_size]
                 Eigen::Tensor<float, 2> x_t(batch, input_size_);
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < input_size_; ++d)
@@ -108,7 +104,6 @@ namespace CppNet
                 Eigen::Tensor<float, 2> gates = x_t.contract(W_ih_, contract_dims) +
                                                   h_prev.contract(W_hh_, contract_dims);
 
-                // Add bias and apply activations
                 Eigen::Tensor<float, 2> i_gate(batch, hidden_size_);
                 Eigen::Tensor<float, 2> f_gate(batch, hidden_size_);
                 Eigen::Tensor<float, 2> g_gate(batch, hidden_size_);
@@ -138,7 +133,6 @@ namespace CppNet
                     }
                 }
 
-                // Cache for backward
                 caches_[t].i_gate = i_gate;
                 caches_[t].f_gate = f_gate;
                 caches_[t].g_gate = g_gate;
@@ -200,7 +194,6 @@ namespace CppNet
                                    (1.0f - cache.tanh_c(n, d) * cache.tanh_c(n, d)) +
                                    dc_next(n, d);
 
-                // Gate gradients (pre-activation)
                 Eigen::Tensor<float, 2> dgates(batch, gate4);
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < hidden_size_; ++d)
@@ -225,7 +218,6 @@ namespace CppNet
                         dgates(n, d + 3 * hidden_size_) = do_;
                     }
 
-                // Extract x_t and h_prev
                 Eigen::Tensor<float, 2> x_t(batch, input_size_);
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < input_size_; ++d)
@@ -233,12 +225,10 @@ namespace CppNet
 
                 Eigen::Tensor<float, 2> h_prev = (t > 0) ? caches_[t - 1].h_t : h0_;
 
-                // Accumulate weight gradients
                 Eigen::array<Eigen::IndexPair<int>, 1> contract_batch = {Eigen::IndexPair<int>(0, 0)};
                 grad_W_ih_ += x_t.contract(dgates, contract_batch);      // [input, 4H]
                 grad_W_hh_ += h_prev.contract(dgates, contract_batch);   // [hidden, 4H]
 
-                // Bias gradient
                 for (int g = 0; g < gate4; ++g)
                     for (int n = 0; n < batch; ++n)
                         grad_bias_(g) += dgates(n, g);
@@ -282,7 +272,7 @@ namespace CppNet
             grad_bias_.setZero();
         }
 
-#ifdef USE_CUDA
+        #ifdef USE_CUDA
         void LSTM::forward_gpu(const Eigen::Tensor<float, 3>& input,
                                Eigen::Tensor<float, 3>& output,
                                int batch, int seq_len)
@@ -334,7 +324,6 @@ namespace CppNet
                 // pre_hh = h_prev * W_hh  [batch, 4H]
                 Kernels::GPU::matmul_kernel<<<grid, block>>>(d_h_prev, d_W_hh, d_pre_hh, batch, gate4, H);
 
-                // Gate activations + cell/hidden update
                 int total = batch * H;
                 int bk = 256;
                 int gr = (total + bk - 1) / bk;
@@ -343,7 +332,6 @@ namespace CppNet
                     d_i, d_f, d_g, d_o, d_c_t, d_h_t, d_tanh_c,
                     batch, H);
 
-                // Copy caches to CPU
                 Eigen::Tensor<float, 2> buf(batch, H);
                 cudaMemcpy(buf.data(), d_i, batch * H * sizeof(float), cudaMemcpyDeviceToHost);
                 caches_[t].i_gate = buf;
@@ -430,31 +418,26 @@ namespace CppNet
             {
                 auto& cache = caches_[t];
 
-                // Upload grad_output slice
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < H; ++d)
                         grad_t(n, d) = grad_output(n, t, d);
                 cudaMemcpy(d_dh, grad_t.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
 
-                // Add dh_next to dh (in-place)
                 int total = batch * H;
                 int bk = 256;
                 Kernels::GPU::elementwise_kernel<<<(total + bk - 1) / bk, bk>>>(d_dh, d_dh_next, d_dh, total, 0, 0);
 
-                // Upload cached gate values
                 cudaMemcpy(d_i,      cache.i_gate.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
                 cudaMemcpy(d_f,      cache.f_gate.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
                 cudaMemcpy(d_g,      cache.g_gate.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
                 cudaMemcpy(d_o,      cache.o_gate.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
                 cudaMemcpy(d_tanh_c, cache.tanh_c.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
 
-                // Upload c_prev
                 if (t > 0)
                     cudaMemcpy(d_c_prev, caches_[t - 1].c_t.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
                 else
                     cudaMemset(d_c_prev, 0, batch * H * sizeof(float));
 
-                // Compute dgates and dc_out
                 Kernels::GPU::lstm_gates_backward_kernel<<<(total + bk - 1) / bk, bk>>>(
                     d_dh, d_dc_next, d_i, d_f, d_g, d_o, d_tanh_c, d_c_prev,
                     d_dgates_t, d_dc_out, batch, H);
@@ -462,7 +445,6 @@ namespace CppNet
                 // dc_next = dc_out for next iteration
                 cudaMemcpy(d_dc_next, d_dc_out, batch * H * sizeof(float), cudaMemcpyDeviceToDevice);
 
-                // Upload x_t and h_prev
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < I; ++d)
                         x_t(n, d) = input_cache_(n, t, d);
@@ -473,7 +455,6 @@ namespace CppNet
                 else
                     cudaMemset(d_h_prev, 0, batch * H * sizeof(float));
 
-                // Accumulate weight gradients
                 dim3 block(32, 32);
                 int ws = I * gate4;
                 cudaMemset(d_dW_ih_t, 0, ws * sizeof(float));
@@ -518,6 +499,6 @@ namespace CppNet
             cudaFree(d_dW_ih); cudaFree(d_dW_hh); cudaFree(d_dW_ih_t); cudaFree(d_dW_hh_t);
             cudaFree(d_dbias); cudaFree(d_dx);
         }
-#endif // USE_CUDA
+        #endif // USE_CUDA
     }
 }

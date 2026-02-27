@@ -24,14 +24,14 @@ namespace CppNet
             int batch = input_shape_[0];
             int flat_size = input_shape_[1] * input_shape_[2] * input_shape_[3];
 
-            // Reshape 4D -> 2D
+            // reshape 4D -> 2D
             Eigen::array<Eigen::Index, 2> dims = {batch, flat_size};
             return input.reshape(dims);
         }
 
         const Eigen::Tensor<float, 4> Flatten::backward(const Eigen::Tensor<float, 2>& grad_output)
         {
-            // Reshape 2D -> 4D back to original shape
+            // reshape 2D -> 4D back to original shape
             Eigen::array<Eigen::Index, 4> dims = {
                 input_shape_[0], input_shape_[1], input_shape_[2], input_shape_[3]
             };

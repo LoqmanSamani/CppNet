@@ -20,17 +20,14 @@ namespace CppNet
         
         void BinaryCrossEntropy::validate_inputs(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
         {
-            // check if tensors have the same dimensions
             if (predictions.dimension(0) != targets.dimension(0) || predictions.dimension(1) != targets.dimension(1))
             {
                 throw std::runtime_error("Shape mismatch: predictions and targets must have the same dimensions!");
             }
-            // check if tensors are not empty
             if (targets.size() == 0)
             {
                 throw std::runtime_error("Empty input: predictions and targets cannot be empty!");
             }
-            // validate binary labels (0 or 1) - parallelized validation
             bool valid_labels = true;
             const int rows = targets.dimension(0);
             const int cols = targets.dimension(1);
@@ -53,7 +50,6 @@ namespace CppNet
             }
         }
 
-        // helper method to set number of threads
         void BinaryCrossEntropy::set_num_threads(int num_threads) 
         {
             if (num_threads > 0) 
@@ -66,7 +62,6 @@ namespace CppNet
         {
             validate_inputs(predictions, targets);
             
-            // get dimensions
             const int rows = predictions.dimension(0);
             const int cols = predictions.dimension(1);
             const int total_size = rows * cols;
@@ -98,7 +93,6 @@ namespace CppNet
             }
             else // "none"
             {
-                // for "none", we return the mean as a placeholder since the return type is double
                 return total_loss / total_size;
             }
         }
@@ -106,16 +100,12 @@ namespace CppNet
         Eigen::Tensor<float, 2> BinaryCrossEntropy::backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets)
         {
             validate_inputs(predictions, targets);
-
-            // get dimensions
             const int rows = predictions.dimension(0);
             const int cols = predictions.dimension(1);
             const int total_size = rows * cols;
             
-            // create output gradient tensor
             Eigen::Tensor<float, 2> grad(rows, cols);
             
-            // parallelize gradient computation
             #pragma omp parallel for collapse(2)
             for (int i = 0; i < rows; ++i)
             {
@@ -132,7 +122,6 @@ namespace CppNet
                     {
                         grad_val /= total_size;
                     }
-                    // for "sum" and "none", no additional scaling needed
                     
                     grad(i, j) = grad_val;
                 }

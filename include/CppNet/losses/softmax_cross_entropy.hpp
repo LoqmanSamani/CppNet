@@ -49,8 +49,6 @@ namespace CppNet
 
         private:
             std::string reduction_;
-
-            /// Cached softmax output from forward (reused in backward)
             Eigen::Tensor<float, 2> softmax_cache_;
         };
     }

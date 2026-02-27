@@ -25,14 +25,10 @@ namespace CppNet
 {
     namespace Utils
     {
-        // =============================================================
-        //  Internal helpers
-        // =============================================================
 
         static void write_npy_header(std::ofstream& ofs,
                                      const std::vector<int>& shape)
         {
-            // Build the header dictionary
             std::ostringstream dict;
             dict << "{'descr': '<f4', 'fortran_order': False, 'shape': (";
             for (std::size_t i = 0; i < shape.size(); ++i)
@@ -44,9 +40,6 @@ namespace CppNet
             dict << "), }\n";
 
             std::string dict_str = dict.str();
-
-            // The total header size (magic + version + header_len + dict) must
-            // be aligned to 64 bytes.
             std::size_t preamble = 10;  // 6 magic + 1 major + 1 minor + 2 header_len
             std::size_t total = preamble + dict_str.size();
             std::size_t pad = (64 - (total % 64)) % 64;
@@ -54,26 +47,18 @@ namespace CppNet
 
             uint16_t header_len = static_cast<uint16_t>(dict_str.size());
 
-            // Write magic
             const char magic[] = "\x93NUMPY";
             ofs.write(magic, 6);
 
-            // Version 1.0
             uint8_t major = 1, minor = 0;
             ofs.write(reinterpret_cast<const char*>(&major), 1);
             ofs.write(reinterpret_cast<const char*>(&minor), 1);
-
-            // Header length (little-endian)
             ofs.write(reinterpret_cast<const char*>(&header_len), 2);
-
-            // Dictionary
             ofs.write(dict_str.data(), static_cast<std::streamsize>(dict_str.size()));
         }
 
-        /// Parse shape from .npy header and position the stream right after header
         static std::vector<int> read_npy_header(std::ifstream& ifs)
         {
-            // Read magic
             char magic[6];
             ifs.read(magic, 6);
             if (std::memcmp(magic, "\x93NUMPY", 6) != 0)
@@ -89,12 +74,10 @@ namespace CppNet
             std::string header(header_len, ' ');
             ifs.read(&header[0], header_len);
 
-            // Verify dtype is float32
             if (header.find("<f4") == std::string::npos &&
                 header.find("float32") == std::string::npos)
                 throw std::runtime_error("Only float32 (<f4) .npy files are supported");
 
-            // Parse shape tuple
             auto pos_start = header.find("'shape': (");
             if (pos_start == std::string::npos)
                 throw std::runtime_error("Malformed .npy header: missing shape");
@@ -102,13 +85,11 @@ namespace CppNet
             auto pos_end = header.find(')', pos_start);
 
             std::string shape_str = header.substr(pos_start, pos_end - pos_start);
-            // Remove trailing comma/spaces
             std::vector<int> shape;
             std::istringstream ss(shape_str);
             std::string token;
             while (std::getline(ss, token, ','))
             {
-                // trim
                 std::size_t s = token.find_first_not_of(" ");
                 std::size_t e = token.find_last_not_of(" ");
                 if (s == std::string::npos) continue;
@@ -117,10 +98,6 @@ namespace CppNet
 
             return shape;
         }
-
-        // =============================================================
-        //  Save
-        // =============================================================
 
         void save_npy(const std::string& path, const Eigen::Tensor<float, 1>& tensor)
         {
@@ -185,10 +162,6 @@ namespace CppNet
             ofs.write(reinterpret_cast<const char*>(tensor.data()),
                       static_cast<std::streamsize>(numel * sizeof(float)));
         }
-
-        // =============================================================
-        //  Load
-        // =============================================================
 
         Eigen::Tensor<float, 1> load_npy_1d(const std::string& path)
         {

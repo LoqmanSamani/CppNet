@@ -45,12 +45,12 @@ namespace CppNet
             if (!file.is_open())
                 return false;
 
-            // Collect all metric names
+            // collect all metric names
             auto names = get_metric_names();
             if (names.empty())
                 return false;
 
-            // Determine max epoch
+            // determine max epoch
             int max_epoch = 0;
             for (const auto& entry : history_)
             {
@@ -60,13 +60,13 @@ namespace CppNet
                 }
             }
 
-            // Write header
+            // write header
             file << "epoch";
             for (const auto& name : names)
                 file << "," << name;
             file << "\n";
 
-            // Write data rows
+            // write data rows
             for (int epoch = 0; epoch <= max_epoch; ++epoch)
             {
                 file << epoch;

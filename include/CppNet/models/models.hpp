@@ -213,9 +213,7 @@ namespace CppNet
             void summary() const;
 
         private:
-            /// Ordered list of all steps (layers and activations) for forward/backward
             std::vector<std::shared_ptr<detail::Step>> steps_;
-            /// Trainable layers only, for get_layer() and update()
             std::vector<std::shared_ptr<Layers::Layer>> layers_;
         };
     }

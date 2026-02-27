@@ -74,7 +74,7 @@ namespace CppNet
 
             for (int t = 0; t < seq_len; ++t)
             {
-                // Extract x_t: [batch, input_size]
+                // extract x_t: [batch, input_size]
                 Eigen::Tensor<float, 2> x_t(batch, input_size_);
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < input_size_; ++d)
@@ -138,7 +138,7 @@ namespace CppNet
                     for (int d = 0; d < hidden_size_; ++d)
                         dtanh(n, d) = dh(n, d) * (1.0f - h_t(n, d) * h_t(n, d));
 
-                // Extract x_t and h_{t-1}
+                // extract x_t and h_{t-1}
                 Eigen::Tensor<float, 2> x_t(batch, input_size_);
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < input_size_; ++d)
@@ -146,7 +146,6 @@ namespace CppNet
 
                 auto& h_prev = hidden_states_[t];
 
-                // Accumulate gradients
                 // grad_W_ih += x_t^T * dtanh
                 Eigen::array<Eigen::IndexPair<int>, 1> contract_batch = {Eigen::IndexPair<int>(0, 0)};
                 grad_W_ih_ += x_t.contract(dtanh, contract_batch);
@@ -191,14 +190,13 @@ namespace CppNet
             grad_bias_.setZero();
         }
 
-#ifdef USE_CUDA
+        #ifdef USE_CUDA
         void RNN::forward_gpu(const Eigen::Tensor<float, 3>& input,
                               Eigen::Tensor<float, 3>& output,
                               int batch, int seq_len)
         {
             int I = input_size_, H = hidden_size_;
 
-            // Allocate GPU buffers
             float *d_W_ih, *d_W_hh, *d_bias;
             float *d_x_t, *d_h_prev, *d_pre_ih, *d_pre_hh, *d_h_t;
 
@@ -220,7 +218,6 @@ namespace CppNet
 
             for (int t = 0; t < seq_len; ++t)
             {
-                // Extract x_t on CPU
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < I; ++d)
                         x_t(n, d) = input(n, t, d);
@@ -240,7 +237,6 @@ namespace CppNet
                 int gr = (total + bk - 1) / bk;
                 Kernels::GPU::rnn_tanh_forward_kernel<<<gr, bk>>>(d_pre_ih, d_pre_hh, d_bias, d_h_t, total, H);
 
-                // Copy h_t back to CPU cache
                 Eigen::Tensor<float, 2> h_t_cpu(batch, H);
                 cudaMemcpy(h_t_cpu.data(), d_h_t, batch * H * sizeof(float), cudaMemcpyDeviceToHost);
                 hidden_states_.push_back(h_t_cpu);
@@ -298,13 +294,11 @@ namespace CppNet
 
             for (int t = seq_len - 1; t >= 0; --t)
             {
-                // Upload grad_output[:, t, :]
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < H; ++d)
                         grad_t(n, d) = grad_output(n, t, d);
                 cudaMemcpy(d_grad_t, grad_t.data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
 
-                // Upload cached h_t
                 cudaMemcpy(d_h_t, hidden_states_[t + 1].data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
 
                 // dtanh = (grad_t + dh_next) * (1 - h_t^2)
@@ -313,13 +307,11 @@ namespace CppNet
                 int gr = (total + bk - 1) / bk;
                 Kernels::GPU::rnn_tanh_backward_kernel<<<gr, bk>>>(d_grad_t, d_dh_next, d_h_t, d_dtanh, total, H);
 
-                // Upload x_t
                 for (int n = 0; n < batch; ++n)
                     for (int d = 0; d < I; ++d)
                         x_t(n, d) = input_cache_(n, t, d);
                 cudaMemcpy(d_x_t, x_t.data(), batch * I * sizeof(float), cudaMemcpyHostToDevice);
 
-                // Upload h_prev
                 cudaMemcpy(d_h_prev, hidden_states_[t].data(), batch * H * sizeof(float), cudaMemcpyHostToDevice);
 
                 // dW_ih_t = x_t^T * dtanh, then accumulate
@@ -356,7 +348,6 @@ namespace CppNet
                 Kernels::GPU::matmul_grad_input_kernel<<<grid_dh, block>>>(d_dtanh, d_W_hh, d_dh_next, batch, H, H);
             }
 
-            // Copy gradients back
             cudaMemcpy(grad_W_ih_.data(), d_dW_ih, I * H * sizeof(float), cudaMemcpyDeviceToHost);
             cudaMemcpy(grad_W_hh_.data(), d_dW_hh, H * H * sizeof(float), cudaMemcpyDeviceToHost);
             cudaMemcpy(grad_bias_.data(), d_dbias, H * sizeof(float),      cudaMemcpyDeviceToHost);
@@ -368,6 +359,6 @@ namespace CppNet
             cudaFree(d_dW_ih); cudaFree(d_dW_hh); cudaFree(d_dbias);
             cudaFree(d_dx);
         }
-#endif // USE_CUDA
+        #endif // USE_CUDA
     }
 }

@@ -7,7 +7,6 @@
 #include "CppNet/activations/relu.hpp"
 #include "CppNet/kernels/gpu/gpu.hpp"
 
-// ReLU activation implementation with CPU and optional GPU support
 
 namespace CppNet
 {
@@ -115,8 +114,6 @@ namespace CppNet
             else if (device_ == "cpu-eigen")
             {
                 output_cache_2d_ = pre_activation.cwiseMax(0.0f);
-                //Eigen::Tensor<float, 2> mask = (pre_activation > 0.0).template cast<float>();
-                //output_cache_2d_ = pre_activation * mask;
             }
             #ifdef USE_CUDA
                 else if (device_ == "gpu")
