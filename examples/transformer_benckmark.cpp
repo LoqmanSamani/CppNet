@@ -214,9 +214,9 @@ int main()
     // configurations from small to large
     std::vector<TransformerConfig> configs = {
         //         label   vocab  emb  heads seq  cls  epochs batch   N     lr
-        {"Small",    200,   32,   2,   10,   4,   10,   32,   800,  0.005f},
-        {"Medium",   500,   64,   4,   20,   4,   5,    32,   800,  0.003f},
-        {"Large",    1000,  128,  8,   30,   4,   3,    32,   1200, 0.001f},
+        {"Small",    100,   16,   1,   6,    2,   5,    16,   200,  0.01f},
+        {"Medium",   200,   24,   2,   10,   2,   3,    16,   300,  0.007f},
+        {"Large",    400,   32,   2,   14,   2,   2,    16,   400,  0.005f},
     };
 
     // devices to benchmark
