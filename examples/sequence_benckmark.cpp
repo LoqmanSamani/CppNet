@@ -28,7 +28,7 @@
 #include <Eigen/Core>
 #include <unsupported/Eigen/CXX11/Tensor>
 
-// ─── data generation ─────────────────────────────────────────────────────────
+// data generation 
 static void generate_sine_data(
     Eigen::Tensor<float, 3>& X,   // [N, seq_len, 1]
     Eigen::Tensor<float, 2>& Y,   // [N, 1]
@@ -47,7 +47,7 @@ static void generate_sine_data(
     }
 }
 
-// ─── configuration ───────────────────────────────────────────────────────────
+// configuration struct for sequence benchmark
 struct SeqConfig
 {
     std::string label;
@@ -59,7 +59,7 @@ struct SeqConfig
     float lr;
 };
 
-// ─── training function ───────────────────────────────────────────────────────
+// training function
 // layer_type: "RNN", "LSTM", "GRU"
 static std::tuple<double, float> train_sequence(
     const SeqConfig& cfg,
@@ -78,7 +78,7 @@ static std::tuple<double, float> train_sequence(
         CppNet::Layers::Linear::set_num_threads(4);
     }
 
-    // Create the recurrent layer
+    // create the recurrent layer
     std::shared_ptr<CppNet::Layers::RNN> rnn_ptr;
     std::shared_ptr<CppNet::Layers::LSTM> lstm_ptr;
     std::shared_ptr<CppNet::Layers::GRU> gru_ptr;
@@ -107,7 +107,7 @@ static std::tuple<double, float> train_sequence(
 
     float final_loss = 0.0f;
 
-    // Lambda helpers for forward/backward/step through the recurrent layer
+    // lambda helpers for forward/backward/step through the recurrent layer
     auto rnn_forward = [&](const Eigen::Tensor<float, 3>& x) -> Eigen::Tensor<float, 3> {
         if (rnn_ptr)  return rnn_ptr->forward(x);
         if (lstm_ptr) return lstm_ptr->forward(x);
@@ -146,7 +146,7 @@ static std::tuple<double, float> train_sequence(
                 y_batch(i, 0) = Y(idx, 0);
             }
 
-            // Forward
+            // forward
             auto rnn_out = rnn_forward(x_batch);
 
             Eigen::Tensor<float, 2> last_hidden(bs, H);
@@ -159,7 +159,7 @@ static std::tuple<double, float> train_sequence(
             epoch_loss += batch_loss;
             ++num_batches;
 
-            // Backward
+            // backward
             auto grad_pred = loss.backward(pred, y_batch);
             auto grad_hidden = linear->backward(grad_pred);
 
@@ -171,7 +171,7 @@ static std::tuple<double, float> train_sequence(
 
             rnn_backward(grad_rnn);
 
-            // Update
+            // update
             rnn_step(optim, cfg.lr);
             linear->step(optim, cfg.lr);
             linear->reset_grads();
@@ -191,12 +191,12 @@ static std::tuple<double, float> train_sequence(
     return {elapsed, final_loss};
 }
 
-// ─── main ────────────────────────────────────────────────────────────────────
+ 
 int main()
 {
-    std::cout << "╔══════════════════════════════════════════════════════════════╗\n"
-              << "║         Sequence Layer Device Benchmark (MSE + Momentum)    ║\n"
-              << "╚══════════════════════════════════════════════════════════════╝\n\n";
+    std::cout << "---------------------------------------------------------------\n"
+              << "-     Sequence Layer Device Benchmark (MSE + Momentum)        -\n"
+              << "---------------------------------------------------------------\n\n";
 
     std::vector<SeqConfig> configs = {
         {"Small",  64,  20, 5, 32, 800, 0.01f},
@@ -214,7 +214,7 @@ int main()
 #endif
     };
 
-    // ── Results storage ──
+    // results storage
     struct Result
     {
         std::string config;
@@ -227,14 +227,14 @@ int main()
 
     for (auto& cfg : configs)
     {
-        std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        std::cout << "-------------------------------------------------------------\n";
         std::cout << "Config: " << cfg.label
                   << "  (H=" << cfg.hidden_size
                   << ", seq=" << cfg.seq_len
                   << ", epochs=" << cfg.epochs
                   << ", batch=" << cfg.batch_size
                   << ", N=" << cfg.num_samples << ")\n";
-        std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        std::cout << "-------------------------------------------------------------\n";
 
         Eigen::Tensor<float, 3> X;
         Eigen::Tensor<float, 2> Y;
@@ -259,10 +259,10 @@ int main()
         std::cout << "\n";
     }
 
-    // ── Summary table ──
-    std::cout << "\n╔══════════════════════════════════════════════════════════════╗\n"
-              << "║                        Summary                              ║\n"
-              << "╚══════════════════════════════════════════════════════════════╝\n\n";
+    // summary table
+    std::cout << "\n-------------------------------------------------------------\n"
+              << "-                        Summary                              -\n"
+              << "---------------------------------------------------------------\n\n";
 
     std::cout << std::left
               << std::setw(8) << "Config"
@@ -286,8 +286,8 @@ int main()
                   << "\n";
     }
 
-    // ── Speedup analysis ──
-    std::cout << "\n── Speedup vs cpu-eigen ──\n";
+    // speedup analysis
+    std::cout << "\n-  Speedup vs cpu-eigen  -\n";
     for (auto& cfg : configs)
     {
         for (auto& lt : layer_types)
@@ -312,6 +312,6 @@ int main()
         }
     }
 
-    std::cout << "\n=== Sequence Benchmark Complete ===\n";
+    std::cout << "\n-  Sequence Benchmark Complete  -\n";
     return 0;
 }

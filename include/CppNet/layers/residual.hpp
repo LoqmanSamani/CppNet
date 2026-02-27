@@ -12,6 +12,11 @@
 #ifndef RESIDUAL_HPP
 #define RESIDUAL_HPP
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#include "CppNet/kernels/gpu/gpu.hpp"
+#endif
+
 #include "CppNet/layers/layer.hpp"
 #include "CppNet/layers/linear.hpp"
 #include <Eigen/Dense>

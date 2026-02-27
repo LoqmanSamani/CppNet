@@ -41,6 +41,15 @@ All benchmarks are reproducible via the scripts in the `examples/` directory.
   - [Accuracy Convergence](#accuracy-convergence-2)
   - [Key Takeaways](#key-takeaways-3)
   - [How to Reproduce](#how-to-reproduce-3)
+- [Deep ResNet Device Benchmark — Spiral Classification](#deep-resnet-device-benchmark--spiral-classification)
+  - [Experiment Setup](#experiment-setup-4)
+  - [Network Configurations](#network-configurations-4)
+  - [Results Summary](#results-summary-4)
+  - [Detailed Per-Config Results](#detailed-per-config-results-3)
+  - [Speedup Analysis](#speedup-analysis-4)
+  - [Accuracy Convergence](#accuracy-convergence-3)
+  - [Key Takeaways](#key-takeaways-4)
+  - [How to Reproduce](#how-to-reproduce-4)
 
 ---
 
@@ -607,6 +616,166 @@ mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
 make -j$(nproc)
 ./examples/transformer_benchmark
+```
+
+Ensure CUDA is installed and detected by CMake for GPU results.
+
+---
+
+## Deep ResNet Device Benchmark — Spiral Classification
+
+**Source:** [`examples/residual_benckmark.cpp`](examples/residual_benckmark.cpp)  
+**Date:** February 27, 2026
+
+### Experiment Setup
+
+| Parameter | Value |
+|:----------|:------|
+| **Dataset** | 2D spiral, synthetically generated |
+| **Samples** | 15,000 (3,000 per class) |
+| **Classes** | 5 |
+| **Features** | 2 (x, y coordinates) |
+| **Noise** | 0.05 |
+| **Loss function** | Softmax Cross-Entropy (mean reduction) |
+| **Optimizer** | Adam (β₁=0.9, β₂=0.999, ε=1e-10) |
+| **Activations** | ReLU (after projection and each residual block) |
+| **Weight init** | He (hidden layers), Xavier (output head) |
+| **Random seed** | 42 (data), 123 (training) |
+| **OpenMP threads** | 4 (for `cpu` and `cpu-eigen` backends) |
+
+#### Architecture
+
+The benchmark uses a deep ResNet-style architecture with stacked residual blocks:
+
+```
+Linear(2, W) → ReLU → [ResBlock(Linear(W,W) → Linear(W,W)) + skip → ReLU] ×D → Linear(W, 5)
+```
+
+Each residual block contains two Linear layers with an identity shortcut (skip connection). The depth parameter D controls the number of stacked blocks, making the network progressively deeper while keeping width constant.
+
+#### Backends Tested
+
+| Backend | Description |
+|:--------|:------------|
+| `cpu-eigen` | Eigen tensor contractions — highly optimized, SIMD-vectorized |
+| `cpu` | Manual OpenMP-parallelized loops (4 threads) |
+| `gpu` | CUDA kernels (matmul, bias, ReLU, elementwise add for skip connections) |
+
+#### Hardware
+
+Same machine as previous benchmarks: NVIDIA GeForce GTX 1650 (4 GB), multi-core CPU, GCC 13.3, CUDA 12.0.
+
+---
+
+### Network Configurations
+
+Three ResNet configurations with increasing width and depth. All use identity skip connections (no projection needed since `in_features == out_features` within each block).
+
+| Config | Architecture | Width (W) | Depth (D) | Linear Layers | Residual Adds | Epochs | Batch Size | Learning Rate |
+|:-------|:-------------|:----------|:----------|:--------------|:--------------|:-------|:-----------|:--------------|
+| **Small** | 2→64→[ResBlock×2]→5 | 64 | 2 | 6 (proj + 2×2 block + head) | 2 | 20 | 128 | 0.001 |
+| **Medium** | 2→128→[ResBlock×4]→5 | 128 | 4 | 10 (proj + 4×2 block + head) | 4 | 10 | 256 | 0.0005 |
+| **Large** | 2→256→[ResBlock×6]→5 | 256 | 6 | 14 (proj + 6×2 block + head) | 6 | 10 | 256 | 0.0005 |
+
+---
+
+### Results Summary
+
+| Config | Architecture | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup vs cpu-eigen |
+|:-------|:-------------|:----------|:-------------|:-----------|:-------------------------|
+| Small | 2→64→[ResBlock×2]→5 | 6.35 s | 24.85 s | 4.06 s | **1.56x** |
+| Medium | 2→128→[ResBlock×4]→5 | 26.60 s | 77.50 s | 3.99 s | **6.68x** |
+| Large | 2→256→[ResBlock×6]→5 | 125.27 s | 517.33 s | 13.88 s | **9.03x** |
+
+---
+
+### Detailed Per-Config Results
+
+#### Small (2→64→[ResBlock×2]→5) — 20 epochs, batch 128, lr=0.001
+
+| Device | Epoch 1 Loss | Epoch 1 Acc | Epoch 10 Loss | Epoch 10 Acc | Final Loss | Final Acc | Total Time |
+|:-------|:-------------|:------------|:--------------|:-------------|:-----------|:----------|:-----------|
+| cpu-eigen | 0.9796 | 56.31% | — | — | 0.1977 | 92.29% | 6.35 s |
+| cpu | 1.1585 | 44.84% | — | — | 0.1976 | 92.25% | 24.85 s |
+| gpu | 1.0525 | 50.99% | — | — | 0.1970 | 92.35% | 4.06 s |
+
+#### Medium (2→128→[ResBlock×4]→5) — 10 epochs, batch 256, lr=0.0005
+
+| Device | Epoch 1 Loss | Epoch 1 Acc | Final Loss | Final Acc | Total Time |
+|:-------|:-------------|:------------|:-----------|:----------|:-----------|
+| cpu-eigen | 1.2910 | 40.87% | 0.2090 | 91.75% | 26.60 s |
+| cpu | 1.3023 | 43.02% | 0.2106 | 91.73% | 77.50 s |
+| gpu | 1.4295 | 41.30% | 0.2178 | 91.43% | 3.99 s |
+
+#### Large (2→256→[ResBlock×6]→5) — 10 epochs, batch 256, lr=0.0005
+
+| Device | Epoch 1 Loss | Epoch 1 Acc | Final Loss | Final Acc | Total Time |
+|:-------|:-------------|:------------|:-----------|:----------|:-----------|
+| cpu-eigen | 3.8723 | 37.37% | 0.2205 | 91.37% | 125.27 s |
+| cpu | 3.8747 | 36.78% | 0.2401 | 90.73% | 517.33 s |
+| gpu | 3.4013 | 37.20% | 0.2239 | 91.21% | 13.88 s |
+
+---
+
+### Speedup Analysis
+
+Speedups are measured relative to the `cpu-eigen` baseline (the fastest CPU backend).
+
+| Config | cpu-eigen | cpu (OpenMP) vs cpu-eigen | gpu (CUDA) vs cpu-eigen |
+|:-------|:----------|:--------------------------|:------------------------|
+| Small | 1.00x (baseline) | 0.26x (slower) | **1.56x** |
+| Medium | 1.00x (baseline) | 0.34x (slower) | **6.68x** |
+| Large | 1.00x (baseline) | 0.24x (slower) | **9.03x** |
+
+#### Observations
+
+- **GPU speedup scales strongly with both width and depth.** From Small (W=64, D=2) to Large (W=256, D=6), GPU speedup grows from 1.56x to 9.03x. The deeper the network, the more forward/backward matmul operations are performed per batch — all of which map to GPU `matmul_kernel` calls.
+
+- **Residual skip connections add minimal GPU overhead.** The elementwise add for the skip connection uses the existing `elementwise_gpu` CUDA kernel (op=add). Its cost is negligible compared to the Linear layer matmuls it sits alongside.
+
+- **OpenMP is significantly slower than Eigen for deep networks.** The `cpu` backend is 3–4x slower than Eigen across all configs. With 6 residual blocks (12 Linear layers), the overhead of naive OpenMP parallelization compounds across all layers.
+
+- **GPU advantage grows with depth, not just width.** Comparing to the MLP benchmark (same dataset, same widths), the ResNet benchmark shows that stacking more layers (depth) amplifies GPU advantage because the GPU amortizes its fixed overhead across more kernel launches per batch.
+
+---
+
+### Accuracy Convergence
+
+All three backends converge to similar final accuracy (~91–92%), confirming numerical correctness of the Residual layer's skip connection and `elementwise_gpu` kernel across all devices.
+
+| Config | cpu-eigen | cpu | gpu |
+|:-------|:----------|:----|:----|
+| Small | 92.29% | 92.25% | 92.35% |
+| Medium | 91.75% | 91.73% | 91.43% |
+| Large | 91.37% | 90.73% | 91.21% |
+
+Minor variations are expected due to floating-point non-associativity across different computation orders and the stochastic nature of training.
+
+---
+
+### Key Takeaways
+
+1. **The Residual layer now supports all three devices.** The forward and backward element-wise addition uses Eigen tensor operations (`cpu-eigen`), OpenMP parallel loops (`cpu`), and the `elementwise_gpu` CUDA kernel (`gpu`). All paths produce numerically consistent results.
+
+2. **GPU delivers 1.5x–9x speedup for ResNets.** Even at small scale (W=64), the GPU is faster than Eigen. At Large scale (W=256, D=6), the GPU completes in 13.9 s vs. 125.3 s for Eigen — a **9.03x** speedup.
+
+3. **Depth amplifies GPU advantage.** Deeper networks perform more matmul operations per batch, better amortizing GPU kernel launch overhead. The ResNet Large config (14 Linear layers) achieves better GPU speedup than comparably-sized flat MLPs.
+
+4. **Skip connections are essentially free on GPU.** The `elementwise_gpu` kernel adds two tensors with a simple per-element CUDA kernel launch. Its cost is dominated by the surrounding `matmul_kernel` calls in the Linear layers.
+
+5. **OpenMP performance degrades with network depth.** The `cpu` backend scales poorly with the number of layers, showing 3–4x slowdown vs. Eigen. Each layer's OpenMP parallel-for has thread synchronization overhead that accumulates across 14+ layers per batch.
+
+---
+
+### How to Reproduce
+
+```bash
+git clone https://github.com/LoqmanSamani/CppNet.git
+cd CppNet
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
+make -j$(nproc)
+./examples/residual_benchmark
 ```
 
 Ensure CUDA is installed and detected by CMake for GPU results.

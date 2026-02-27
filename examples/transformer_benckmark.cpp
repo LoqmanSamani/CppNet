@@ -7,7 +7,12 @@
  *
  * Architecture per config:
  *   Embedding(vocab, embed_dim) → MultiHeadAttention(embed_dim, num_heads)
- *   → Mean Pool → ReLU → Linear(embed_dim, num_classes)
+ *   → MeanPool1D → ReLU → Linear(embed_dim, num_classes)
+ *
+ * Note: SequentialModel is not used here because it only supports
+ *       2D (Tensor<float,2>) forward/backward pipelines, while the
+ *       Transformer architecture mixes 3D (Embedding, Attention) and
+ *       2D tensors (post-pool classification head).
  *
  * Loss:      SoftmaxCrossEntropy
  * Optimizer: Adam (β₁=0.9, β₂=0.999, ε=1e-10)
@@ -29,7 +34,7 @@
 #include <Eigen/Core>
 #include <unsupported/Eigen/CXX11/Tensor>
 
-// ─── Data Generation ─────────────────────────────────────────────────────────
+// data generation: create synthetic token sequences with class labels based on token ID ranges
 static void generate_token_data(
     Eigen::Tensor<int, 2>&   tokens,
     Eigen::Tensor<float, 2>& labels,
@@ -58,7 +63,7 @@ static void generate_token_data(
     }
 }
 
-// ─── Configuration ───────────────────────────────────────────────────────────
+// configuration struct for transformer benchmark
 struct TransformerConfig
 {
     std::string label;
@@ -73,7 +78,7 @@ struct TransformerConfig
     float lr;
 };
 
-// ─── Training Function ──────────────────────────────────────────────────────
+// utility function to train transformer and return elapsed time, final loss, and accuracy
 static std::tuple<double, float, float> train_transformer(
     const TransformerConfig& cfg,
     const std::string& device,
@@ -92,11 +97,12 @@ static std::tuple<double, float, float> train_transformer(
         CppNet::Activations::ReLU::set_num_threads(4);
     }
 
-    // Build transformer model
+    // build transformer model
     auto embedding = std::make_shared<CppNet::Layers::Embedding>(
         cfg.vocab_size, D, device);
     auto attention = std::make_shared<CppNet::Layers::MultiHeadAttention>(
         D, cfg.num_heads, device);
+    auto pool = std::make_shared<CppNet::Layers::MeanPool1D>(device);
     auto fc = std::make_shared<CppNet::Layers::Linear>(
         D, C, "classifier", true, true, device, "xavier");
 
@@ -128,7 +134,7 @@ static std::tuple<double, float, float> train_transformer(
         {
             int bs = cfg.batch_size;
 
-            // Prepare batch
+            // prepare batch
             Eigen::Tensor<int, 2>   x_batch(bs, S);
             Eigen::Tensor<float, 2> y_batch(bs, C);
             for (int i = 0; i < bs; ++i)
@@ -140,21 +146,12 @@ static std::tuple<double, float, float> train_transformer(
                     y_batch(i, c) = labels(idx, c);
             }
 
-            // Forward: Embedding -> Attention -> Mean Pool -> ReLU -> FC
+            // forward: embedding -> attention -> MeanPool1D -> relu -> fc -> loss
             auto embed_out = embedding->forward(x_batch);       // [bs, S, D]
             auto attn_out = attention->forward(embed_out, embed_out, embed_out); // [bs, S, D]
 
-            // Mean pool over sequence dimension
-            Eigen::Tensor<float, 2> pooled(bs, D);
-            pooled.setZero();
-            float inv_seq = 1.0f / S;
-            for (int b = 0; b < bs; ++b)
-                for (int s = 0; s < S; ++s)
-                    for (int d = 0; d < D; ++d)
-                        pooled(b, d) += attn_out(b, s, d);
-            for (int b = 0; b < bs; ++b)
-                for (int d = 0; d < D; ++d)
-                    pooled(b, d) *= inv_seq;
+            // MeanPool1D over sequence dimension
+            auto pooled = pool->forward(attn_out);               // [bs, D]
 
             auto activated = relu.forward(pooled);               // [bs, D]
             auto logits = fc->forward(activated);                // [bs, C]
@@ -164,25 +161,18 @@ static std::tuple<double, float, float> train_transformer(
             epoch_acc  += CppNet::Metrics::accuracy(logits, y_batch);
             ++num_batches;
 
-            // Backward
+            // backward
             auto grad_logits = loss.backward(logits, y_batch);
             auto grad_act    = fc->backward(grad_logits);
             auto grad_pooled = relu.backward(grad_act);
 
-            // Backward through mean pool
-            Eigen::Tensor<float, 3> grad_attn(bs, S, D);
-            for (int b = 0; b < bs; ++b)
-                for (int s = 0; s < S; ++s)
-                    for (int d = 0; d < D; ++d)
-                        grad_attn(b, s, d) = grad_pooled(b, d) * inv_seq;
+            auto grad_attn = pool->backward(grad_pooled);       // [bs, S, D]
 
-            // Backward through attention
             auto grad_embed = attention->backward(grad_attn);
 
-            // Backward through embedding
             embedding->backward(grad_embed);
 
-            // Update all parameters
+            // update all parameters
             embedding->step(optim, cfg.lr);
             attention->step(optim, cfg.lr);
             fc->step(optim, cfg.lr);
@@ -205,38 +195,37 @@ static std::tuple<double, float, float> train_transformer(
     return {elapsed, final_loss, final_acc};
 }
 
-// ─── Architecture description ────────────────────────────────────────────────
+// utility to create architecture string for display
 static std::string arch_str(const TransformerConfig& cfg)
 {
     std::ostringstream oss;
     oss << "Emb(" << cfg.vocab_size << "," << cfg.embed_dim << ")"
         << "→Attn(h=" << cfg.num_heads << ")"
-        << "→Pool→FC(" << cfg.embed_dim << "," << cfg.num_classes << ")";
+        << "→MeanPool1D→FC(" << cfg.embed_dim << "," << cfg.num_classes << ")";
     return oss.str();
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────────
 int main()
 {
-    std::cout << "╔══════════════════════════════════════════════════════════════════╗\n"
-              << "║     CppNet — Transformer Device Benchmark (Token Classifier)   ║\n"
-              << "╚══════════════════════════════════════════════════════════════════╝\n\n";
+    std::cout << "------------------------------------------------------------------\n"
+              << "-     CppNet — Transformer Device Benchmark (Token Classifier)   -\n"
+              << "------------------------------------------------------------------\n\n";
 
-    // Configurations from small to large
+    // configurations from small to large
     std::vector<TransformerConfig> configs = {
         //         label   vocab  emb  heads seq  cls  epochs batch   N     lr
-        {"Small",    200,   32,   2,   10,   4,   10,   32,   800,  0.005f},
-        {"Medium",   500,   64,   4,   20,   4,   5,    32,   800,  0.003f},
-        {"Large",    1000,  128,  8,   30,   4,   3,    32,   1200, 0.001f},
+        {"Small",    200,   48,   4,   12,   4,   12,   32,   800,  0.005f},
+        {"Medium",   500,   96,   6,   20,   4,   8,    32,   800,  0.003f},
+        {"Large",    1000,  160,  8,   30,   4,   5,    32,   1200, 0.001f},
     };
 
-    // Devices to benchmark
+    // devices to benchmark
     std::vector<std::string> devices = {"cpu-eigen", "cpu"};
 #ifdef USE_CUDA
     devices.push_back("gpu");
 #endif
 
-    // Results storage
+    // results storage
     struct Result
     {
         double ms;
@@ -255,7 +244,7 @@ int main()
         generate_token_data(tokens, labels, cfg.num_samples, cfg.seq_len,
                             cfg.vocab_size, cfg.num_classes);
 
-        std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        std::cout << "----------------------------------------------------------------\n";
         std::cout << "Config: " << cfg.label << "   |   " << arch << "\n";
         std::cout << "  vocab=" << cfg.vocab_size
                   << ", embed=" << cfg.embed_dim
@@ -265,7 +254,7 @@ int main()
                   << ", epochs=" << cfg.epochs
                   << ", batch=" << cfg.batch_size
                   << ", N=" << cfg.num_samples << "\n";
-        std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+        std::cout << "----------------------------------------------------------------\n";
 
         for (auto& dev : devices)
         {
@@ -281,13 +270,13 @@ int main()
         }
     }
 
-    // ── Summary Table ──
+    // summary table
     std::cout << "\n\n";
-    std::cout << "╔══════════════════════════════════════════════════════════════════╗\n"
-              << "║                 Transformer Benchmark — Summary                ║\n"
-              << "╚══════════════════════════════════════════════════════════════════╝\n\n";
+    std::cout << "------------------------------------------------------------------\n"
+              << "-                 Transformer Benchmark — Summary                -\n"
+              << "------------------------------------------------------------------\n\n";
 
-    // Timing table
+    // timing table
     std::cout << std::left
               << std::setw(10) << "Config"
               << std::setw(45) << "Architecture";
@@ -311,8 +300,8 @@ int main()
         std::cout << "\n";
     }
 
-    // Speedup rows
-    std::cout << "\n── Speedup vs cpu-eigen ──\n";
+    // speedup rows
+    std::cout << "\n- Speedup vs cpu-eigen  -\n";
     for (auto& cfg : configs)
     {
         double baseline = results[cfg.label]["cpu-eigen"].ms;
@@ -334,8 +323,8 @@ int main()
         std::cout << "\n";
     }
 
-    // Accuracy summary
-    std::cout << "\n── Final Accuracy ──\n";
+    // accuracy summary
+    std::cout << "\n- Final Accuracy -\n";
     for (auto& cfg : configs)
     {
         std::cout << "  " << std::left << std::setw(10) << cfg.label << ":  ";
@@ -347,8 +336,8 @@ int main()
         std::cout << "\n";
     }
 
-    // Loss summary
-    std::cout << "\n── Final Loss ──\n";
+    // loss summary
+    std::cout << "\n- Final Loss -\n";
     for (auto& cfg : configs)
     {
         std::cout << "  " << std::left << std::setw(10) << cfg.label << ":  ";
@@ -360,6 +349,6 @@ int main()
         std::cout << "\n";
     }
 
-    std::cout << "\n=== Transformer Benchmark Complete ===\n";
+    std::cout << "\n--- Transformer Benchmark Complete ---\n";
     return 0;
 }

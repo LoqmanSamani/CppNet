@@ -50,6 +50,7 @@ set(CPU_SOURCES
     src/CppNet/layers/embedding.cpp
     src/CppNet/layers/residual.cpp
     src/CppNet/layers/global_pool.cpp
+    src/CppNet/layers/mean_pool1d.cpp
     src/CppNet/losses/binary_cross_entropy.cpp
     src/CppNet/losses/categorical_cross_entropy.cpp
     src/CppNet/losses/mse.cpp
@@ -96,6 +97,7 @@ set(GPU_SOURCES
     src/CppNet/kernels/gpu/embedding_forward.cu
     src/CppNet/kernels/gpu/embedding_backward.cu
     src/CppNet/kernels/gpu/attention_scores.cu
+    src/CppNet/kernels/gpu/mean_pool1d.cu
 )
 
 set(CPP_NET_SOURCES ${CPU_SOURCES})
@@ -119,6 +121,8 @@ if(USE_CUDA)
         src/CppNet/activations/relu.cpp
         src/CppNet/layers/embedding.cpp
         src/CppNet/layers/attention.cpp
+        src/CppNet/layers/residual.cpp
+        src/CppNet/layers/mean_pool1d.cpp
         PROPERTIES
             LANGUAGE CUDA
     )

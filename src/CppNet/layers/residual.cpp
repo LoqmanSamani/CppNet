@@ -13,6 +13,10 @@
 #include "CppNet/layers/residual.hpp"
 #include <stdexcept>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace CppNet
 {
     namespace Layers
@@ -63,9 +67,26 @@ namespace CppNet
             int rows = out.dimension(0);
             int cols = out.dimension(1);
             Eigen::Tensor<float, 2> result(rows, cols);
-            for (int i = 0; i < rows; ++i)
-                for (int j = 0; j < cols; ++j)
-                    result(i, j) = out(i, j) + shortcut(i, j);
+
+            if (device_ == "cpu-eigen")
+            {
+                result = out + shortcut;
+            }
+#ifdef USE_CUDA
+            else if (device_ == "gpu")
+            {
+                int N = rows * cols;
+                Kernels::GPU::elementwise_gpu(
+                    out.data(), shortcut.data(), result.data(), N, /*op=add*/0);
+            }
+#endif
+            else // "cpu" — OpenMP
+            {
+                int N = rows * cols;
+                #pragma omp parallel for schedule(static)
+                for (int i = 0; i < N; ++i)
+                    result.data()[i] = out.data()[i] + shortcut.data()[i];
+            }
 
             return result;
         }
@@ -92,9 +113,26 @@ namespace CppNet
             int rows = grad_block.dimension(0);
             int cols = grad_block.dimension(1);
             Eigen::Tensor<float, 2> grad_input(rows, cols);
-            for (int i = 0; i < rows; ++i)
-                for (int j = 0; j < cols; ++j)
-                    grad_input(i, j) = grad_block(i, j) + grad_shortcut(i, j);
+
+            if (device_ == "cpu-eigen")
+            {
+                grad_input = grad_block + grad_shortcut;
+            }
+#ifdef USE_CUDA
+            else if (device_ == "gpu")
+            {
+                int N = rows * cols;
+                Kernels::GPU::elementwise_gpu(
+                    grad_block.data(), grad_shortcut.data(), grad_input.data(), N, /*op=add*/0);
+            }
+#endif
+            else // "cpu" — OpenMP
+            {
+                int N = rows * cols;
+                #pragma omp parallel for schedule(static)
+                for (int i = 0; i < N; ++i)
+                    grad_input.data()[i] = grad_block.data()[i] + grad_shortcut.data()[i];
+            }
 
             return grad_input;
         }

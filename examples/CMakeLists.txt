@@ -17,6 +17,7 @@ cppnet_add_example(mlp_benchmark                mlp_benchmark.cpp)
 cppnet_add_example(cnn_benchmark                cnn_benckmark.cpp)
 cppnet_add_example(sequence_benchmark           sequence_benckmark.cpp)
 cppnet_add_example(transformer_benchmark        transformer_benckmark.cpp)
+cppnet_add_example(residual_benchmark           residual_benckmark.cpp)
 
 # mlp_benchmark uses matplotlib-cpp, which requires Python3 + NumPy
 target_include_directories(mlp_benchmark PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

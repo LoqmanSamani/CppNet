@@ -54,6 +54,7 @@
 #include "CppNet/layers/embedding.hpp"
 #include "CppNet/layers/residual.hpp"
 #include "CppNet/layers/global_pool.hpp"
+#include "CppNet/layers/mean_pool1d.hpp"
 
 // Losses
 #include "CppNet/losses/loss.hpp"

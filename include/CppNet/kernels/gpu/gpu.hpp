@@ -123,6 +123,9 @@ namespace CppNet
                 const float* dn_raw, float* dgates,
                 int batch, int hidden);
 
+            // ── Elementwise host wrapper ────────────────────────────
+            void elementwise_gpu(const float* A, const float* B, float* C, int N, int op);
+
             // ── Embedding kernels ───────────────────────────────────
             __global__ void embedding_forward_kernel(
                 const int* input, const float* weight, float* output,
@@ -145,6 +148,15 @@ namespace CppNet
                 const float* grad_attn, const float* attn,
                 float* grad_scores,
                 int rows, int cols);
+
+            // ── MeanPool1D kernels ──────────────────────────────────
+            __global__ void mean_pool1d_forward_kernel(
+                const float* input, float* output,
+                int B, int S, int D);
+
+            __global__ void mean_pool1d_backward_kernel(
+                const float* grad_output, float* grad_input,
+                int B, int S, int D);
 
         }
     }
