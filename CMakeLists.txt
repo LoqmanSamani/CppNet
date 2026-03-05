@@ -85,6 +85,10 @@ set(GPU_SOURCES
     src/CppNet/kernels/gpu/matmul_grad_input.cu
     src/CppNet/kernels/gpu/matmul_grad_weight.cu
     src/CppNet/kernels/gpu/sgd_step.cu
+    src/CppNet/kernels/gpu/momentum_step.cu
+    src/CppNet/kernels/gpu/adagrad_step.cu
+    src/CppNet/kernels/gpu/adam_step.cu
+    src/CppNet/kernels/gpu/rmsprop_step.cu
     src/CppNet/kernels/gpu/relu.cu
     src/CppNet/kernels/gpu/relu_grad.cu
     src/CppNet/kernels/gpu/leaky_relu.cu
@@ -135,6 +139,10 @@ if(USE_CUDA)
         src/CppNet/layers/lstm.cpp
         src/CppNet/layers/gru.cpp
         src/CppNet/optimizers/sgd.cpp
+        src/CppNet/optimizers/momentum.cpp
+        src/CppNet/optimizers/adagrad.cpp
+        src/CppNet/optimizers/adam.cpp
+        src/CppNet/optimizers/mrs_prop.cpp
         src/CppNet/activations/relu.cpp
         src/CppNet/activations/leacky_relu.cpp
         src/CppNet/activations/tanh.cpp
@@ -201,6 +209,11 @@ endif()
 option(BUILD_EXAMPLES "Build example executables" ON)
 if(BUILD_EXAMPLES)
     add_subdirectory(examples)
+endif()
+
+option(BUILD_BENCHMARKS "Build benchmark executables" ON)
+if(BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 # Install library

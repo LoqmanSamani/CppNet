@@ -1,7 +1,7 @@
 # CppNet Benchmarks
 
 Detailed performance benchmarks for the CppNet deep learning library.
-All benchmarks are reproducible via the scripts in the `examples/` directory.
+All benchmarks are reproducible via the scripts in the `benchmarks/` directory.
 
 ---
 
@@ -55,7 +55,7 @@ All benchmarks are reproducible via the scripts in the `examples/` directory.
 
 ## MLP Device Benchmark — Spiral Classification
 
-**Source:** [`examples/spiral_classification.cpp`](examples/spiral_classification.cpp)  
+**Source:** [`benchmarks/spiral_classification.cpp`](spiral_classification.cpp)  
 **Date:** February 25, 2026
 
 ### Experiment Setup
@@ -207,9 +207,9 @@ Minor variations are expected due to floating-point non-associativity across dif
 git clone https://github.com/LoqmanSamani/CppNet.git
 cd CppNet
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
 make -j$(nproc)
-./examples/spiral_classification
+./benchmarks/spiral_classification
 ```
 
 Ensure CUDA is installed and detected by CMake for GPU results. To run CPU-only:
@@ -222,7 +222,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON -DCUDAToolkit_ROOT=/none
 
 ## CNN Device Benchmark — Image Classification
 
-**Source:** [`examples/cnn_benckmark.cpp`](examples/cnn_benckmark.cpp)  
+**Source:** [`benchmarks/cnn_benckmark.cpp`](cnn_benckmark.cpp)  
 **Date:** February 27, 2026
 
 ### Experiment Setup
@@ -346,9 +346,9 @@ All three backends converge to identical final accuracy, confirming numerical co
 git clone https://github.com/LoqmanSamani/CppNet.git
 cd CppNet
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
 make -j$(nproc)
-./examples/cnn_benchmark
+./benchmarks/cnn_benchmark
 ```
 
 Ensure CUDA is installed and detected by CMake for GPU results.
@@ -448,9 +448,9 @@ Each configuration uses: `RecurrentLayer(1, H, return_sequences=true) → extrac
 git clone https://github.com/LoqmanSamani/CppNet.git
 cd CppNet
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
 make -j$(nproc)
-./examples/sequence_benchmark
+./benchmarks/sequence_benchmark
 ```
 
 Ensure CUDA is installed and detected by CMake for GPU results.
@@ -459,7 +459,7 @@ Ensure CUDA is installed and detected by CMake for GPU results.
 
 ## Transformer Device Benchmark — Token Classification
 
-**Source:** [`examples/transformer_benckmark.cpp`](examples/transformer_benckmark.cpp)  
+**Source:** [`benchmarks/transformer_benckmark.cpp`](transformer_benckmark.cpp)  
 **Date:** February 27, 2026
 
 ### Experiment Setup
@@ -613,9 +613,9 @@ All backends also converge to nearly identical final loss values:
 git clone https://github.com/LoqmanSamani/CppNet.git
 cd CppNet
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
 make -j$(nproc)
-./examples/transformer_benchmark
+./benchmarks/transformer_benchmark
 ```
 
 Ensure CUDA is installed and detected by CMake for GPU results.
@@ -624,7 +624,7 @@ Ensure CUDA is installed and detected by CMake for GPU results.
 
 ## Deep ResNet Device Benchmark — Spiral Classification
 
-**Source:** [`examples/residual_benckmark.cpp`](examples/residual_benckmark.cpp)  
+**Source:** [`benchmarks/residual_benckmark.cpp`](residual_benckmark.cpp)  
 **Date:** February 27, 2026
 
 ### Experiment Setup
@@ -773,9 +773,9 @@ Minor variations are expected due to floating-point non-associativity across dif
 git clone https://github.com/LoqmanSamani/CppNet.git
 cd CppNet
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
 make -j$(nproc)
-./examples/residual_benchmark
+./benchmarks/residual_benchmark
 ```
 
 Ensure CUDA is installed and detected by CMake for GPU results.

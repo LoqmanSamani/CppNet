@@ -25,6 +25,24 @@ namespace CppNet
 
             __global__ void sgd_step_kernel(float* W, const float* dW, float LR, int TP);
 
+            __global__ void momentum_step_kernel(float* W, const float* dW,
+                                                  float* vel, float mu,
+                                                  float lr, int N);
+
+            __global__ void adagrad_step_kernel(float* W, const float* dW,
+                                                 float* accum, float lr,
+                                                 float eps, int N);
+
+            __global__ void adam_step_kernel(float* W, const float* dW,
+                                             float* m, float* v,
+                                             float lr, float beta1,
+                                             float beta2, float eps,
+                                             float bc1, float bc2, int N);
+
+            __global__ void rmsprop_step_kernel(float* W, const float* dW,
+                                                 float* cache, float lr,
+                                                 float rho, float eps, int N);
+
            __global__ void relu_kernel(const float* __restrict__ input, float* __restrict__ output, int total_elements);
 
             __global__ void relu_grad_kernel(const float* __restrict__ dA, const float* __restrict__ Z, float* __restrict__ dZ, int total_elements);
