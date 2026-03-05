@@ -87,6 +87,12 @@ set(GPU_SOURCES
     src/CppNet/kernels/gpu/sgd_step.cu
     src/CppNet/kernels/gpu/relu.cu
     src/CppNet/kernels/gpu/relu_grad.cu
+    src/CppNet/kernels/gpu/leaky_relu.cu
+    src/CppNet/kernels/gpu/leaky_relu_grad.cu
+    src/CppNet/kernels/gpu/tanh_activation.cu
+    src/CppNet/kernels/gpu/tanh_activation_grad.cu
+    src/CppNet/kernels/gpu/sigmoid.cu
+    src/CppNet/kernels/gpu/sigmoid_grad.cu
     src/CppNet/kernels/gpu/conv2d_forward.cu
     src/CppNet/kernels/gpu/conv2d_backward.cu
     src/CppNet/kernels/gpu/maxpool2d_forward.cu
@@ -119,6 +125,10 @@ if(USE_CUDA)
         src/CppNet/layers/gru.cpp
         src/CppNet/optimizers/sgd.cpp
         src/CppNet/activations/relu.cpp
+        src/CppNet/activations/leacky_relu.cpp
+        src/CppNet/activations/tanh.cpp
+        src/CppNet/activations/sigmoid.cpp
+        src/CppNet/activations/softmax.cpp
         src/CppNet/layers/embedding.cpp
         src/CppNet/layers/attention.cpp
         src/CppNet/layers/residual.cpp

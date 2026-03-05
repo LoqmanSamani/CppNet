@@ -20,6 +20,10 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <string>
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace CppNet
 {
     namespace Layers
@@ -43,6 +47,15 @@ namespace CppNet
             BatchNorm(int num_features, float momentum = 0.1f, float eps = 1e-5f,
                       const std::string& device = "cpu-eigen");
             ~BatchNorm();
+
+            #ifdef USE_CUDA
+                void forward_gpu(const Eigen::Tensor<float, 2>& input,
+                                 Eigen::Tensor<float, 2>& output);
+                void backward_gpu(const Eigen::Tensor<float, 2>& grad_output,
+                                  Eigen::Tensor<float, 2>& grad_input);
+                void ensure_gpu_buffers(int batch, int features);
+                void release_gpu_buffers();
+            #endif
 
             Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
             Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& grad_output);
@@ -89,6 +102,24 @@ namespace CppNet
             Eigen::Tensor<float, 1> batch_var_;
             Eigen::Tensor<float, 2> input_cache_;
             int batch_size_cache_ = 0;
+
+            #ifdef USE_CUDA
+                float* d_input_ = nullptr;
+                float* d_output_ = nullptr;
+                float* d_x_hat_ = nullptr;
+                float* d_gamma_ = nullptr;
+                float* d_beta_ = nullptr;
+                float* d_batch_mean_ = nullptr;
+                float* d_batch_var_ = nullptr;
+                float* d_running_mean_ = nullptr;
+                float* d_running_var_ = nullptr;
+                float* d_grad_input_ = nullptr;
+                float* d_grad_output_ = nullptr;
+                float* d_grad_gamma_ = nullptr;
+                float* d_grad_beta_ = nullptr;
+                std::size_t gpu_buffer_size_ = 0;
+                bool gpu_initialized_ = false;
+            #endif
         };
     }
 }

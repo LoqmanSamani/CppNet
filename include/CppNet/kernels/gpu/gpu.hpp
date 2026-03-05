@@ -29,6 +29,18 @@ namespace CppNet
 
             __global__ void relu_grad_kernel(const float* __restrict__ dA, const float* __restrict__ Z, float* __restrict__ dZ, int total_elements);
 
+            __global__ void leaky_relu_kernel(const float* __restrict__ input, float* __restrict__ output, int total_elements, float alpha);
+
+            __global__ void leaky_relu_grad_kernel(const float* __restrict__ dA, const float* __restrict__ Z, float* __restrict__ dZ, int total_elements, float alpha);
+
+            __global__ void tanh_kernel(const float* __restrict__ input, float* __restrict__ output, int total_elements);
+
+            __global__ void tanh_grad_kernel(const float* __restrict__ dA, const float* __restrict__ Z, float* __restrict__ dZ, int total_elements);
+
+            __global__ void sigmoid_kernel(const float* __restrict__ input, float* __restrict__ output, int total_elements);
+
+            __global__ void sigmoid_grad_kernel(const float* __restrict__ dA, const float* __restrict__ Z, float* __restrict__ dZ, int total_elements);
+
             __global__ void conv2d_forward_kernel(
                 const float* input, const float* weights, const float* bias,
                 float* output,
