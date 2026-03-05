@@ -47,9 +47,10 @@
 
 ## Features
 
-- **High Performance** — Vectorized tensor operations via Eigen, multi-threaded with OpenMP, optional CUDA GPU kernels.
-- **Rich Layer Library** — Linear, Conv2D, MaxPool2D, RNN, LSTM, GRU, Multi-Head Attention, Dropout, BatchNorm, Embedding, Residual, GlobalPool, Flatten.
+- **High Performance** — Vectorized tensor operations via Eigen, multi-threaded with OpenMP, full CUDA GPU backend for all layers, activations, losses, and optimizers.
+- **Rich Layer Library** — Linear, Conv2D, MaxPool2D, RNN, LSTM, GRU, Multi-Head Attention, Dropout, BatchNorm, Embedding, Residual, GlobalPool, MeanPool1D, Flatten.
 - **Multiple Backends** — Per-layer compute backend selection: `"cpu-eigen"` (Eigen contractions), `"cpu"` (OpenMP loops), `"gpu"` (CUDA kernels).
+- **Complete CUDA Coverage** — 41 CUDA kernel files covering all layers, activations, losses, and optimizers for end-to-end GPU training.
 - **Modular Architecture** — Clean separation of layers, activations, losses, optimizers, metrics, regularizations, and utilities.
 - **Training Utilities** — DataLoader with batching & shuffling, learning rate schedulers, early stopping callbacks, gradient clipping, model serialization.
 - **Visualization** — Built-in `TrainingLogger` for tracking metrics and exporting training history to CSV.
@@ -160,6 +161,7 @@ All layers inherit from `CppNet::Layers::Layer` and implement `forward()`, `back
 | `Embedding` | Embedding lookup table | `vocab_size`, `embed_dim` |
 | `Residual` | Residual (skip) connection wrapper | — |
 | `GlobalPool` | Global average/max pooling | — |
+| `MeanPool1D` | Mean pooling over sequence dimension | — |
 
 ### Activations
 
@@ -171,7 +173,7 @@ All layers inherit from `CppNet::Layers::Layer` and implement `forward()`, `back
 | `Tanh` | $\tanh(x)$ |
 | `Softmax` | $\frac{e^{x_i}}{\sum_j e^{x_j}}$ |
 
-All activations support both 2D (`MatrixXd`) and 4D (`Tensor<double,4>`) inputs.
+All activations support both 2D and 4D tensor inputs and run on all three backends (`cpu-eigen`, `cpu`, `gpu`).
 
 ### Losses
 
@@ -184,7 +186,7 @@ All activations support both 2D (`MatrixXd`) and 4D (`Tensor<double,4>`) inputs.
 | `CategoricalCrossEntropy` | Multi-class classification |
 | `SoftmaxCrossEntropy` | Multi-class (fused softmax + CE) |
 
-All support configurable reduction modes (`"mean"`, `"sum"`).
+All support configurable reduction modes (`"mean"`, `"sum"`) and CUDA GPU acceleration.
 
 ### Optimizers
 
@@ -195,6 +197,8 @@ All support configurable reduction modes (`"mean"`, `"sum"`).
 | `Adagrad` | Adaptive gradient accumulation |
 | `Momentum` | SGD with momentum |
 | `RMSProp` | Root Mean Square Propagation |
+
+All optimizers have dedicated CUDA kernels for GPU-side weight updates.
 
 ### Metrics
 
@@ -266,14 +270,16 @@ logger.export_csv("training_history.csv");
 
 The `examples/` directory contains complete, self-contained deep learning programs that train on **synthetic data** — no downloads required. Each example generates its own dataset, trains a model, and reports final metrics.
 
-| Example | Architecture | Dataset | Result |
-|:--------|:------------|:--------|:-------|
-| [`mlp_classification.cpp`](examples/mlp_classification.cpp) | Linear→ReLU→Linear→ReLU→Linear | 3-class spiral (600 samples, 2D) | **~71% accuracy** |
-| [`cnn_image_classification.cpp`](examples/cnn_image_classification.cpp) | Conv2D→ReLU→MaxPool2D→Flatten→Linear | 8×8 stripe images (400 samples) | **100% accuracy** |
-| [`rnn_sequence_prediction.cpp`](examples/rnn_sequence_prediction.cpp) | LSTM(1,16)→Linear(16,1) | Sine-wave sequences (400 samples) | **MSE ≈ 0.00001** |
-| [`transformer_classifier.cpp`](examples/transformer_classifier.cpp) | Embedding→Self-Attention+skip→ReLU→Linear | Token sequences (400 samples) | **100% accuracy** |
-| [`resnet_classifier.cpp`](examples/resnet_classifier.cpp) | Linear→ReLU→ResBlock(32)→Linear→Sigmoid | Concentric circles (600 samples) | **~99% accuracy** |
-| [`spiral_classification.cpp`](examples/spiral_classification.cpp) | MLP (variable width) — device benchmark | 5-class spiral (15,000 samples, 2D) | **~92% accuracy, up to 25x GPU speedup** |
+| Example | Architecture | Dataset | Key Components | Result |
+|:--------|:------------|:--------|:---------------|:-------|
+| [`mlp_classification.cpp`](examples/mlp_classification.cpp) | Linear→ReLU→Linear→ReLU→Linear | 3-class spiral (600 samples, 2D) | ReLU, SoftmaxCrossEntropy, Adam | **~75% accuracy** |
+| [`cnn_image_classification.cpp`](examples/cnn_image_classification.cpp) | Conv2D→ReLU→MaxPool2D→Flatten→Linear | 8×8 stripe images (400 samples) | Conv2D, MaxPool2D, SoftmaxCrossEntropy, Adam | **100% accuracy** |
+| [`rnn_sequence_prediction.cpp`](examples/rnn_sequence_prediction.cpp) | LSTM(1,16)→Linear(16,1) | Sine-wave sequences (400 samples) | LSTM, MSE, Adam | **MSE ≈ 0.00001** |
+| [`gru_sequence_prediction.cpp`](examples/gru_sequence_prediction.cpp) | GRU(1,16)→Linear(16,1) | Sine-wave sequences (400 samples) | GRU, MAE, Momentum | **MAE ≈ 0.010** |
+| [`transformer_classifier.cpp`](examples/transformer_classifier.cpp) | Embedding→Attention+skip→ReLU→Linear | Token sequences (400 samples) | Embedding, MultiHeadAttention, MeanPool1D | **100% accuracy** |
+| [`resnet_classifier.cpp`](examples/resnet_classifier.cpp) | Linear→ReLU→ResBlock(32)→Linear→Sigmoid | Concentric circles (600 samples) | Residual, GradientClip, He init | **~99% accuracy** |
+| [`regularized_cnn.cpp`](examples/regularized_cnn.cpp) | Conv2D→LeakyReLU→Pool→BN→Dropout→FC | 8×8 pattern images (600 samples, 3 classes) | BatchNorm, Dropout, LeakyReLU, CategoricalCrossEntropy, Adagrad | **100% accuracy** |
+| [`optimizer_comparison.cpp`](examples/optimizer_comparison.cpp) | Linear→Tanh→Linear→Tanh→Linear | Regression: y = sin(x₀)·cos(x₁) (500 samples) | SGD, Momentum, Adagrad, RMSProp, Adam, Tanh, Huber | **loss ≈ 0.002** |
 
 Build and run:
 
@@ -284,35 +290,36 @@ make -j$(nproc)
 ./examples/mlp_classification
 ./examples/cnn_image_classification
 ./examples/rnn_sequence_prediction
+./examples/gru_sequence_prediction
 ./examples/transformer_classifier
 ./examples/resnet_classifier
-./examples/spiral_classification
+./examples/regularized_cnn
+./examples/optimizer_comparison
 ```
-
-Each example demonstrates key patterns:
-- **MLP**: Multi-class classification with softmax, manual forward/backward loop
-- **CNN**: Image feature extraction, Conv2D + pooling pipeline
-- **RNN/LSTM**: Time-series regression, sequence processing with hidden states
-- **Transformer**: Token embedding + self-attention, skip connections, mean-pooling
-- **ResNet**: Residual (skip) connections, gradient clipping, He initialization
-- **Spiral Benchmark**: Multi-backend (cpu-eigen / cpu / gpu) performance comparison across network sizes
 
 ---
 
 ## GPU Acceleration
 
-CppNet automatically detects CUDA at build time. When available, layers can target the GPU backend:
+CppNet provides **full CUDA GPU support** across all layers, activations, losses, and optimizers. When CUDA is detected at build time, layers can target the GPU backend:
 
 ```cpp
 CppNet::Layers::Linear layer(784, 256, "fc1", true, true, "gpu", "xavier");
 ```
 
-Available CUDA kernels:
-- Matrix multiplication (`matmul`, `matmul_grad_input`, `matmul_grad_weight`)
-- Bias operations (`add_bias`, `bias_grad`)
-- Elementwise operations
-- ReLU forward & backward
-- SGD update step
+### CUDA Kernel Coverage (41 kernels)
+
+| Category | CUDA Kernels |
+|:---------|:-------------|
+| **Linear algebra** | `matmul`, `matmul_grad_input`, `matmul_grad_weight`, `add_bias`, `bias_grad`, `elementwise` |
+| **Convolution** | `conv2d_forward`, `conv2d_backward`, `maxpool2d_forward`, `maxpool2d_backward` |
+| **Recurrent** | `rnn_cell`, `lstm_cell`, `gru_cell` |
+| **Attention** | `attention_scores` (scale, softmax, backward), `embedding_forward`, `embedding_backward` |
+| **Normalization** | `batch_norm_forward`, `batch_norm_backward`, `dropout` |
+| **Pooling** | `global_avg_pool2d`, `global_max_pool2d`, `mean_pool1d` |
+| **Activations** | `relu`, `relu_grad`, `leaky_relu`, `leaky_relu_grad`, `sigmoid`, `sigmoid_grad`, `tanh_activation`, `tanh_activation_grad` |
+| **Losses** | `mse`, `mae`, `huber`, `bce`, `categorical_ce`, `softmax_ce` |
+| **Optimizers** | `sgd_step`, `momentum_step`, `adagrad_step`, `rmsprop_step`, `adam_step` |
 
 To force a CPU-only build even when CUDA is present:
 
@@ -324,29 +331,66 @@ cmake .. -DCUDAToolkit_ROOT=/nonexistent
 
 ## Benchmarks
 
-### MLP Device Benchmark — Spiral Classification
+Five benchmarks compare three compute backends — **cpu-eigen** (Eigen SIMD contractions), **cpu** (OpenMP loops), and **gpu** (CUDA kernels) — across different architectures and model sizes. All benchmarks are reproducible via the scripts in the [`benchmarks/`](benchmarks/) directory.
 
-A 5-class 2D spiral with 15,000 samples (3,000 per class) is classified by MLPs of increasing width.
-Three backends are compared: **cpu-eigen** (Eigen contractions), **cpu** (OpenMP loops, 4 threads), and **gpu** (CUDA kernels).
-All configurations use the Adam optimizer and ReLU activations.
+### Summary of GPU Speedups
 
-| Config | Architecture | Epochs | Batch | cpu-eigen | cpu (OpenMP) | gpu (CUDA) | GPU Speedup vs cpu-eigen |
-|:-------|:-------------|:-------|:------|:----------|:-------------|:-----------|:-------------------------|
-| Small | 2→64→64→5 | 50 | 128 | 7.4 s | 17.9 s | 3.6 s | **2.03x** |
-| Medium | 2→128→256→128→5 | 40 | 256 | 61.6 s | 241.9 s | 8.9 s | **6.91x** |
-| Large | 2→256→512→512→256→5 | 10 | 256 | 114.5 s | 669.9 s | 8.0 s | **14.31x** |
-| XLarge | 2→512→1024→1024→512→5 | 10 | 512 | 473.1 s | 3,027.0 s | 18.7 s | **25.28x** |
+| Architecture | Model Size | GPU Speedup vs cpu-eigen | Key Observation |
+|:-------------|:-----------|:-------------------------|:----------------|
+| **MLP** | Small (4.5K params) | 2.0x | GPU overhead limits gains for small matmuls |
+| | Medium (66K params) | 6.9x | — |
+| | Large (660K params) | 14.3x | — |
+| | XLarge (2.6M params) | 25.3x | Sub-linear GPU time scaling with params |
+| **CNN** | Small (Conv16→32) | 28.8x | Convolution is highly GPU-parallel |
+| | Medium (Conv32→64→FC128) | 42.0x | Highest CNN speedup |
+| **RNN/LSTM/GRU** | Small (H=64) | 2.2–5.2x | GRU benefits most from GPU |
+| | Medium (H=128) | 4.7–15.5x | — |
+| | Large (H=256) | 12.2–56.4x | GRU Large achieves **56.4x** — highest overall |
+| **Transformer** | Small (d=32, h=2) | 0.5x (slower) | GPU overhead dominates at small scale |
+| | Medium (d=64, h=4) | 1.0x (break-even) | — |
+| | Large (d=128, h=8) | 1.2x | Modest gain; hybrid CPU/GPU attention |
+| **ResNet** | Small (W=64, D=2) | 1.6x | Depth amplifies GPU advantage |
+| | Medium (W=128, D=4) | 6.7x | — |
+| | Large (W=256, D=6) | 9.0x | Skip connections add negligible overhead |
 
-All configs converge to ~92–93% accuracy across all devices.
-GPU advantage grows dramatically with network width — up to **25x** faster on the largest model.
+### Key Findings
 
-> See [benchmarks.md](benchmarks.md) for full details, per-epoch logs, and methodology.
+- **GPU advantage grows with model size.** Across all architectures, larger models see dramatically higher GPU speedups as matrix sizes better saturate GPU cores.
+- **CNNs and recurrent layers benefit most from GPU.** Convolution achieves up to **42x** speedup; GRU achieves up to **56.4x** — the highest across all benchmarks.
+- **Transformers show modest GPU gains** at tested scales due to mixed operations (embedding lookups, attention softmax, multiple small projections) and a hybrid CPU/GPU attention path.
+- **Eigen (`cpu-eigen`) consistently outperforms OpenMP (`cpu`)** for all architectures, leveraging SIMD vectorization and cache-optimal memory layouts.
+- **Numerical consistency is verified** across all backends — all devices converge to equivalent loss and accuracy values.
+
+### Average GPU Speedups by Architecture
+
+| Architecture | Avg GPU Speedup | Best GPU Speedup | Best Config |
+|:-------------|:----------------|:-----------------|:------------|
+| MLP | **12.1x** | 25.3x | XLarge (2.6M params) |
+| CNN | **35.4x** | 42.0x | Medium (Conv32→64→FC128) |
+| Sequence (RNN/LSTM/GRU) | **13.7x** | 56.4x | GRU Large (H=256, seq=50) |
+| Transformer | **0.9x** | 1.2x | Large (d=128, h=8) |
+| ResNet | **5.8x** | 9.0x | Large (W=256, D=6) |
+
+### How to Reproduce
+
+```bash
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_BENCHMARKS=ON
+make -j$(nproc)
+./benchmarks/mlp_benchmark
+./benchmarks/cnn_benchmark
+./benchmarks/sequence_benchmark
+./benchmarks/transformer_benchmark
+./benchmarks/residual_benchmark
+```
+
+> See [`benchmarks/benchmarks.md`](benchmarks/benchmarks.md) for full per-epoch results, detailed speedup analysis, and methodology.
 
 ---
 
 ## Testing
 
-CppNet uses [CTest](https://cmake.org/cmake/help/latest/manual/ctest.1.html) with **40 unit tests** covering every module:
+CppNet has **41 unit tests** with **377 test cases** covering every module:
 
 ```bash
 cd build
@@ -355,16 +399,17 @@ make -j$(nproc)
 ctest --output-on-failure
 ```
 
-| Category | Tests |
-|:---------|:------|
-| **Layers** (13) | Linear, Conv2D, Flatten, MaxPool2D, RNN, Attention, BatchNorm, Dropout, Embedding, GlobalPool, GRU, LSTM, Residual |
-| **Activations** (5) | ReLU, Sigmoid, Softmax, Tanh, LeakyReLU |
-| **Losses** (6) | BinaryCrossEntropy, CategoricalCrossEntropy, MSE, MAE, Huber, SoftmaxCrossEntropy |
-| **Optimizers** (5) | SGD, Adam, Momentum, Adagrad, RMSProp |
-| **Utilities** (7) | Metrics, Regularizations, Callbacks, DataLoader, ElapsedTime, GradientClip, Init |
-| **Other** (4) | Schedulers, Utils, Models, Visualizations |
+| Category | Tests | Test Cases |
+|:---------|:------|:-----------|
+| **Layers** (13) | Linear, Conv2D, Flatten, MaxPool2D, RNN, Attention, BatchNorm, Dropout, Embedding, GlobalPool, GRU, LSTM, Residual | 123 |
+| **Activations** (5) | ReLU, Sigmoid, Softmax, Tanh, LeakyReLU | 55 |
+| **Losses** (6) | BinaryCrossEntropy, CategoricalCrossEntropy, MSE, MAE, Huber, SoftmaxCrossEntropy | 52 |
+| **Optimizers** (5) | SGD, Adam, Momentum, Adagrad, RMSProp | 34 |
+| **Utilities** (7) | Metrics, Regularizations, Callbacks, DataLoader, ElapsedTime, GradientClip, Init | 65 |
+| **GPU Kernels** (1) | GPU matmul via Linear layer (forward, backward, step, CPU/GPU comparison) | 7 |
+| **Other** (4) | Schedulers, Utils, Models, Visualizations | 41 |
 
-Each test validates forward pass, backward pass (gradient shapes & values), and parameter updates where applicable.
+Each test validates forward pass, backward pass (gradient shapes & values), parameter updates, and GPU/CPU numerical consistency where applicable.
 
 ---
 
@@ -383,12 +428,14 @@ CppNet/
 │   ├── models/                 # SequentialModel
 │   ├── metrics/                # Accuracy, Precision, Recall, F1
 │   ├── regularizations/        # L1, L2, Elastic Net
-│   ├── kernels/gpu/            # CUDA kernels
+│   ├── kernels/gpu/            # CUDA kernel declarations
 │   ├── utils/                  # DataLoader, Init, Schedulers, Serialization, ...
 │   └── visualizations/         # TrainingLogger
 ├── src/CppNet/                 # Implementation files (.cpp / .cu)
-├── tests/                      # 40 CTest unit tests (layers, activations, losses, ...)
-├── examples/                   # 6 deep learning examples (MLP, CNN, RNN, Transformer, ResNet, Benchmark)
+│   └── kernels/gpu/            # 41 CUDA kernel implementations
+├── tests/                      # 41 unit tests (377 test cases)
+├── examples/                   # 8 deep learning examples
+├── benchmarks/                 # 5 device benchmarks (CPU vs GPU)
 └── docs/                       # Additional documentation
 ```
 
@@ -396,17 +443,17 @@ CppNet/
 
 ## Roadmap
 
-- [x] Core layer library (Linear, Conv2D, Pooling, RNN, LSTM, GRU, Attention)
+- [x] Core layer library (Linear, Conv2D, Pooling, RNN, LSTM, GRU, Attention, BatchNorm, Dropout, Embedding, Residual)
 - [x] Activation functions (ReLU, Sigmoid, Tanh, Softmax, LeakyReLU)
 - [x] Loss functions (MSE, MAE, Huber, BCE, CCE, SoftmaxCE)
 - [x] Optimizers (SGD, Adam, Adagrad, Momentum, RMSProp)
 - [x] DataLoader, LR schedulers, early stopping, gradient clipping
 - [x] Model serialization (save/load)
-- [x] CUDA GPU kernels for core operations
+- [x] Full CUDA GPU backend — 41 kernels covering all layers, activations, losses, and optimizers
 - [x] OpenMP CPU parallelism
-- [x] Comprehensive test suite (40 unit tests)
-- [x] Deep learning examples (MLP, CNN, RNN/LSTM, Transformer, ResNet)
-- [ ] Expand GPU backend to cover all layers and operations
+- [x] Comprehensive test suite (41 tests, 377 test cases)
+- [x] Deep learning examples (MLP, CNN, RNN/LSTM, GRU, Transformer, ResNet, Regularized CNN, Optimizer Comparison)
+- [x] Device benchmarks (MLP, CNN, Sequence, Transformer, ResNet)
 - [ ] Add Trainer abstraction with built-in training loop
 - [ ] Additional examples (GANs, Reinforcement Learning, NLP pipelines)
 - [ ] Python bindings (pybind11)
@@ -430,4 +477,4 @@ Contributions are welcome! To get started:
 
 CppNet is released under the [MIT License](LICENSE).
 
-Copyright &copy; 2025 Loghman Samani  
+Copyright &copy; 2025 Loghman Samani
