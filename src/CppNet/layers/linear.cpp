@@ -394,8 +394,8 @@ namespace CppNet
                     "CUDA allocation failed for layer '" + layer_name_ +
                     "': " + cudaGetErrorString(err));
 
-            sync_weights_to_gpu();
             gpu_initialized_ = true;
+            sync_weights_to_gpu();
 
             std::cout << "GPU buffers allocated successfully for layer '"
                       << layer_name_ << "'" << std::endl;
