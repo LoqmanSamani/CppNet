@@ -1,8 +1,10 @@
 #include <cmath>
 #include <Eigen/Dense>
 #include "CppNet/losses/categorical_cross_entropy.hpp"
-
-
+#include "CppNet/kernels/gpu/gpu.hpp"
+#ifdef USE_OPENMP
+#include <omp.h>
+#endif
 
 
 
@@ -10,14 +12,129 @@ namespace CppNet
 {
     namespace Losses
     {
-        CategoricalCrossEntropy::CategoricalCrossEntropy(const std::string& reduction, bool from_logits, float label_smoothing) 
-            : reduction_(reduction), from_logits_(from_logits), label_smoothing_(label_smoothing) {}
+        CategoricalCrossEntropy::CategoricalCrossEntropy(const std::string& reduction, bool from_logits,
+                                                         float label_smoothing, const std::string& device)
+            : reduction_(reduction), from_logits_(from_logits), label_smoothing_(label_smoothing), device_(device) {}
+
+        CategoricalCrossEntropy::~CategoricalCrossEntropy()
+        {
+            #ifdef USE_CUDA
+                release_gpu();
+            #endif
+        }
+
+        #ifdef USE_CUDA
+
+            void CategoricalCrossEntropy::ensure_gpu(std::size_t n)
+            {
+                if (gpu_init_ && gpu_buf_ >= n) return;
+                release_gpu();
+                cudaMalloc(&d_pred_, n * sizeof(float));
+                cudaMalloc(&d_target_, n * sizeof(float));
+                cudaMalloc(&d_softmax_, n * sizeof(float));
+                cudaMalloc(&d_loss_, sizeof(float));
+                cudaMalloc(&d_grad_, n * sizeof(float));
+                gpu_buf_ = n;
+                gpu_init_ = true;
+            }
+
+            void CategoricalCrossEntropy::release_gpu()
+            {
+                if (d_pred_)    cudaFree(d_pred_);
+                if (d_target_)  cudaFree(d_target_);
+                if (d_softmax_) cudaFree(d_softmax_);
+                if (d_loss_)    cudaFree(d_loss_);
+                if (d_grad_)    cudaFree(d_grad_);
+                d_pred_ = nullptr; d_target_ = nullptr;
+                d_softmax_ = nullptr; d_loss_ = nullptr; d_grad_ = nullptr;
+                gpu_buf_ = 0; gpu_init_ = false;
+            }
+
+            float CategoricalCrossEntropy::forward_gpu(const Eigen::Tensor<float, 2>& predictions,
+                                                       const Eigen::Tensor<float, 2>& targets)
+            {
+                int batch_size = predictions.dimension(0);
+                int num_classes = predictions.dimension(1);
+                std::size_t n = predictions.size();
+                ensure_gpu(n);
+
+                // upload processed targets (label smoothing already applied by caller)
+                cudaMemcpy(d_target_, targets_cache_.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+                float zero = 0.0f;
+                cudaMemcpy(d_loss_, &zero, sizeof(float), cudaMemcpyHostToDevice);
+
+                if (from_logits_)
+                {
+                    cudaMemcpy(d_pred_, predictions.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+                    int block = 256;
+                    int smem = block * sizeof(float);
+                    Kernels::GPU::categorical_ce_logits_forward_kernel<<<batch_size, block, smem>>>(
+                        d_pred_, d_target_, d_softmax_, d_loss_, batch_size, num_classes);
+
+                    // download softmax for backward
+                    softmax_cache_.resize(batch_size, num_classes);
+                    cudaMemcpy(softmax_cache_.data(), d_softmax_, n * sizeof(float), cudaMemcpyDeviceToHost);
+                }
+                else
+                {
+                    // predictions are probabilities, copy them as softmax_cache
+                    softmax_cache_ = predictions;
+                    cudaMemcpy(d_pred_, predictions.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+
+                    int block = 256;
+                    int grid = (static_cast<int>(n) + block - 1) / block;
+                    Kernels::GPU::categorical_ce_probs_forward_kernel<<<grid, block>>>(
+                        d_pred_, d_target_, d_loss_, static_cast<int>(n));
+                }
+
+                float loss;
+                cudaMemcpy(&loss, d_loss_, sizeof(float), cudaMemcpyDeviceToHost);
+
+                if (reduction_ == "mean")
+                    return loss / static_cast<float>(batch_size);
+                return loss;
+            }
+
+            void CategoricalCrossEntropy::backward_gpu(const Eigen::Tensor<float, 2>& predictions,
+                                                       const Eigen::Tensor<float, 2>& targets,
+                                                       Eigen::Tensor<float, 2>& grad)
+            {
+                int batch_size = predictions.dimension(0);
+                int num_classes = predictions.dimension(1);
+                std::size_t n = predictions.size();
+
+                float scale = (reduction_ == "mean") ? 1.0f / static_cast<float>(batch_size) : 1.0f;
+
+                int block = 256;
+                int grid = (static_cast<int>(n) + block - 1) / block;
+
+                if (from_logits_)
+                {
+                    cudaMemcpy(d_softmax_, softmax_cache_.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+                    cudaMemcpy(d_target_, targets_cache_.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+                    Kernels::GPU::categorical_ce_logits_backward_kernel<<<grid, block>>>(
+                        d_softmax_, d_target_, d_grad_, static_cast<int>(n), scale);
+                }
+                else
+                {
+                    cudaMemcpy(d_pred_, softmax_cache_.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+                    cudaMemcpy(d_target_, targets_cache_.data(), n * sizeof(float), cudaMemcpyHostToDevice);
+                    Kernels::GPU::categorical_ce_probs_backward_kernel<<<grid, block>>>(
+                        d_pred_, d_target_, d_grad_, static_cast<int>(n), scale);
+                }
+
+                cudaMemcpy(grad.data(), d_grad_, n * sizeof(float), cudaMemcpyDeviceToHost);
+            }
+
+        #endif
 
         void CategoricalCrossEntropy::set_num_threads(int num_threads) 
         {
             if (num_threads > 0) 
             {
+                #ifdef USE_OPENMP
                 omp_set_num_threads(num_threads);
+                #endif
             }
         }
 
@@ -69,6 +186,10 @@ namespace CppNet
                 float smoothing_factor = label_smoothing_ / num_classes;
                 targets_cache_ = targets * (1.0f - label_smoothing_) + smoothing_factor;
             }
+
+            #ifdef USE_CUDA
+                if (device_ == "gpu") return forward_gpu(predictions, targets);
+            #endif
             
             if (from_logits_)
             {
@@ -209,6 +330,14 @@ namespace CppNet
             int num_classes = predictions.dimension(1);
             
             Eigen::Tensor<float, 2> gradients(batch_size, num_classes);
+
+            #ifdef USE_CUDA
+                if (device_ == "gpu")
+                {
+                    backward_gpu(predictions, targets, gradients);
+                    return gradients;
+                }
+            #endif
             
             if (from_logits_)
             {

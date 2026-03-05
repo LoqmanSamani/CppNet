@@ -15,6 +15,10 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <string>
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace CppNet
 {
     namespace Layers
@@ -29,8 +33,8 @@ namespace CppNet
         class GlobalAvgPool2D : public Layer
         {
         public:
-            GlobalAvgPool2D() = default;
-            ~GlobalAvgPool2D() override = default;
+            explicit GlobalAvgPool2D(const std::string& device = "cpu");
+            ~GlobalAvgPool2D() override;
 
             const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 4>& input);
             const Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 2>& grad_output);
@@ -38,11 +42,30 @@ namespace CppNet
             bool is_trainable() const override { return false; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
 
+            #ifdef USE_CUDA
+                void forward_gpu(const Eigen::Tensor<float, 4>& input,
+                                 Eigen::Tensor<float, 2>& output);
+                void backward_gpu(const Eigen::Tensor<float, 2>& grad_output,
+                                  Eigen::Tensor<float, 4>& grad_input);
+                void release_gpu_buffers();
+            #endif
+
         private:
+            std::string device_;
             int batch_cache_ = 0;
             int channels_cache_ = 0;
             int height_cache_ = 0;
             int width_cache_ = 0;
+
+            #ifdef USE_CUDA
+                float* d_input_ = nullptr;
+                float* d_output_ = nullptr;
+                float* d_grad_input_ = nullptr;
+                float* d_grad_output_ = nullptr;
+                std::size_t gpu_buf_in_ = 0;
+                std::size_t gpu_buf_out_ = 0;
+                bool gpu_initialized_ = false;
+            #endif
         };
 
         /**
@@ -55,8 +78,8 @@ namespace CppNet
         class GlobalMaxPool2D : public Layer
         {
         public:
-            GlobalMaxPool2D() = default;
-            ~GlobalMaxPool2D() override = default;
+            explicit GlobalMaxPool2D(const std::string& device = "cpu");
+            ~GlobalMaxPool2D() override;
 
             const Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 4>& input);
             const Eigen::Tensor<float, 4> backward(const Eigen::Tensor<float, 2>& grad_output);
@@ -64,7 +87,16 @@ namespace CppNet
             bool is_trainable() const override { return false; }
             void step(Optimizers::Optimizer& optimizer, float learning_rate) override;
 
+            #ifdef USE_CUDA
+                void forward_gpu(const Eigen::Tensor<float, 4>& input,
+                                 Eigen::Tensor<float, 2>& output);
+                void backward_gpu(const Eigen::Tensor<float, 2>& grad_output,
+                                  Eigen::Tensor<float, 4>& grad_input);
+                void release_gpu_buffers();
+            #endif
+
         private:
+            std::string device_;
             int batch_cache_ = 0;
             int channels_cache_ = 0;
             int height_cache_ = 0;
@@ -72,6 +104,17 @@ namespace CppNet
 
             Eigen::Tensor<int, 2> argmax_h_;  // [batch, channels]
             Eigen::Tensor<int, 2> argmax_w_;  // [batch, channels]
+
+            #ifdef USE_CUDA
+                float* d_input_ = nullptr;
+                float* d_output_ = nullptr;
+                int* d_argmax_ = nullptr;
+                float* d_grad_input_ = nullptr;
+                float* d_grad_output_ = nullptr;
+                std::size_t gpu_buf_in_ = 0;
+                std::size_t gpu_buf_out_ = 0;
+                bool gpu_initialized_ = false;
+            #endif
         };
     }
 }

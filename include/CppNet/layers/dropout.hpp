@@ -16,6 +16,10 @@
 #include <string>
 #include <random>
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace CppNet
 {
     namespace Layers
@@ -30,7 +34,7 @@ namespace CppNet
         class Dropout : public Layer
         {
         public:
-            explicit Dropout(float p = 0.5f);
+            explicit Dropout(float p = 0.5f, const std::string& device = "cpu");
             ~Dropout();
 
             Eigen::Tensor<float, 2> forward(const Eigen::Tensor<float, 2>& input);
@@ -46,16 +50,38 @@ namespace CppNet
             bool is_training() const { return training_; }
             float get_p() const { return p_; }
 
+            #ifdef USE_CUDA
+                void forward_gpu_2d(const Eigen::Tensor<float, 2>& input,
+                                    Eigen::Tensor<float, 2>& output);
+                void backward_gpu_2d(const Eigen::Tensor<float, 2>& grad,
+                                     Eigen::Tensor<float, 2>& grad_input);
+                void forward_gpu_4d(const Eigen::Tensor<float, 4>& input,
+                                    Eigen::Tensor<float, 4>& output);
+                void backward_gpu_4d(const Eigen::Tensor<float, 4>& grad,
+                                     Eigen::Tensor<float, 4>& grad_input);
+                void ensure_gpu_buffer(std::size_t num_elements);
+                void release_gpu_buffers();
+            #endif
+
         private:
             float p_;           // drop probability
             float scale_;       // 1 / (1 - p)
             bool training_ = true;
+            std::string device_;
 
             Eigen::Tensor<float, 2> mask_2d_;
             Eigen::Tensor<float, 4> mask_4d_;
 
             std::mt19937 gen_;
             std::bernoulli_distribution dist_;
+
+            #ifdef USE_CUDA
+                float* d_input_ = nullptr;
+                float* d_mask_ = nullptr;
+                float* d_output_ = nullptr;
+                std::size_t gpu_buffer_size_ = 0;
+                bool gpu_initialized_ = false;
+            #endif
         };
     }
 }

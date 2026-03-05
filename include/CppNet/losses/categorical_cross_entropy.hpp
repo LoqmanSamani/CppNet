@@ -9,7 +9,9 @@
 #include <vector>
 #include "CppNet/losses/loss.hpp"
 
-
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
 
 namespace CppNet
 {
@@ -20,7 +22,9 @@ namespace CppNet
             
             public:
 
-                CategoricalCrossEntropy(const std::string& reduction = "mean", bool from_logits = true, float label_smoothing = 0.0f);
+                CategoricalCrossEntropy(const std::string& reduction = "mean", bool from_logits = true,
+                                        float label_smoothing = 0.0f, const std::string& device = "cpu");
+                ~CategoricalCrossEntropy();
                 
                 // for classification: predictions are class probabilities/logits, targets are class indices or one-hot
                 float forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<int, 1>& targets); // class indices
@@ -35,11 +39,29 @@ namespace CppNet
 
             private:
 
-                std::string reduction_; // "mean", "sum", or "none"
-                bool from_logits_; // whether predictions are logits or probabilities
-                float label_smoothing_; // label smoothing factor
-                Eigen::Tensor<float, 2> softmax_cache_;  // cache softmax output
-                Eigen::Tensor<float, 2> targets_cache_;  // cache processed targets
+                std::string reduction_;
+                bool from_logits_;
+                float label_smoothing_;
+                std::string device_;
+                Eigen::Tensor<float, 2> softmax_cache_;
+                Eigen::Tensor<float, 2> targets_cache_;
+
+                #ifdef USE_CUDA
+                    float* d_pred_ = nullptr;
+                    float* d_target_ = nullptr;
+                    float* d_softmax_ = nullptr;
+                    float* d_loss_ = nullptr;
+                    float* d_grad_ = nullptr;
+                    std::size_t gpu_buf_ = 0;
+                    bool gpu_init_ = false;
+                    void ensure_gpu(std::size_t n);
+                    void release_gpu();
+                    float forward_gpu(const Eigen::Tensor<float, 2>& predictions,
+                                      const Eigen::Tensor<float, 2>& targets);
+                    void backward_gpu(const Eigen::Tensor<float, 2>& predictions,
+                                      const Eigen::Tensor<float, 2>& targets,
+                                      Eigen::Tensor<float, 2>& grad);
+                #endif
         };
     }
 }

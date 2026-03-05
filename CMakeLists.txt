@@ -104,6 +104,17 @@ set(GPU_SOURCES
     src/CppNet/kernels/gpu/embedding_backward.cu
     src/CppNet/kernels/gpu/attention_scores.cu
     src/CppNet/kernels/gpu/mean_pool1d.cu
+    src/CppNet/kernels/gpu/batch_norm_forward.cu
+    src/CppNet/kernels/gpu/batch_norm_backward.cu
+    src/CppNet/kernels/gpu/dropout.cu
+    src/CppNet/kernels/gpu/global_avg_pool2d.cu
+    src/CppNet/kernels/gpu/global_max_pool2d.cu
+    src/CppNet/kernels/gpu/mse.cu
+    src/CppNet/kernels/gpu/mae.cu
+    src/CppNet/kernels/gpu/huber.cu
+    src/CppNet/kernels/gpu/bce.cu
+    src/CppNet/kernels/gpu/softmax_ce.cu
+    src/CppNet/kernels/gpu/categorical_ce.cu
 )
 
 set(CPP_NET_SOURCES ${CPU_SOURCES})
@@ -133,6 +144,15 @@ if(USE_CUDA)
         src/CppNet/layers/attention.cpp
         src/CppNet/layers/residual.cpp
         src/CppNet/layers/mean_pool1d.cpp
+        src/CppNet/layers/batch_norm.cpp
+        src/CppNet/layers/dropout.cpp
+        src/CppNet/layers/global_pool.cpp
+        src/CppNet/losses/mse.cpp
+        src/CppNet/losses/mae.cpp
+        src/CppNet/losses/huber.cpp
+        src/CppNet/losses/binary_cross_entropy.cpp
+        src/CppNet/losses/softmax_cross_entropy.cpp
+        src/CppNet/losses/categorical_cross_entropy.cpp
         PROPERTIES
             LANGUAGE CUDA
     )

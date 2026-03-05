@@ -21,6 +21,10 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <string>
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace CppNet
 {
     namespace Losses
@@ -35,11 +39,9 @@ namespace CppNet
         class SoftmaxCrossEntropy : public Loss
         {
         public:
-            /**
-             * @param reduction "mean" (default) or "sum"
-             */
-            explicit SoftmaxCrossEntropy(const std::string& reduction = "mean");
-            ~SoftmaxCrossEntropy() override = default;
+            explicit SoftmaxCrossEntropy(const std::string& reduction = "mean",
+                                         const std::string& device = "cpu");
+            ~SoftmaxCrossEntropy() override;
 
             float forward(const Eigen::Tensor<float, 2>& logits,
                           const Eigen::Tensor<float, 2>& targets) override;
@@ -49,7 +51,24 @@ namespace CppNet
 
         private:
             std::string reduction_;
+            std::string device_;
             Eigen::Tensor<float, 2> softmax_cache_;
+
+            #ifdef USE_CUDA
+                float* d_logits_ = nullptr;
+                float* d_targets_ = nullptr;
+                float* d_softmax_ = nullptr;
+                float* d_loss_ = nullptr;
+                float* d_grad_ = nullptr;
+                std::size_t gpu_buf_ = 0;
+                bool gpu_init_ = false;
+                void ensure_gpu(std::size_t n);
+                void release_gpu();
+                float forward_gpu(const Eigen::Tensor<float, 2>& logits,
+                                  const Eigen::Tensor<float, 2>& targets);
+                void backward_gpu(const Eigen::Tensor<float, 2>& targets,
+                                  Eigen::Tensor<float, 2>& grad);
+            #endif
         };
     }
 }

@@ -9,7 +9,9 @@
 #include <vector>
 #include "CppNet/losses/loss.hpp"
 
-
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
 
 namespace CppNet
 {
@@ -19,7 +21,9 @@ namespace CppNet
         {
             public:
 
-                BinaryCrossEntropy(const std::string& reduction = "mean", bool from_logits = false, float pos_weight = 1.0f);
+                BinaryCrossEntropy(const std::string& reduction = "mean", bool from_logits = false,
+                                   float pos_weight = 1.0f, const std::string& device = "cpu");
+                ~BinaryCrossEntropy();
 
                 float forward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets);
                 Eigen::Tensor<float, 2> backward(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets);
@@ -27,10 +31,27 @@ namespace CppNet
                 static void set_num_threads(int num_threads);
 
             private:
-                std::string reduction_; // "mean", "sum", or "none"
-                bool from_logits_; // whether predictions are logits or probabilities
-                float pos_weight_; // weight for positive examples
-                void validate_inputs(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets);   
+                std::string reduction_;
+                bool from_logits_;
+                float pos_weight_;
+                std::string device_;
+                void validate_inputs(const Eigen::Tensor<float, 2>& predictions, const Eigen::Tensor<float, 2>& targets);
+
+                #ifdef USE_CUDA
+                    float* d_pred_ = nullptr;
+                    float* d_target_ = nullptr;
+                    float* d_loss_ = nullptr;
+                    float* d_grad_ = nullptr;
+                    std::size_t gpu_buf_ = 0;
+                    bool gpu_init_ = false;
+                    void ensure_gpu(std::size_t n);
+                    void release_gpu();
+                    float forward_gpu(const Eigen::Tensor<float, 2>& predictions,
+                                      const Eigen::Tensor<float, 2>& targets);
+                    void backward_gpu(const Eigen::Tensor<float, 2>& predictions,
+                                      const Eigen::Tensor<float, 2>& targets,
+                                      Eigen::Tensor<float, 2>& grad);
+                #endif
         };
     }
 }

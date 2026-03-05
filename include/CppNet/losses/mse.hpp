@@ -9,6 +9,10 @@
 #include "CppNet/losses/loss.hpp"
 #include <string>
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace CppNet
 {
     namespace Losses
@@ -20,7 +24,9 @@ namespace CppNet
         class MSE : public Loss
         {
         public:
-            explicit MSE(const std::string& reduction = "mean");
+            explicit MSE(const std::string& reduction = "mean",
+                         const std::string& device = "cpu");
+            ~MSE();
 
             float forward(const Eigen::Tensor<float, 2>& predictions,
                           const Eigen::Tensor<float, 2>& targets) override;
@@ -32,6 +38,23 @@ namespace CppNet
 
         private:
             std::string reduction_;
+            std::string device_;
+
+            #ifdef USE_CUDA
+                float* d_pred_ = nullptr;
+                float* d_target_ = nullptr;
+                float* d_loss_ = nullptr;
+                float* d_grad_ = nullptr;
+                std::size_t gpu_buf_ = 0;
+                bool gpu_init_ = false;
+                void ensure_gpu(std::size_t n);
+                void release_gpu();
+                float forward_gpu(const Eigen::Tensor<float, 2>& predictions,
+                                  const Eigen::Tensor<float, 2>& targets);
+                void backward_gpu(const Eigen::Tensor<float, 2>& predictions,
+                                  const Eigen::Tensor<float, 2>& targets,
+                                  Eigen::Tensor<float, 2>& grad);
+            #endif
         };
     }
 }

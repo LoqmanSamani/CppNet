@@ -161,6 +161,102 @@ namespace CppNet
                 const float* grad_output, float* grad_input,
                 int B, int S, int D);
 
+            __global__ void batch_norm_forward_kernel(
+                const float* input, float* output, float* x_hat,
+                const float* gamma, const float* beta,
+                float* batch_mean, float* batch_var,
+                float* running_mean, float* running_var,
+                int batch, int features,
+                float eps, float momentum, bool training);
+
+            __global__ void batch_norm_backward_kernel(
+                const float* grad_output, const float* input,
+                const float* x_hat, const float* gamma,
+                const float* batch_mean, const float* batch_var,
+                float* grad_input, float* grad_gamma, float* grad_beta,
+                int batch, int features, float eps);
+
+            __global__ void dropout_forward_kernel(
+                const float* input, const float* mask,
+                float* output, int total, float scale);
+
+            __global__ void dropout_backward_kernel(
+                const float* grad_output, const float* mask,
+                float* grad_input, int total, float scale);
+
+            __global__ void global_avg_pool2d_forward_kernel(
+                const float* input, float* output,
+                int batch, int channels, int height, int width);
+
+            __global__ void global_avg_pool2d_backward_kernel(
+                const float* grad_output, float* grad_input,
+                int batch, int channels, int height, int width);
+
+            __global__ void global_max_pool2d_forward_kernel(
+                const float* input, float* output, int* argmax,
+                int batch, int channels, int height, int width);
+
+            __global__ void global_max_pool2d_backward_kernel(
+                const float* grad_output, const int* argmax,
+                float* grad_input,
+                int batch, int channels, int spatial);
+
+            // ---- Loss kernels ----
+
+            __global__ void mse_forward_kernel(
+                const float* pred, const float* target, float* loss, int total);
+
+            __global__ void mse_backward_kernel(
+                const float* pred, const float* target, float* grad,
+                int total, float scale);
+
+            __global__ void mae_forward_kernel(
+                const float* pred, const float* target, float* loss, int total);
+
+            __global__ void mae_backward_kernel(
+                const float* pred, const float* target, float* grad,
+                int total, float scale);
+
+            __global__ void huber_forward_kernel(
+                const float* pred, const float* target, float* loss,
+                int total, float delta);
+
+            __global__ void huber_backward_kernel(
+                const float* pred, const float* target, float* grad,
+                int total, float scale, float delta);
+
+            __global__ void bce_forward_kernel(
+                const float* pred, const float* target, float* loss, int total);
+
+            __global__ void bce_backward_kernel(
+                const float* pred, const float* target, float* grad,
+                int total, float scale);
+
+            __global__ void softmax_ce_forward_kernel(
+                const float* logits, const float* targets,
+                float* softmax_out, float* loss,
+                int batch, int classes);
+
+            __global__ void softmax_ce_backward_kernel(
+                const float* softmax, const float* targets, float* grad,
+                int total, float scale);
+
+            __global__ void categorical_ce_logits_forward_kernel(
+                const float* logits, const float* targets,
+                float* softmax_out, float* loss,
+                int batch, int classes);
+
+            __global__ void categorical_ce_logits_backward_kernel(
+                const float* softmax, const float* targets, float* grad,
+                int total, float scale);
+
+            __global__ void categorical_ce_probs_forward_kernel(
+                const float* pred, const float* targets, float* loss, int total);
+
+            __global__ void categorical_ce_probs_backward_kernel(
+                const float* pred, const float* targets, float* grad,
+                int total, float scale);
+
         }
     }
 }
