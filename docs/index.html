@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CppNet — High-Performance C++17 Deep Learning Library</title>
+  <meta name="description" content="CppNet is a high-performance C++17 deep learning library built on Eigen, OpenMP, and CUDA for building and training neural networks from scratch." />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cmake.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+  <style>
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #1c2128;
+      --bg-card: #1c2128;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --accent-dim: rgba(88, 166, 255, 0.15);
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --border: #30363d;
+      --border-accent: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --nav-height: 64px;
+      --max-width: 1200px;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: calc(var(--nav-height) + 24px);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: var(--accent-hover); }
+
+    code, pre { font-family: var(--font-mono); }
+
+    /* ===== NAVBAR ===== */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--nav-height);
+      background: rgba(13, 17, 23, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .navbar-inner {
+      max-width: var(--max-width);
+      width: 100%;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: var(--text-primary);
+    }
+
+    .nav-brand img {
+      height: 32px;
+      width: auto;
+      border-radius: 6px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--text-primary); }
+
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .btn-github:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      color: var(--text-primary);
+    }
+
+    .btn-github svg { width: 18px; height: 18px; fill: currentColor; }
+
+    /* Mobile menu toggle */
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+
+    /* ===== SECTIONS ===== */
+    section { padding: 100px 24px; }
+
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+
+    .section-title {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text-primary);
+    }
+
+    .section-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      margin-bottom: 48px;
+      max-width: 700px;
+    }
+
+    /* ===== HERO ===== */
+    #home {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding-top: var(--nav-height);
+      background: radial-gradient(ellipse at 50% 0%, rgba(88,166,255,0.08) 0%, transparent 60%);
+    }
+
+    .hero-logo {
+      width: 140px;
+      height: auto;
+      border-radius: 16px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-tagline {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      max-width: 680px;
+      margin: 0 auto 40px;
+      line-height: 1.8;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 64px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      background: var(--accent);
+      color: #0d1117;
+      font-weight: 600;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      color: #0d1117;
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 1rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .btn-outline:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      color: var(--text-primary);
+    }
+
+    .btn-outline svg { width: 20px; height: 20px; fill: currentColor; }
+
+    /* Feature cards */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: left;
+      transition: border-color 0.2s;
+    }
+
+    .feature-card:hover { border-color: var(--accent); }
+
+    .feature-icon {
+      font-size: 1.6rem;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ===== QUICK START ===== */
+    #quickstart { background: var(--bg-secondary); }
+
+    .callout {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 32px;
+    }
+
+    .callout-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .callout p, .callout ul {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .callout ul { margin-left: 20px; margin-top: 8px; }
+    .callout li { margin-bottom: 4px; }
+
+    .code-block-wrapper {
+      position: relative;
+      margin-bottom: 24px;
+    }
+
+    .code-block-wrapper pre {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+
+    .code-block-wrapper pre code {
+      font-size: 0.85rem;
+      line-height: 1.7;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: color 0.2s, border-color 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .copy-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+    .step-label {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 3px 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    .qs-section { margin-bottom: 40px; }
+    .qs-section h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    /* ===== EXAMPLES ===== */
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    .example-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .example-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .example-header {
+      padding: 20px 24px 12px;
+    }
+
+    .example-header h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .example-header p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 0;
+    }
+
+    .example-card pre {
+      margin: 0;
+      border-radius: 0;
+      border: none;
+      border-top: 1px solid var(--border);
+      max-height: 240px;
+      overflow: auto;
+    }
+
+    .example-card pre code { font-size: 0.8rem; }
+
+    .example-footer {
+      padding: 12px 24px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .example-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .example-link {
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    /* ===== BENCHMARKS ===== */
+    #benchmarks { background: var(--bg-secondary); }
+
+    .bench-table-wrap {
+      overflow-x: auto;
+      margin-bottom: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .bench-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .bench-table th {
+      background: var(--bg-tertiary);
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .bench-table td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .bench-table tr:nth-child(even) td { background: rgba(22, 27, 34, 0.5); }
+    .bench-table tr:last-child td { border-bottom: none; }
+
+    .bench-table tr.highlight td {
+      background: var(--accent-dim);
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .speedup { color: var(--green); font-weight: 600; }
+    .speedup-low { color: var(--yellow); font-weight: 600; }
+    .speedup-neg { color: var(--red); font-weight: 600; }
+
+    .bench-subsection {
+      margin-bottom: 48px;
+    }
+
+    .bench-subsection h3 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .bench-subsection h3 .bench-icon {
+      font-size: 1.2rem;
+    }
+
+    .chart-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 40px;
+      max-width: 800px;
+    }
+
+    .chart-container canvas { width: 100% !important; }
+
+    .bench-findings {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 40px;
+    }
+
+    .finding-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .finding-card h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+
+    .finding-card p {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ===== AUTHOR ===== */
+    .author-section {
+      text-align: center;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .author-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      margin-bottom: 20px;
+      object-fit: cover;
+    }
+
+    .author-section h2 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .author-bio {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      margin-bottom: 28px;
+      line-height: 1.7;
+    }
+
+    .author-links {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .author-links a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-secondary);
+      transition: color 0.2s, border-color 0.2s, transform 0.2s;
+    }
+
+    .author-links a:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      transform: scale(1.1);
+    }
+
+    .author-links a svg { width: 20px; height: 20px; fill: currentColor; }
+
+    /* ===== FOOTER ===== */
+    footer {
+      text-align: center;
+      padding: 40px 24px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-links.open {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: var(--nav-height);
+        left: 0;
+        right: 0;
+        background: var(--bg-primary);
+        border-bottom: 1px solid var(--border);
+        padding: 20px 24px;
+        gap: 16px;
+      }
+      .nav-toggle { display: block; }
+      .btn-github-nav { display: none; }
+      .hero h1 { font-size: 2.2rem; }
+      .hero-tagline { font-size: 1rem; }
+      .hero-logo { width: 100px; }
+      .examples-grid { grid-template-columns: 1fr; }
+      section { padding: 64px 16px; }
+      .section-title { font-size: 1.6rem; }
+      .features-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .chart-container { padding: 12px; }
+    }
+
+    @media (max-width: 480px) {
+      .features-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="#home" class="nav-brand">
+      <img src="logo.png" alt="CppNet Logo" />
+      <span>CppNet</span>
+    </a>
+    <button class="nav-toggle" aria-label="Toggle navigation">&#9776;</button>
+    <ul class="nav-links">
+      <li><a href="#home">Home</a></li>
+      <li><a href="#quickstart">Quick Start</a></li>
+      <li><a href="#examples">Examples</a></li>
+      <li><a href="#benchmarks">Benchmarks</a></li>
+      <li><a href="#author">Author</a></li>
+      <li>
+        <a href="https://github.com/LoqmanSamani/CppNet" target="_blank" rel="noopener" class="btn-github btn-github-nav">
+          <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View on GitHub
+        </a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ===== HOME / HERO ===== -->
+<section id="home">
+  <div class="hero">
+    <img src="logo.png" alt="CppNet Logo" class="hero-logo" />
+    <h1>CppNet</h1>
+    <p class="hero-tagline">
+      A high-performance C++17 deep learning library for building and training neural networks from scratch.
+      Built on <strong>Eigen</strong> for fast tensor operations, <strong>OpenMP</strong> for CPU parallelism,
+      and <strong>CUDA</strong> for GPU acceleration.
+    </p>
+    <div class="hero-buttons">
+      <a href="#quickstart" class="btn-primary">Get Started</a>
+      <a href="https://github.com/LoqmanSamani/CppNet" target="_blank" rel="noopener" class="btn-outline">
+        <svg viewBox="0 0 16 16" style="width:20px;height:20px;fill:currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">&#9889;</span>
+        <h3>High Performance</h3>
+        <p>Eigen SIMD vectorization, OpenMP CPU parallelism, and 41 CUDA GPU kernels for end-to-end training.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#129513;</span>
+        <h3>Rich Layer Library</h3>
+        <p>Linear, Conv2D, MaxPool2D, RNN, LSTM, GRU, Multi-Head Attention, BatchNorm, Dropout, Embedding, Residual, and more.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#128260;</span>
+        <h3>Multiple Backends</h3>
+        <p>Per-layer backend selection: <code>cpu-eigen</code>, <code>cpu</code> (OpenMP), or <code>gpu</code> (CUDA).</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#128295;</span>
+        <h3>Training Utilities</h3>
+        <p>DataLoader, LR schedulers, early stopping, gradient clipping, and model serialization out of the box.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">&#128640;</span>
+        <h3>Full CUDA Coverage</h3>
+        <p>41 CUDA kernels covering all layers, activations, losses, and optimizers — up to 56x GPU speedup.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== QUICK START ===== -->
+<section id="quickstart">
+  <div class="container">
+    <h2 class="section-title">Quick Start</h2>
+    <p class="section-subtitle">Get CppNet up and running in minutes.</p>
+
+    <!-- Prerequisites -->
+    <div class="callout">
+      <div class="callout-title">Prerequisites</div>
+      <ul>
+        <li><strong>C++17 compiler</strong> (GCC, Clang, or MSVC)</li>
+        <li><strong>CMake</strong> &ge; 3.18</li>
+        <li><strong>Eigen3</strong> &ge; 3.3</li>
+        <li><strong>OpenMP</strong> (optional &mdash; CPU parallelism)</li>
+        <li><strong>CUDA Toolkit</strong> (optional &mdash; GPU acceleration)</li>
+      </ul>
+    </div>
+
+    <!-- Step 1: Build -->
+    <div class="qs-section">
+      <span class="step-label">Step 1</span>
+      <h3>Clone &amp; Build</h3>
+      <div class="code-block-wrapper">
+        <button class="copy-btn" aria-label="Copy to clipboard" onclick="copyCode(this)">
+          <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        </button>
+        <pre><code class="language-bash">git clone https://github.com/LoqmanSamani/CppNet.git
+cd CppNet
+mkdir build &amp;&amp; cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)</code></pre>
+      </div>
+    </div>
+
+    <!-- Step 2: Install -->
+    <div class="qs-section">
+      <span class="step-label">Step 2</span>
+      <h3>Install System-Wide (optional)</h3>
+      <div class="code-block-wrapper">
+        <button class="copy-btn" aria-label="Copy to clipboard" onclick="copyCode(this)">
+          <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        </button>
+        <pre><code class="language-bash">sudo make install</code></pre>
+      </div>
+    </div>
+
+    <!-- Step 3: Use in CMake -->
+    <div class="qs-section">
+      <span class="step-label">Step 3</span>
+      <h3>Use in Your CMake Project</h3>
+      <div class="code-block-wrapper">
+        <button class="copy-btn" aria-label="Copy to clipboard" onclick="copyCode(this)">
+          <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        </button>
+        <pre><code class="language-cmake">find_package(CppNet REQUIRED)
+target_link_libraries(your_target PRIVATE CppNet::CppNet)</code></pre>
+      </div>
+    </div>
+
+    <!-- Hello World -->
+    <div class="qs-section">
+      <span class="step-label">Minimal Example</span>
+      <h3>Binary Classification in ~20 Lines</h3>
+      <div class="code-block-wrapper">
+        <button class="copy-btn" aria-label="Copy to clipboard" onclick="copyCode(this)">
+          <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+        </button>
+        <pre><code class="language-cpp">#include &lt;CppNet/CppNet.hpp&gt;
+#include &lt;iostream&gt;
+
+int main() {
+    // Define layers
+    CppNet::Layers::Linear layer1(30, 64, "fc1", true, true, "cpu-eigen", "xavier");
+    CppNet::Layers::Linear layer2(64, 1,  "fc2", true, true, "cpu-eigen", "xavier");
+    CppNet::Activations::ReLU relu("cpu-eigen");
+    CppNet::Activations::Sigmoid sigmoid;
+
+    // Loss &amp; optimizer
+    CppNet::Losses::BinaryCrossEntropy loss_fn("mean");
+    CppNet::Optimizers::Adam optimizer;
+    float lr = 0.001;
+
+    // Training loop
+    for (int epoch = 0; epoch &lt; 100; ++epoch) {
+        auto h = relu.forward(layer1.forward(X_train));
+        auto pred = sigmoid.forward(layer2.forward(h));
+
+        float loss = loss_fn.forward(pred, Y_train);
+        auto grad = loss_fn.backward(pred, Y_train);
+
+        grad = layer2.backward(sigmoid.backward(grad));
+        layer1.backward(relu.backward(grad));
+
+        layer2.step(optimizer, lr);
+        layer1.step(optimizer, lr);
+
+        std::cout &lt;&lt; "Epoch " &lt;&lt; epoch &lt;&lt; " — Loss: " &lt;&lt; loss &lt;&lt; std::endl;
+    }
+    return 0;
+}</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== EXAMPLES ===== -->
+<section id="examples">
+  <div class="container">
+    <h2 class="section-title">Examples</h2>
+    <p class="section-subtitle">Complete, self-contained programs that train on synthetic data — no downloads required.</p>
+
+    <div class="examples-grid">
+
+      <!-- MLP Classification -->
+      <div class="example-card">
+        <div class="example-header">
+          <h3>MLP Classification</h3>
+          <p>Multi-layer perceptron for 3-class spiral classification using SoftmaxCrossEntropy and Adam optimizer.</p>
+        </div>
+        <pre><code class="language-cpp">// Architecture: Linear(2,64) -> ReLU -> Linear(64,32) -> ReLU -> Linear(32,3)
+auto linear1 = std::make_shared&lt;Layers::Linear&gt;(2, 64, "fc1", true, true, "cpu-eigen");
+auto linear2 = std::make_shared&lt;Layers::Linear&gt;(64, 32, "fc2", true, true, "cpu-eigen");
+auto linear3 = std::make_shared&lt;Layers::Linear&gt;(32, 3, "fc3", true, true, "cpu-eigen");
+
+Activations::ReLU relu1("cpu-eigen");
+Activations::ReLU relu2("cpu-eigen");
+Losses::SoftmaxCrossEntropy loss;
+Optimizers::Adam optimizer;</code></pre>
+        <div class="example-footer">
+          <div class="example-tags">
+            <span class="tag">ReLU</span>
+            <span class="tag">SoftmaxCE</span>
+            <span class="tag">Adam</span>
+          </div>
+          <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/examples/mlp_classification.cpp" target="_blank" rel="noopener" class="example-link">View on GitHub &rarr;</a>
+        </div>
+      </div>
+
+      <!-- CNN Image Classification -->
+      <div class="example-card">
+        <div class="example-header">
+          <h3>CNN Image Classification</h3>
+          <p>Convolutional neural network classifying 8&times;8 synthetic stripe images (horizontal vs vertical) with Conv2D, MaxPool, and Flatten layers.</p>
+        </div>
+        <pre><code class="language-cpp">// Conv2D(1,4,3,pad=1) -> ReLU -> MaxPool2D(2) -> Flatten -> Linear(64,2)
+auto conv1   = std::make_shared&lt;Layers::Conv2D&gt;(1, 4, 3, 1, 1, true, "cpu-eigen");
+auto pool1   = std::make_shared&lt;Layers::MaxPool2D&gt;(2, -1, "cpu-eigen");
+auto flatten = std::make_shared&lt;Layers::Flatten&gt;();
+auto fc      = std::make_shared&lt;Layers::Linear&gt;(64, 2, "classifier",
+                                                  true, true, "cpu-eigen");
+Activations::ReLU relu1("cpu-eigen");
+Losses::SoftmaxCrossEntropy loss;
+Optimizers::Adam optimizer;</code></pre>
+        <div class="example-footer">
+          <div class="example-tags">
+            <span class="tag">Conv2D</span>
+            <span class="tag">MaxPool2D</span>
+            <span class="tag">Flatten</span>
+          </div>
+          <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/examples/cnn_image_classification.cpp" target="_blank" rel="noopener" class="example-link">View on GitHub &rarr;</a>
+        </div>
+      </div>
+
+      <!-- RNN Sequence Prediction -->
+      <div class="example-card">
+        <div class="example-header">
+          <h3>LSTM Sequence Prediction</h3>
+          <p>LSTM-based recurrent network for sine-wave regression — predicting the next value in a discretised sine wave sequence.</p>
+        </div>
+        <pre><code class="language-cpp">// LSTM(1,16,return_sequences=true) -> last timestep -> Linear(16,1)
+auto lstm   = std::make_shared&lt;Layers::LSTM&gt;(1, hidden_size, true, "cpu-eigen");
+auto linear = std::make_shared&lt;Layers::Linear&gt;(hidden_size, 1, "output",
+                                                  true, true, "cpu-eigen");
+Losses::MSE loss;
+Optimizers::Adam optimizer;
+
+auto lstm_out = lstm-&gt;forward(x_batch);
+// Take last timestep hidden state
+Eigen::Tensor&lt;float, 2&gt; last_hidden(batch_size, hidden_size);
+for (int b = 0; b &lt; batch_size; ++b)
+    for (int d = 0; d &lt; hidden_size; ++d)
+        last_hidden(b, d) = lstm_out(b, seq_len - 1, d);</code></pre>
+        <div class="example-footer">
+          <div class="example-tags">
+            <span class="tag">LSTM</span>
+            <span class="tag">MSE</span>
+            <span class="tag">Adam</span>
+          </div>
+          <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/examples/rnn_sequence_prediction.cpp" target="_blank" rel="noopener" class="example-link">View on GitHub &rarr;</a>
+        </div>
+      </div>
+
+      <!-- GRU Sequence Prediction -->
+      <div class="example-card">
+        <div class="example-header">
+          <h3>GRU Sequence Prediction</h3>
+          <p>GRU-based sine-wave regression demonstrating the GRU layer with MAE loss and Momentum optimizer.</p>
+        </div>
+        <pre><code class="language-cpp">// GRU(1,16,return_sequences=true) -> last timestep -> Linear(16,1)
+auto gru    = std::make_shared&lt;Layers::GRU&gt;(1, hidden_size, true, "cpu-eigen");
+auto linear = std::make_shared&lt;Layers::Linear&gt;(hidden_size, 1, "output",
+                                                  true, true, "cpu-eigen");
+Losses::MAE loss;
+Optimizers::Momentum optimizer(0.9f);
+
+auto gru_out = gru-&gt;forward(x_batch);
+// Take last timestep
+Eigen::Tensor&lt;float, 2&gt; last_hidden(batch_size, hidden_size);
+for (int b = 0; b &lt; batch_size; ++b)
+    for (int d = 0; d &lt; hidden_size; ++d)
+        last_hidden(b, d) = gru_out(b, seq_len - 1, d);</code></pre>
+        <div class="example-footer">
+          <div class="example-tags">
+            <span class="tag">GRU</span>
+            <span class="tag">MAE</span>
+            <span class="tag">Momentum</span>
+          </div>
+          <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/examples/gru_sequence_prediction.cpp" target="_blank" rel="noopener" class="example-link">View on GitHub &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Transformer Classifier -->
+      <div class="example-card">
+        <div class="example-header">
+          <h3>Transformer Classifier</h3>
+          <p>Token-sequence classifier using Embedding, Multi-Head Self-Attention with skip connections, and mean pooling.</p>
+        </div>
+        <pre><code class="language-cpp">// Embedding(vocab,embed_dim) -> Self-Attention -> Mean-pool -> ReLU -> Linear
+auto embedding = std::make_shared&lt;Layers::Embedding&gt;(vocab_size, embed_dim, "cpu-eigen");
+auto attention = std::make_shared&lt;Layers::MultiHeadAttention&gt;(embed_dim, num_heads, "cpu-eigen");
+auto fc        = std::make_shared&lt;Layers::Linear&gt;(embed_dim, num_classes, "classifier",
+                                                     true, true, "cpu-eigen");
+Activations::ReLU relu("cpu-eigen");
+Losses::SoftmaxCrossEntropy loss;
+Optimizers::Adam optimizer;</code></pre>
+        <div class="example-footer">
+          <div class="example-tags">
+            <span class="tag">Embedding</span>
+            <span class="tag">Attention</span>
+            <span class="tag">MeanPool</span>
+          </div>
+          <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/examples/transformer_classifier.cpp" target="_blank" rel="noopener" class="example-link">View on GitHub &rarr;</a>
+        </div>
+      </div>
+
+      <!-- ResNet Classifier -->
+      <div class="example-card">
+        <div class="example-header">
+          <h3>ResNet Classifier</h3>
+          <p>ResNet-style binary classifier with skip connections for concentric circles dataset, using gradient clipping and He initialization.</p>
+        </div>
+        <pre><code class="language-cpp">// Linear(2,H) -> ReLU -> [ResBlock(H,H)] + skip -> ReLU -> Linear(H,1) -> Sigmoid
+Layers::Linear proj(2, H, "proj", true, true, "cpu-eigen", "he");
+Layers::Linear b1a(H, H, "b1a", true, true, "cpu-eigen", "he");
+Layers::Linear b1b(H, H, "b1b", true, true, "cpu-eigen", "he");
+Layers::Linear head(H, 1, "head", true, true, "cpu-eigen", "xavier");
+
+auto skip = h;                    // save for skip connection
+auto blk = b1a.forward(h);
+blk = r1a.forward(blk);
+blk = b1b.forward(blk);
+h = add_tensors(blk, skip);       // residual add</code></pre>
+        <div class="example-footer">
+          <div class="example-tags">
+            <span class="tag">Residual</span>
+            <span class="tag">GradClip</span>
+            <span class="tag">He Init</span>
+          </div>
+          <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/examples/resnet_classifier.cpp" target="_blank" rel="noopener" class="example-link">View on GitHub &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Regularized CNN -->
+      <div class="example-card">
+        <div class="example-header">
+          <h3>Regularized CNN</h3>
+          <p>CNN with BatchNorm, Dropout, and LeakyReLU on 3-class synthetic image data using CategoricalCrossEntropy and Adagrad.</p>
+        </div>
+        <pre><code class="language-cpp">// Conv2D(1,8,3,pad=1) -> LeakyReLU -> Pool -> Flatten -> BatchNorm -> Dropout -> FC
+auto conv1    = std::make_shared&lt;Layers::Conv2D&gt;(1, 8, 3, 1, 1, true, "cpu-eigen");
+auto pool1    = std::make_shared&lt;Layers::MaxPool2D&gt;(2, -1, "cpu-eigen");
+auto flatten  = std::make_shared&lt;Layers::Flatten&gt;();
+auto fc       = std::make_shared&lt;Layers::Linear&gt;(128, 3, "classifier",
+                                                    true, true, "cpu-eigen");
+Activations::LeakyReLU leaky_relu(0.01f, "cpu-eigen");
+Layers::BatchNorm      batch_norm(128);
+Layers::Dropout        dropout(0.3f);
+Losses::CategoricalCrossEntropy loss("mean", true);
+Optimizers::Adagrad optimizer;</code></pre>
+        <div class="example-footer">
+          <div class="example-tags">
+            <span class="tag">BatchNorm</span>
+            <span class="tag">Dropout</span>
+            <span class="tag">LeakyReLU</span>
+            <span class="tag">Adagrad</span>
+          </div>
+          <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/examples/regularized_cnn.cpp" target="_blank" rel="noopener" class="example-link">View on GitHub &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Optimizer Comparison -->
+      <div class="example-card">
+        <div class="example-header">
+          <h3>Optimizer Comparison</h3>
+          <p>Compares SGD, Momentum, Adagrad, RMSProp, and Adam on the same MLP and regression dataset with Tanh activation and Huber loss.</p>
+        </div>
+        <pre><code class="language-cpp">// Linear(2,32) -> Tanh -> Linear(32,16) -> Tanh -> Linear(16,1)
+Optimizers::SGD      opt_sgd;
+Optimizers::Momentum opt_momentum(0.9f);
+Optimizers::Adagrad  opt_adagrad;
+Optimizers::RMSProp  opt_rmsprop;
+Optimizers::Adam     opt_adam;
+
+Activations::Tanh tanh1;
+Activations::Tanh tanh2;
+Losses::Huber loss(1.0f);
+
+// Each optimizer trains an identical fresh model
+auto losses = train_with_optimizer(X, Y, *e.opt, e.name,
+                                   epochs, batch_size, learning_rate);</code></pre>
+        <div class="example-footer">
+          <div class="example-tags">
+            <span class="tag">SGD</span>
+            <span class="tag">Momentum</span>
+            <span class="tag">RMSProp</span>
+            <span class="tag">Huber</span>
+            <span class="tag">Tanh</span>
+          </div>
+          <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/examples/optimizer_comparison.cpp" target="_blank" rel="noopener" class="example-link">View on GitHub &rarr;</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== BENCHMARKS ===== -->
+<section id="benchmarks">
+  <div class="container">
+    <h2 class="section-title">Benchmarks</h2>
+    <p class="section-subtitle">Performance comparisons across three compute backends — cpu-eigen, cpu (OpenMP), and gpu (CUDA) — on five architectures.</p>
+
+    <div class="callout" style="margin-bottom:48px">
+      <div class="callout-title">Test Environment</div>
+      <p>NVIDIA GeForce GTX 1650 (4 GB), multi-core CPU, GCC 13.3, CUDA 12.0, Release build (-O2). OpenMP: 4 threads. All results are averages over full training runs with fixed random seeds for reproducibility.</p>
+    </div>
+
+    <!-- Average Speedups Chart -->
+    <div class="bench-subsection">
+      <h3><span class="bench-icon">&#128200;</span> Average GPU Speedups by Architecture</h3>
+
+      <div class="chart-container">
+        <canvas id="avgSpeedupChart" height="300"></canvas>
+      </div>
+
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th>Architecture</th>
+              <th>Avg GPU Speedup</th>
+              <th>Best GPU Speedup</th>
+              <th>Best Configuration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>MLP</td>
+              <td><span class="speedup">12.1x</span></td>
+              <td><span class="speedup">25.3x</span></td>
+              <td>XLarge (2.6M params)</td>
+            </tr>
+            <tr class="highlight">
+              <td>CNN</td>
+              <td><span class="speedup">35.4x</span></td>
+              <td><span class="speedup">42.0x</span></td>
+              <td>Medium (Conv32&rarr;64&rarr;FC128)</td>
+            </tr>
+            <tr>
+              <td>Sequence (RNN/LSTM/GRU)</td>
+              <td><span class="speedup">13.7x</span></td>
+              <td><span class="speedup">56.4x</span></td>
+              <td>GRU Large (H=256)</td>
+            </tr>
+            <tr>
+              <td>Transformer</td>
+              <td><span class="speedup-low">0.9x</span></td>
+              <td><span class="speedup-low">1.2x</span></td>
+              <td>Large (d=128, h=8)</td>
+            </tr>
+            <tr>
+              <td>ResNet</td>
+              <td><span class="speedup">5.8x</span></td>
+              <td><span class="speedup">9.0x</span></td>
+              <td>Large (W=256, D=6)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MLP Benchmark -->
+    <div class="bench-subsection">
+      <h3><span class="bench-icon">&#129504;</span> MLP &mdash; Spiral Classification</h3>
+      <p style="color:var(--text-secondary);margin-bottom:16px;">5-class 2D spiral, 15,000 samples. Adam optimizer, ReLU activations, Xavier init.</p>
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th>Config</th>
+              <th>Architecture</th>
+              <th>cpu-eigen</th>
+              <th>cpu (OpenMP)</th>
+              <th>gpu (CUDA)</th>
+              <th>GPU Speedup</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Small</td>
+              <td>2&rarr;64&rarr;64&rarr;5</td>
+              <td>7.4 s</td>
+              <td>17.9 s</td>
+              <td>3.6 s</td>
+              <td><span class="speedup">2.03x</span></td>
+            </tr>
+            <tr>
+              <td>Medium</td>
+              <td>2&rarr;128&rarr;256&rarr;128&rarr;5</td>
+              <td>61.6 s</td>
+              <td>241.9 s</td>
+              <td>8.9 s</td>
+              <td><span class="speedup">6.91x</span></td>
+            </tr>
+            <tr>
+              <td>Large</td>
+              <td>2&rarr;256&rarr;512&rarr;512&rarr;256&rarr;5</td>
+              <td>114.5 s</td>
+              <td>669.9 s</td>
+              <td>8.0 s</td>
+              <td><span class="speedup">14.31x</span></td>
+            </tr>
+            <tr class="highlight">
+              <td>XLarge</td>
+              <td>2&rarr;512&rarr;1024&rarr;1024&rarr;512&rarr;5</td>
+              <td>473.1 s</td>
+              <td>3,027.0 s</td>
+              <td>18.7 s</td>
+              <td><span class="speedup">25.28x</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CNN Benchmark -->
+    <div class="bench-subsection">
+      <h3><span class="bench-icon">&#128248;</span> CNN &mdash; Image Classification</h3>
+      <p style="color:var(--text-secondary);margin-bottom:16px;">Synthetic CIFAR-10-shaped images (3&times;32&times;32), 1,000 samples, 10 classes. ReLU + MaxPool2D.</p>
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th>Config</th>
+              <th>Architecture</th>
+              <th>cpu-eigen</th>
+              <th>cpu (OpenMP)</th>
+              <th>gpu (CUDA)</th>
+              <th>GPU Speedup</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Small</td>
+              <td>Conv16&rarr;Conv32&rarr;FC10</td>
+              <td>84.8 s</td>
+              <td>91.0 s</td>
+              <td>2.9 s</td>
+              <td><span class="speedup">28.82x</span></td>
+            </tr>
+            <tr class="highlight">
+              <td>Medium</td>
+              <td>Conv32&rarr;Conv64&rarr;FC128&rarr;FC10</td>
+              <td>252.3 s</td>
+              <td>277.4 s</td>
+              <td>6.0 s</td>
+              <td><span class="speedup">41.97x</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Sequence Benchmark -->
+    <div class="bench-subsection">
+      <h3><span class="bench-icon">&#128257;</span> Sequence Layers &mdash; Sine-Wave Regression</h3>
+      <p style="color:var(--text-secondary);margin-bottom:16px;">RNN, LSTM, and GRU compared across three sizes. Momentum optimizer, MSE loss.</p>
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th>Config</th>
+              <th>Layer</th>
+              <th>cpu-eigen</th>
+              <th>cpu (OpenMP)</th>
+              <th>gpu (CUDA)</th>
+              <th>GPU Speedup</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="3">Small (H=64)</td>
+              <td>RNN</td>
+              <td>0.87 s</td>
+              <td>0.76 s</td>
+              <td>0.40 s</td>
+              <td><span class="speedup">2.2x</span></td>
+            </tr>
+            <tr>
+              <td>LSTM</td>
+              <td>2.70 s</td>
+              <td>2.89 s</td>
+              <td>0.79 s</td>
+              <td><span class="speedup">3.4x</span></td>
+            </tr>
+            <tr>
+              <td>GRU</td>
+              <td>3.98 s</td>
+              <td>3.92 s</td>
+              <td>0.76 s</td>
+              <td><span class="speedup">5.2x</span></td>
+            </tr>
+            <tr>
+              <td rowspan="3">Medium (H=128)</td>
+              <td>RNN</td>
+              <td>2.53 s</td>
+              <td>2.84 s</td>
+              <td>0.54 s</td>
+              <td><span class="speedup">4.7x</span></td>
+            </tr>
+            <tr>
+              <td>LSTM</td>
+              <td>11.41 s</td>
+              <td>11.73 s</td>
+              <td>1.57 s</td>
+              <td><span class="speedup">7.3x</span></td>
+            </tr>
+            <tr>
+              <td>GRU</td>
+              <td>21.59 s</td>
+              <td>21.69 s</td>
+              <td>1.39 s</td>
+              <td><span class="speedup">15.5x</span></td>
+            </tr>
+            <tr>
+              <td rowspan="3">Large (H=256)</td>
+              <td>RNN</td>
+              <td>22.93 s</td>
+              <td>24.24 s</td>
+              <td>1.88 s</td>
+              <td><span class="speedup">12.2x</span></td>
+            </tr>
+            <tr>
+              <td>LSTM</td>
+              <td>100.40 s</td>
+              <td>101.28 s</td>
+              <td>6.16 s</td>
+              <td><span class="speedup">16.3x</span></td>
+            </tr>
+            <tr class="highlight">
+              <td>GRU</td>
+              <td>318.00 s</td>
+              <td>318.07 s</td>
+              <td>5.64 s</td>
+              <td><span class="speedup">56.4x</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Transformer Benchmark -->
+    <div class="bench-subsection">
+      <h3><span class="bench-icon">&#129302;</span> Transformer &mdash; Token Classification</h3>
+      <p style="color:var(--text-secondary);margin-bottom:16px;">Embedding &rarr; Self-Attention &rarr; Mean Pool &rarr; ReLU &rarr; Linear. 4 classes, Adam optimizer.</p>
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th>Config</th>
+              <th>Architecture</th>
+              <th>cpu-eigen</th>
+              <th>cpu (OpenMP)</th>
+              <th>gpu (CUDA)</th>
+              <th>GPU Speedup</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Small</td>
+              <td>Emb(200,32)&rarr;Attn(h=2)&rarr;FC(32,4)</td>
+              <td>0.79 s</td>
+              <td>0.83 s</td>
+              <td>1.51 s</td>
+              <td><span class="speedup-neg">0.52x</span></td>
+            </tr>
+            <tr>
+              <td>Medium</td>
+              <td>Emb(500,64)&rarr;Attn(h=4)&rarr;FC(64,4)</td>
+              <td>2.52 s</td>
+              <td>3.04 s</td>
+              <td>2.51 s</td>
+              <td><span class="speedup-low">1.00x</span></td>
+            </tr>
+            <tr class="highlight">
+              <td>Large</td>
+              <td>Emb(1000,128)&rarr;Attn(h=8)&rarr;FC(128,4)</td>
+              <td>9.89 s</td>
+              <td>22.36 s</td>
+              <td>8.51 s</td>
+              <td><span class="speedup-low">1.16x</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ResNet Benchmark -->
+    <div class="bench-subsection">
+      <h3><span class="bench-icon">&#127959;</span> ResNet &mdash; Spiral Classification</h3>
+      <p style="color:var(--text-secondary);margin-bottom:16px;">Deep residual networks with stacked skip-connection blocks. Adam optimizer, He init.</p>
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th>Config</th>
+              <th>Architecture</th>
+              <th>cpu-eigen</th>
+              <th>cpu (OpenMP)</th>
+              <th>gpu (CUDA)</th>
+              <th>GPU Speedup</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Small</td>
+              <td>2&rarr;64&rarr;[ResBlock&times;2]&rarr;5</td>
+              <td>6.35 s</td>
+              <td>24.85 s</td>
+              <td>4.06 s</td>
+              <td><span class="speedup">1.56x</span></td>
+            </tr>
+            <tr>
+              <td>Medium</td>
+              <td>2&rarr;128&rarr;[ResBlock&times;4]&rarr;5</td>
+              <td>26.60 s</td>
+              <td>77.50 s</td>
+              <td>3.99 s</td>
+              <td><span class="speedup">6.68x</span></td>
+            </tr>
+            <tr class="highlight">
+              <td>Large</td>
+              <td>2&rarr;256&rarr;[ResBlock&times;6]&rarr;5</td>
+              <td>125.27 s</td>
+              <td>517.33 s</td>
+              <td>13.88 s</td>
+              <td><span class="speedup">9.03x</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Key Findings -->
+    <div class="bench-findings">
+      <div class="finding-card">
+        <h4>GPU scales with model size</h4>
+        <p>Across all architectures, larger models see dramatically higher GPU speedups as matrix sizes better saturate GPU cores.</p>
+      </div>
+      <div class="finding-card">
+        <h4>CNNs &amp; RNNs benefit most</h4>
+        <p>Convolution achieves up to 42x speedup; GRU achieves up to 56.4x — the highest across all benchmarks.</p>
+      </div>
+      <div class="finding-card">
+        <h4>Eigen beats OpenMP on CPU</h4>
+        <p>Eigen&rsquo;s SIMD vectorization and cache-optimal layouts consistently outperform manual OpenMP loops for all architectures.</p>
+      </div>
+      <div class="finding-card">
+        <h4>Numerical consistency verified</h4>
+        <p>All devices converge to equivalent loss and accuracy values, confirming correctness across all 41 CUDA kernels.</p>
+      </div>
+    </div>
+
+    <p style="margin-top:40px;text-align:center;color:var(--text-secondary);">
+      Full per-epoch results and methodology:
+      <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/benchmarks/benchmarks.md" target="_blank" rel="noopener">benchmarks/benchmarks.md</a>
+    </p>
+  </div>
+</section>
+
+<!-- ===== AUTHOR ===== -->
+<section id="author">
+  <div class="container">
+    <div class="author-section">
+      <img src="https://raw.githubusercontent.com/LoqmanSamani/LoqmanSamani.github.io/systembiology/images/img_.png" alt="Loghman Samani" class="author-avatar" />
+      <h2>Loghman Samani</h2>
+      <p class="author-bio">Computational biologist with a focus on generative AI, molecular dynamics, and machine learning. M.Sc. Computational Biology, University of Stuttgart.</p>
+      <div class="author-links">
+        <!-- GitHub -->
+        <a href="https://github.com/LoqmanSamani" target="_blank" rel="noopener" aria-label="GitHub">
+          <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        </a>
+        <!-- LinkedIn -->
+        <a href="https://www.linkedin.com/in/loghman-samani-8a5208199/" target="_blank" rel="noopener" aria-label="LinkedIn">
+          <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        </a>
+        <!-- Twitter/X -->
+        <a href="https://x.com/Loqman_Samani" target="_blank" rel="noopener" aria-label="Twitter/X">
+          <svg viewBox="0 0 24 24"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
+        </a>
+        <!-- Medium -->
+        <a href="https://medium.com/@samaniloqman91" target="_blank" rel="noopener" aria-label="Medium">
+          <svg viewBox="0 0 24 24"><path d="M13.54 12a6.8 6.8 0 01-6.77 6.82A6.8 6.8 0 010 12a6.8 6.8 0 016.77-6.82A6.8 6.8 0 0113.54 12zM20.96 12c0 3.54-1.51 6.42-3.38 6.42-1.87 0-3.39-2.88-3.39-6.42s1.52-6.42 3.39-6.42 3.38 2.88 3.38 6.42M24 12c0 3.17-.53 5.75-1.19 5.75-.66 0-1.19-2.58-1.19-5.75s.53-5.75 1.19-5.75C23.47 6.25 24 8.83 24 12z"/></svg>
+        </a>
+        <!-- Email -->
+        <a href="mailto:samaniloqman91@gmail.com" aria-label="Email">
+          <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <p>&copy; 2025 Loghman Samani &middot; CppNet is released under the <a href="https://github.com/LoqmanSamani/CppNet/blob/systembiology/LICENSE" target="_blank" rel="noopener">MIT License</a>.</p>
+</footer>
+
+<!-- ===== SCRIPTS ===== -->
+<script>
+  // Highlight.js initialization
+  hljs.highlightAll();
+
+  // Mobile nav toggle
+  document.querySelector('.nav-toggle').addEventListener('click', function() {
+    document.querySelector('.nav-links').classList.toggle('open');
+  });
+
+  // Close mobile nav on link click
+  document.querySelectorAll('.nav-links a').forEach(function(link) {
+    link.addEventListener('click', function() {
+      document.querySelector('.nav-links').classList.remove('open');
+    });
+  });
+
+  // Clipboard copy
+  function copyCode(btn) {
+    var code = btn.parentElement.querySelector('code');
+    var text = code.textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+      setTimeout(function() {
+        btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+      }, 2000);
+    });
+  }
+
+  // Chart.js — Average GPU Speedup bar chart
+  (function() {
+    var ctx = document.getElementById('avgSpeedupChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['MLP', 'CNN', 'Sequence', 'Transformer', 'ResNet'],
+        datasets: [
+          {
+            label: 'Average GPU Speedup',
+            data: [12.1, 35.4, 13.7, 0.9, 5.8],
+            backgroundColor: 'rgba(88, 166, 255, 0.7)',
+            borderColor: '#58a6ff',
+            borderWidth: 1,
+            borderRadius: 4
+          },
+          {
+            label: 'Best GPU Speedup',
+            data: [25.3, 42.0, 56.4, 1.2, 9.0],
+            backgroundColor: 'rgba(63, 185, 80, 0.7)',
+            borderColor: '#3fb950',
+            borderWidth: 1,
+            borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            labels: { color: '#e6edf3', font: { family: "'Inter', sans-serif" } }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.dataset.label + ': ' + context.parsed.y + 'x';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#8b949e', font: { family: "'Inter', sans-serif" } },
+            grid: { color: 'rgba(48, 54, 61, 0.5)' }
+          },
+          y: {
+            ticks: {
+              color: '#8b949e',
+              font: { family: "'Inter', sans-serif" },
+              callback: function(value) { return value + 'x'; }
+            },
+            grid: { color: 'rgba(48, 54, 61, 0.5)' },
+            title: {
+              display: true,
+              text: 'Speedup vs cpu-eigen',
+              color: '#8b949e',
+              font: { family: "'Inter', sans-serif" }
+            }
+          }
+        }
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>
