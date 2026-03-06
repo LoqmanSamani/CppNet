@@ -16,6 +16,7 @@
   <a href="#installation"><img src="https://img.shields.io/badge/CMake-%E2%89%A53.18-blue.svg" alt="CMake"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"/></a>
   <a href="#gpu-acceleration"><img src="https://img.shields.io/badge/CUDA-optional-yellowgreen.svg" alt="CUDA"/></a>
+  <a href="https://loqmansamani.github.io/CppNet/"><img src="https://img.shields.io/badge/Docs-Website-58a6ff.svg" alt="Website"/></a>
 </p>
 
 ---
